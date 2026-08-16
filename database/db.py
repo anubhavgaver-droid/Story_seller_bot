@@ -1,10 +1,20 @@
 from motor.motor_asyncio import AsyncIOMotorClient
-from config import MONGO_URL
+from config import MONGO_URL, LOG_CHANNEL
 
 client = AsyncIOMotorClient(MONGO_URL)
 db = client["story_seller_db"]
 stories_col = db["stories"]
 
+# -------------------- LOG HELPER FUNCTION --------------------
+async def send_log(client_bot, text: str):
+    """Log Channel में मैसेज भेजने के लिए Helper फ़ंक्शन"""
+    if LOG_CHANNEL and LOG_CHANNEL != 0:
+        try:
+            await client_bot.send_message(chat_id=LOG_CHANNEL, text=text)
+        except Exception as e:
+            print(f"Log Error: {e}")
+
+# -------------------- DATABASE FUNCTIONS --------------------
 async def add_story_db(data):
     await stories_col.insert_one(data)
 
