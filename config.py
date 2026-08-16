@@ -1,0 +1,12 @@
+import os
+
+API_ID = int(os.environ.get("API_ID", "1234567"))
+API_HASH = os.environ.get("API_HASH", "YOUR_API_HASH")
+BOT_TOKEN = os.environ.get("BOT_TOKEN", "YOUR_BOT_TOKEN")
+ADMIN_ID = int(os.environ.get("ADMIN_ID", "987654321"))
+LOG_CHANNEL = int(os.environ.get("LOG_CHANNEL", "-1001234567890"))
+UPI_ID = os.environ.get("UPI_ID", "63983224472@fam")
+PORT = int(os.environ.get("PORT", "8080"))
+BOT_USERNAME = os.environ.get("BOT_USERNAME", "YourStorySellerBot")
+MONGO_URL = os.environ.get("MONGO_URL", "mongodb://localhost:27017")
+
