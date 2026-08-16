@@ -1,14 +1,13 @@
-import re
 import urllib.parse
 from pyrogram import Client, filters
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ForceReply
 from config import UPI_ID, ADMIN_ID
 from database.db import get_story_by_title
 
-# Stores pending orders: { user_id: {"title": story_title, "price": price} }
-PENDING_ORDERS = {}
+# Payment Screenshot Waiting State
+PAYMENT_WAITING = {}
 
-# 1. View Story Handler
+# 1. View Story
 @Client.on_callback_query(filters.regex("^view_"))
 async def view_story(client, callback):
     title = callback.data.split("view_")[1].replace("_", " ")
@@ -25,12 +24,12 @@ async def view_story(client, callback):
     )
     await callback.answer()
 
-# 2. Generate FamPay QR Code (Fixed Title & Price Parsing)
+# 2. Generate QR Code (Fixed Title & Price Parsing)
 @Client.on_callback_query(filters.regex("^buy_"))
 async def generate_qr(client, callback):
     try:
         raw_data = callback.data[4:] # Remove 'buy_'
-        clean_title, price = raw_data.rsplit("_", 1) # Split from last underscore safely
+        clean_title, price = raw_data.rsplit("_", 1) # Split only from the last underscore
         story_title = clean_title.replace("_", " ")
     except Exception:
         return await callback.answer("❌ ᴇʀʀᴏʀ ᴘᴀʀsɪɴɢ ᴘᴀʏᴍᴇɴᴛ ᴅᴀᴛᴀ!", show_alert=True)
@@ -41,16 +40,16 @@ async def generate_qr(client, callback):
     caption = (
         f"💳 <b>ᴏʀᴅᴇʀ ᴄʜᴇᴄᴋᴏᴜᴛ:</b> {story_title}\n"
         f"💰 <b>ᴀᴍᴏᴜɴᴛ:</b> ₹{price}\n\n"
-        f"📌 <b>ғᴀᴍᴘᴀʏ ᴜᴘɪ ɪᴅ:</b> <code>{UPI_ID}</code>\n\n"
+        f"📌 <b>ᴜᴘɪ ɪᴅ:</b> <code>{UPI_ID}</code>\n\n"
         f"👇 ᴀғᴛᴇʀ ᴍᴀᴋɪɴɢ ᴛʜᴇ ᴘᴀʏᴍᴇɴᴛ, ᴄʟɪᴄᴋ ᴏɴ <b>ᴄᴏɴғɪʀᴍ ᴘᴀʏᴍᴇɴᴛ</b> ʙᴇʟᴏᴡ."
     )
     btn = InlineKeyboardMarkup([[InlineKeyboardButton("✅ ᴄᴏɴғɪʀᴍ ᴘᴀʏᴍᴇɴᴛ", callback_data=f"sent_{clean_title}_{price}")]])
     await callback.message.reply_photo(photo=qr_url, caption=caption, reply_markup=btn)
     await callback.answer()
 
-# 3. User Registers Pending Order
+# 3. Ask User for Screenshot
 @Client.on_callback_query(filters.regex("^sent_"))
-async def register_pending_payment(client, callback):
+async def ask_screenshot(client, callback):
     try:
         raw_data = callback.data[5:] # Remove 'sent_'
         clean_title, price = raw_data.rsplit("_", 1)
@@ -59,55 +58,102 @@ async def register_pending_payment(client, callback):
         return await callback.answer("❌ ᴇʀʀᴏʀ ᴘᴀʀsɪɴɢ ᴅᴀᴛᴀ!", show_alert=True)
         
     user_id = callback.from_user.id
-    PENDING_ORDERS[user_id] = {"title": story_title, "price": price}
+    PAYMENT_WAITING[user_id] = {"title": story_title, "price": price}
     
     await callback.message.reply_text(
-        "⏳ <b>ᴠᴇʀɪғʏɪɴɢ ʏᴏᴜʀ ᴘᴀʏᴍᴇɴᴛ...</b>\n\n"
-        "ᴘʟᴇᴀsᴇ ᴡᴀɪᴛ A ғᴇᴡ sᴇᴄᴏɴᴅs. ᴏɴᴄᴇ ʏᴏᴜʀ ᴘᴀʏᴍᴇɴᴛ ɴᴏᴛɪғɪᴄᴀᴛɪᴏɴ ɪs ʀᴇᴄᴇɪᴠᴇᴅ, "
-        "ʏᴏᴜʀ ᴏʀᴅᴇʀ ᴡɪʟʟ ʙᴇ ᴀᴜᴛᴏ-ᴀᴘᴘʀᴏᴠᴇᴅ ɪɴsᴛᴀɴᴛʟʏ!"
+        "📸 <b>ᴘʟᴇᴀsᴇ sᴇɴᴅ ʏᴏᴜʀ ᴘᴀʏᴍᴇɴᴛ sᴄʀᴇᴇɴsʜᴏᴛ:</b>\n\n"
+        "sᴇɴᴅ ʏᴏᴜʀ sᴄʀᴇᴇɴsʜᴏᴛ ᴀs ᴀ ᴘʜᴏᴛᴏ ɪɴ ᴛʜɪs ᴄʜᴀᴛ.",
+        reply_markup=ForceReply(True)
     )
     await callback.answer()
 
-# 4. MacroDroid Notification Alert Handler (Auto-Approve)
-@Client.on_message(filters.command("fampay_alert") & filters.user(ADMIN_ID))
-async def handle_fampay_notification(client, message):
-    notification_text = message.text
+# 4. Capture Screenshot Photo & Send to Admin
+@Client.on_message(filters.private & filters.photo, group=2)
+async def receive_screenshot(client, message):
+    user_id = message.from_user.id
     
-    # Extract Amount from FamApp Notification (e.g. ₹1.0 or ₹1)
-    amount_match = re.search(r"₹\s*([\d\.]+)", notification_text)
-    if not amount_match:
+    if user_id not in PAYMENT_WAITING:
         return
         
-    received_amount = float(amount_match.group(1))
+    data = PAYMENT_WAITING[user_id]
+    title = data['title']
+    price = data['price']
+    user = message.from_user
     
-    matched_user_id = None
-    matched_story_title = None
+    admin_text = (
+        f"🚨 <b>ɴᴇᴡ ᴘᴀʏᴍᴇɴᴛ ᴠᴇʀɪғɪᴄᴀᴛɪᴏɴ ʀᴇǫᴜᴇsᴛ!</b>\n\n"
+        f"👤 <b>ᴜsᴇʀ:</b> {user.first_name} (@{user.username if user.username else 'N/A'})\n"
+        f"🆔 <b>ᴜsᴇʀ ɪᴅ:</b> <code>{user.id}</code>\n"
+        f"📖 <b>sᴛᴏʀʏ:</b> {title}\n"
+        f"💰 <b>ᴀᴍᴏᴜɴᴛ:</b> ₹{price}"
+    )
     
-    # Match amount with pending orders
-    for uid, order in list(PENDING_ORDERS.items()):
-        if float(order['price']) == received_amount:
-            matched_user_id = uid
-            matched_story_title = order['title']
-            break
+    clean_title = title.replace(" ", "_")
+    btn = InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("✅ ᴀᴘᴘʀᴏᴠᴇ", callback_data=f"app_{user.id}_{clean_title}"),
+            InlineKeyboardButton("❌ ʀᴇᴊᴇᴄᴛ", callback_data=f"rej_{user.id}_{clean_title}")
+        ]
+    ])
+    
+    await client.send_photo(
+        chat_id=ADMIN_ID,
+        photo=message.photo.file_id,
+        caption=admin_text,
+        reply_markup=btn
+    )
+    
+    await message.reply_text("✅ <b>sᴄʀᴇᴇɴsʜᴏᴛ ʀᴇᴄᴇɪᴠᴇᴅ!</b>\nʏᴏᴜʀ ᴀᴄᴄᴇss ʟɪɴᴋ ᴡɪʟʟ ʙᴇ sᴇɴᴛ ᴀғᴛᴇʀ ᴀᴅᴍɪɴ ᴠᴇʀɪғɪᴄᴀᴛɪᴏɴ.")
+    del PAYMENT_WAITING[user_id]
 
-    # Send instant content delivery
-    if matched_user_id and matched_story_title:
-        story = await get_story_by_title(matched_story_title)
-        if story:
-            access_btn = InlineKeyboardMarkup([[InlineKeyboardButton("🚀 ᴀᴄᴄᴇss sᴛᴏʀʏ", url=story['link'])]])
-            
-            try:
-                await client.send_message(
-                    chat_id=matched_user_id,
-                    text=(
-                        f"🎉 <b>ᴘᴀʏᴍᴇɴᴛ ᴀᴜᴛᴏ-ᴠᴇʀɪғɪᴇᴅ!</b>\n\n"
-                        f"📖 <b>sᴛᴏʀʏ:</b> {matched_story_title}\n\n"
-                        f"ᴄʟɪᴄᴋ ᴛʜᴇ ʙᴜᴛᴛᴏɴ ʙᴇʟᴏᴡ ᴛᴏ ᴀᴄᴄᴇss ʏᴏᴜʀ ᴄᴏɴᴛᴇɴᴛ:"
-                    ),
-                    reply_markup=access_btn,
-                    protect_content=True
-                )
-                del PENDING_ORDERS[matched_user_id]
-                await message.reply_text(f"✅ Auto-Approved Order for User ID: {matched_user_id} (₹{received_amount})")
-            except Exception as e:
-                await message.reply_text(f"❌ Error delivering story link: {e}")
+# 5. Approve Payment Handler (Inline Button Link + Copy/Forward Restricted)
+@Client.on_callback_query(filters.regex("^app_") & filters.user(ADMIN_ID))
+async def approve_order(client, callback):
+    data = callback.data.split("_")
+    user_id = int(data[1])
+    title = "_".join(data[2:]).replace("_", " ")
+    
+    story = await get_story_by_title(title)
+    if not story:
+        return await callback.answer("❌ sᴛᴏʀʏ ɴᴏᴛ ғᴏᴜɴᴅ ɪɴ ᴅᴀᴛᴀʙᴀsᴇ!", show_alert=True)
+        
+    access_btn = InlineKeyboardMarkup([
+        [InlineKeyboardButton("🚀 ᴀᴄᴄᴇss sᴛᴏʀʏ", url=story['link'])]
+    ])
+    
+    try:
+        await client.send_message(
+            chat_id=user_id,
+            text=(
+                f"🎉 <b>ʏᴏᴜʀ ᴘᴀʏᴍᴇɴᴛ ʜᴀs ʙᴇᴇɴ ᴀᴘᴘʀᴏᴠᴇᴅ!</b>\n\n"
+                f"📖 <b>sᴛᴏʀʏ:</b> {title}\n\n"
+                f"ᴄʟɪᴄᴋ ᴛʜᴇ ʙᴜᴛᴛᴏɴ ʙᴇʟᴏᴡ ᴛᴏ ᴀᴄᴄᴇss ʏᴏᴜʀ ᴄᴏɴᴛᴇɴᴛ:"
+            ),
+            reply_markup=access_btn,
+            protect_content=True
+        )
+        await callback.message.edit_caption(caption=f"{callback.message.caption.html}\n\n✅ <b>ᴀᴘᴘʀᴏᴠᴇᴅ ʙʏ ᴀᴅᴍɪɴ</b>")
+        await callback.answer("Approved Successfully!", show_alert=True)
+    except Exception as e:
+        await callback.answer(f"Error sending message to user: {e}", show_alert=True)
+
+# 6. Reject Payment Handler
+@Client.on_callback_query(filters.regex("^rej_") & filters.user(ADMIN_ID))
+async def reject_order(client, callback):
+    data = callback.data.split("_")
+    user_id = int(data[1])
+    title = "_".join(data[2:]).replace("_", " ")
+    
+    try:
+        await client.send_message(
+            chat_id=user_id,
+            text=(
+                f"❌ <b>ʏᴏᴜʀ ᴘᴀʏᴍᴇɴᴛ ʜᴀs ʙᴇᴇɴ ʀᴇᴊᴇᴄᴛᴇᴅ!</b>\n\n"
+                f"📖 <b>sᴛᴏʀʏ:</b> {title}\n\n"
+                f"ɪғ ʏᴏᴜ ʙᴇʟɪᴇᴠᴇ ᴛʜɪs ɪs ᴀ ᴍɪsᴛᴀᴋᴇ, ᴘʟᴇᴀsᴇ ᴄᴏɴᴛᴀᴄᴛ sᴜᴘᴘᴏʀᴛ."
+            )
+        )
+        await callback.message.edit_caption(caption=f"{callback.message.caption.html}\n\n❌ <b>ʀᴇᴊᴇᴄᴛᴇᴅ ʙʏ ᴀᴅᴍɪɴ</b>")
+        await callback.answer("Payment Rejected!", show_alert=True)
+    except Exception as e:
+        await callback.answer(f"Error sending rejection to user: {e}", show_alert=True)
