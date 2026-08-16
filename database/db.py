@@ -5,6 +5,7 @@ client = AsyncIOMotorClient(MONGO_URL)
 db = client["story_seller_db"]
 stories_col = db["stories"]
 users_col = db["users"]  # New Collection for User Registration
+purchases_col = db["purchases"]  # New Collection for Purchased Stories
 
 # -------------------- LOG HELPER FUNCTION --------------------
 async def send_log(client_bot, text: str):
@@ -37,6 +38,20 @@ async def register_user(user_id: int, first_name: str, username: str = None):
         },
         upsert=True
     )
+
+# -------------------- USER PURCHASES FUNCTIONS --------------------
+async def add_user_purchase(user_id: int, story_title: str):
+    """ऑटो-पेमेंट कन्फर्म होने पर यूज़र की खरीदी गई स्टोरी डेटाबेस में सेव करेगा"""
+    await purchases_col.update_one(
+        {"user_id": user_id, "story_title": story_title},
+        {"$set": {"user_id": user_id, "story_title": story_title}},
+        upsert=True
+    )
+
+async def get_user_purchases(user_id: int):
+    """यूज़र की खरीदी हुई सभी स्टोरीज़ की लिस्ट निकालने के लिए फ़ंक्शन"""
+    cursor = purchases_col.find({"user_id": user_id})
+    return await cursor.to_list(length=None)
 
 # -------------------- STORY DATABASE FUNCTIONS --------------------
 async def add_story_db(data):
