@@ -5,15 +5,27 @@ from database.db import add_story_db, send_log
 
 ADD_STATE = {}
 
-@Client.on_message(filters.command("addstory") & filters.user(ADMIN_ID))
+# 1. Cancel Command (Priority Group 1)
+@Client.on_message(filters.command("cancel") & filters.user(ADMIN_ID) & filters.private, group=1)
+async def cancel_add(client, message):
+    user_id = message.from_user.id
+    if user_id in ADD_STATE:
+        del ADD_STATE[user_id]
+        await message.reply_text("❌ <b>Story Adding Process Cancelled!</b>")
+    else:
+        await message.reply_text("❓ आपका कोई एक्टिव प्रोसेस नहीं था।")
+
+# 2. Add Story Command (Priority Group 1)
+@Client.on_message(filters.command("addstory") & filters.user(ADMIN_ID) & filters.private, group=1)
 async def start_add(client, message):
     ADD_STATE[message.from_user.id] = {}
     kb = InlineKeyboardMarkup([
         [InlineKeyboardButton("📻 Pocket FM", callback_data="setcat_pocket_fm")],
         [InlineKeyboardButton("📚 Pratilipi FM", callback_data="setcat_pratilipi_fm")]
     ])
-    await message.reply_text("<b>[Step 1/5]</b> स्टोरी की Category चुनें:", reply_markup=kb)
+    await message.reply_text("<b>[Step 1/5]</b> स्टोरी की Category चुनें:\n<i>(रद्द करने के लिए /cancel लिखें)</i>", reply_markup=kb)
 
+# 3. Category Selected Callback
 @Client.on_callback_query(filters.regex("^setcat_") & filters.user(ADMIN_ID))
 async def cat_selected(client, callback):
     ADD_STATE[callback.from_user.id]['category'] = callback.data.split("setcat_")[1]
@@ -21,10 +33,14 @@ async def cat_selected(client, callback):
     await callback.message.reply_text("<b>[Step 2/5]</b> स्टोरी का Title लिखें:", reply_markup=ForceReply(True))
     await callback.answer()
 
-@Client.on_message(filters.private & filters.user(ADMIN_ID))
+# 4. Input Wizard Steps (PERMANENT FIX FOR ADMIN /start)
+@Client.on_message(filters.private & filters.user(ADMIN_ID) & ~filters.command(["start", "addstory", "cancel"]), group=1)
 async def wizard_inputs(client, message):
     user_id = message.from_user.id
+    
+    # अगर एडमिन किसी प्रोसेस (Wizard Step) में नहीं है, तो मैसेज आगे पास कर दें
     if user_id not in ADD_STATE or 'step' not in ADD_STATE[user_id]:
+        message.continue_propagation()
         return
         
     step = ADD_STATE[user_id]['step']
@@ -52,7 +68,7 @@ async def wizard_inputs(client, message):
         data['link'] = message.text.strip()
         data['photo'] = "https://picsum.photos/400/200"
         
-        # MongoDB में डेटाबेस में सेव करें
+        # MongoDB में सेव करें
         await add_story_db(data)
         
         clean_title = data['title'].replace(" ", "_")
