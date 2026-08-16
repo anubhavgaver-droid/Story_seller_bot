@@ -1,5 +1,5 @@
 from pyrogram import Client, filters
-from pyrogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton, ForceReply
+from pyrogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
 from database.db import get_stories_by_cat, search_stories_db, get_story_by_title
 
 # Search State Dictionary
@@ -66,17 +66,18 @@ async def story_selected_handler(client, message):
             reply_markup=btn
         )
 
-# 4. Search Prompt Handler (State sets True here)
+# 4. Simple Search Prompt Handler (ForceReply Completely Removed)
 @Client.on_message(filters.regex("^🔎 Search Story$") & filters.private)
 async def search_prompt(client, message):
     user_id = message.from_user.id
     SEARCH_WAITING[user_id] = True
+    
     await message.reply_text(
-        "<b>Now you can search your story!</b> 🔍\n\nअपनी स्टोरी का नाम लिखकर भेजें:",
-        reply_markup=ForceReply(True)
+        "<b>Now you can search your story!</b> 🔍\n\n"
+        "अपनी स्टोरी का नाम लिखकर भेजें:"
     )
 
-# 5. Search Process (Only triggers when SEARCH_WAITING is Active)
+# 5. Clean Search Process
 @Client.on_message(
     filters.private 
     & filters.text 
@@ -95,7 +96,7 @@ async def process_search(client, message):
     query = message.text.strip()
     stories, total_pages = await search_stories_db(query, page=1, limit=50)
     
-    # Remove user from state after processing search
+    # Reset search state after process
     SEARCH_WAITING.pop(user_id, None)
     
     if not stories:
