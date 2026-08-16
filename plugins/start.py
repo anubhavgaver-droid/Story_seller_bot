@@ -3,32 +3,32 @@ from pyrogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMa
 from database.db import get_story_by_title, send_log, is_user_registered, register_user
 from config import BOT_USERNAME
 
-# Main Menu Keyboard Layout
+# Main Menu Keyboard Layout (Small Caps)
 MAIN_MENU = ReplyKeyboardMarkup(
     [
-        [KeyboardButton("📢 Updates Channel")],
-        [KeyboardButton("🔎 Search Story"), KeyboardButton("📻 Pocket FM")],
-        [KeyboardButton("📚 Pratilipi FM"), KeyboardButton("👤 My Account")],
-        [KeyboardButton("📞 Support")]
+        [KeyboardButton("📢 ᴜᴘᴅᴀᴛᴇs ᴄʜᴀɴɴᴇʟ")],
+        [KeyboardButton("🔎 sᴇᴀʀᴄʜ sᴛᴏʀʏ"), KeyboardButton("📻 ᴘᴏᴄᴋᴇᴛ ғᴍ")],
+        [KeyboardButton("📚 ᴘʀᴀᴛɪʟɪᴘɪ ғᴍ"), KeyboardButton("👤 ᴍʏ ᴀᴄᴄᴏᴜɴᴛ")],
+        [KeyboardButton("📞 sᴜᴘᴘᴏʀᴛ")]
     ],
     resize_keyboard=True
 )
 
-# group=-1 से /start कमांड को Highest Priority मिलती है
+# group=-1 gives Highest Priority to /start command
 @Client.on_message(filters.command("start") & filters.private, group=-1)
 async def start_handler(client, message):
     user = message.from_user
     
-    # 1. Registration & Logging Check (नए और पुराने यूज़र का फ़िल्टर)
+    # 1. Registration & Logging Check
     registered = await is_user_registered(user.id)
     if not registered:
         await register_user(user.id, user.first_name, user.username)
         try:
             log_text = (
-                f"<b>🆕 New User Registered!</b>\n"
-                f"<b>Name:</b> {user.first_name}\n"
-                f"<b>User ID:</b> <code>{user.id}</code>\n"
-                f"<b>Username:</b> @{user.username if user.username else 'None'}"
+                f"<b>🆕 ɴᴇᴡ ᴜsᴇʀ ʀᴇɢɪsᴛᴇʀᴇᴅ!</b>\n"
+                f"<b>ɴᴀᴍᴇ:</b> {user.first_name}\n"
+                f"<b>ᴜsᴇʀ ɪᴅ:</b> <code>{user.id}</code>\n"
+                f"<b>ᴜsᴇʀɴᴀᴍᴇ:</b> @{user.username if user.username else 'None'}"
             )
             await send_log(client, log_text)
         except Exception as e:
@@ -44,59 +44,60 @@ async def start_handler(client, message):
         if story:
             clean_title = story['title'].replace(" ", "_")
             btn = InlineKeyboardMarkup([
-                [InlineKeyboardButton("💳 Buy Now", callback_data=f"buy_{clean_title}_{story['price']}")]
+                [InlineKeyboardButton("💳 ʙᴜʏ ɴᴏᴡ", callback_data=f"buy_{clean_title}_{story['price']}")]
             ])
             photo_url = story.get('photo', 'https://picsum.photos/400/200')
-            desc = story.get('desc', 'कोई विवरण उपलब्ध नहीं है।')
+            desc = story.get('desc', 'ɴᴏ ᴅᴇsᴄʀɪᴘᴛɪᴏɴ ᴀᴠᴀɪʟᴀʙʟᴇ.')
+            
+            caption_text = f"📖 <b>ᴛɪᴛʟᴇ:</b> {story['title']}\n💰 <b>ᴘʀɪᴄᴇ:</b> ₹{story['price']}\n📝 <b>ᴅᴇsᴄ:</b> {desc}"
             
             try:
-                # reply_photo के साथ भी Main Menu Keyboard जुड़ा रहेगा
                 return await message.reply_photo(
                     photo=photo_url,
-                    caption=f"📖 <b>Title:</b> {story['title']}\n💰 <b>Price:</b> ₹{story['price']}\n📝 <b>Desc:</b> {desc}",
+                    caption=caption_text,
                     reply_markup=btn
                 )
             except Exception:
                 return await message.reply_text(
-                    f"📖 <b>Title:</b> {story['title']}\n💰 <b>Price:</b> ₹{story['price']}\n📝 <b>Desc:</b> {desc}",
+                    caption_text,
                     reply_markup=btn
                 )
         else:
-            return await message.reply_text("❌ यह स्टोरी उपलब्ध नहीं है।", reply_markup=MAIN_MENU)
+            return await message.reply_text("❌ <b>ᴛʜɪs sᴛᴏʀʏ ɪs ɴᴏᴛ ᴀᴠᴀɪʟᴀʙʟᴇ.</b>", reply_markup=MAIN_MENU)
 
     # 3. Normal Start Welcome Message
     welcome_text = (
-        f"<b>━━━━━━━ 🌟 Story Seller Bot 🌟 ━━━━━━━</b>\n\n"
-        f"हेलो {user.first_name}! 👋\n\n"
-        "नीचे दिए गए बटन्स का उपयोग करके अपनी स्टोरीज़ खोजें या खरीदें।"
+        f"<b>━━━━━━━ 🌟 sᴛᴏʀʏ sᴇʟʟᴇʀ ʙᴏᴛ 🌟 ━━━━━━━</b>\n\n"
+        f"ʜᴇʟʟᴏ {user.first_name}! 👋\n\n"
+        "ᴜsᴇ ᴛʜᴇ ʙᴜᴛᴛᴏɴs ʙᴇʟᴏᴡ ᴛᴏ sᴇᴀʀᴄʜ ᴏʀ ᴘᴜʀᴄʜᴀsᴇ ʏᴏᴜʀ ғᴀᴠᴏʀɪᴛᴇ sᴛᴏʀɪᴇs."
     )
     await message.reply_text(welcome_text, reply_markup=MAIN_MENU)
 
 
 # ------------------ Dynamic Button Handlers ------------------
 
-@Client.on_message(filters.regex("^📢 Updates Channel$") & filters.private)
+@Client.on_message(filters.regex("^(📢 ᴜᴘᴅᴀᴛᴇs ᴄʜᴀɴɴᴇʟ|📢 Updates Channel)$") & filters.private)
 async def updates_handler(client, message):
     kb = InlineKeyboardMarkup([
-        [InlineKeyboardButton("📢 Join Channel", url="https://t.me/YourChannelUsername")]
+        [InlineKeyboardButton("📢 ᴊᴏɪɴ ᴄʜᴀɴɴᴇʟ", url="https://t.me/freestoryhubMR")]
     ])
-    await message.reply_text("<b>📢 Updates Channel:</b>\n\nहमारे लेटेस्ट अपडेट्स और नई स्टोरीज़ के लिए चैनल जॉइन करें!", reply_markup=kb)
+    await message.reply_text("<b>📢 ᴜᴘᴅᴀᴛᴇs ᴄʜᴀɴɴᴇʟ:</b>\n\nᴊᴏɪɴ ᴏᴜʀ ᴄʜᴀɴɴᴇʟ ғᴏʀ ᴛʜᴇ ʟᴀᴛᴇsᴛ ᴜᴘᴅᴀᴛᴇs ᴀɴᴅ ɴᴇᴡ sᴛᴏʀɪᴇs!", reply_markup=kb)
 
-@Client.on_message(filters.regex("^👤 My Account$") & filters.private)
+@Client.on_message(filters.regex("^(👤 ᴍʏ ᴀᴄᴄᴏᴜɴᴛ|👤 My Account)$") & filters.private)
 async def account_handler(client, message):
     user = message.from_user
     acc_text = (
-        f"<b>👤 Account Details:</b>\n\n"
-        f"<b>Name:</b> {user.first_name}\n"
-        f"<b>User ID:</b> <code>{user.id}</code>\n"
-        f"<b>Username:</b> @{user.username if user.username else 'N/A'}\n"
-        f"<b>Status:</b> Active User ⚡"
+        f"<b>👤 ᴀᴄᴄᴏᴜɴᴛ ᴅᴇᴛᴀɪʟs:</b>\n\n"
+        f"<b>ɴᴀᴍᴇ:</b> {user.first_name}\n"
+        f"<b>ᴜsᴇʀ ɪᴅ:</b> <code>{user.id}</code>\n"
+        f"<b>ᴜsᴇʀɴᴀᴍᴇ:</b> @{user.username if user.username else 'N/A'}\n"
+        f"<b>sᴛᴀᴛᴜs:</b> ᴀᴄᴛɪᴠᴇ ᴜsᴇʀ ⚡"
     )
     await message.reply_text(acc_text)
 
-@Client.on_message(filters.regex("^📞 Support$") & filters.private)
+@Client.on_message(filters.regex("^(📞 sᴜᴘᴘᴏʀᴛ|📞 Support)$") & filters.private)
 async def support_handler(client, message):
     kb = InlineKeyboardMarkup([
-        [InlineKeyboardButton("💬 Contact Support", url="https://t.me/YourAdminUsername")]
+        [InlineKeyboardButton("💬 ᴄᴏɴᴛᴀᴄᴛ sᴜᴘᴘᴏʀᴛ", url="https://t.me/pratilipifm0900")]
     ])
-    await message.reply_text("<b>📞 Customer Support:</b>\n\nअगर आपको कोई समस्या आ रही है, तो सपोर्ट से संपर्क करें।", reply_markup=kb)
+    await message.reply_text("<b>📞 ᴄᴜsᴛᴏᴍᴇʀ sᴜᴘᴘᴏʀᴛ:</b>\n\nɪғ ʏᴏᴜ ғᴀᴄᴇ ᴀɴʏ ɪssᴜᴇs, ғᴇᴇʟ ғʀᴇᴇ ᴛᴏ ᴄᴏɴᴛᴀᴄᴛ support.", reply_markup=kb)
