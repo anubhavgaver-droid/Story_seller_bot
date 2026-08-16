@@ -1,5 +1,5 @@
 from pyrogram import Client, filters
-from pyrogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
+from pyrogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton, ForceReply
 from database.db import get_stories_by_cat, search_stories_db, get_story_by_title
 
 # Search State Dictionary
@@ -33,7 +33,7 @@ async def category_handler(client, message):
     category_keyboard = ReplyKeyboardMarkup(keyboard_buttons, resize_keyboard=True)
     await message.reply_text(f"<b>📚 Available Stories ({message.text}):</b>\n\nनीचे दी गई लिस्ट से अपनी स्टोरी चुनें:", reply_markup=category_keyboard)
 
-# 2. Back to Main Menu Handler (Fix: Removed /start from regex)
+# 2. Back to Main Menu Handler
 @Client.on_message(filters.regex("^🔙 Back to Main Menu$") & filters.private)
 async def back_to_main_menu(client, message):
     user_id = message.from_user.id
@@ -47,7 +47,7 @@ async def story_selected_handler(client, message):
     story = await get_story_by_title(story_title)
     
     if not story:
-        return await message.reply_text("❌ यह स्टोरी उपलब्ध नहीं है。")
+        return await message.reply_text("❌ यह स्टोरी उपलब्ध नहीं है।")
         
     clean_title = story['title'].replace(" ", "_")
     btn = InlineKeyboardMarkup([[InlineKeyboardButton("💳 Buy Now", callback_data=f"buy_{clean_title}_{story['price']}")]])
@@ -66,7 +66,7 @@ async def story_selected_handler(client, message):
             reply_markup=btn
         )
 
-# 4. Simple Search Prompt Handler
+# 4. Search Prompt Handler (With Selective ForceReply & Placeholder)
 @Client.on_message(filters.regex("^🔎 Search Story$") & filters.private)
 async def search_prompt(client, message):
     user_id = message.from_user.id
@@ -74,7 +74,8 @@ async def search_prompt(client, message):
     
     await message.reply_text(
         "<b>Now you can search your story!</b> 🔍\n\n"
-        "अपनी स्टोरी का नाम लिखकर भेजें:"
+        "अपनी स्टोरी का नाम लिखकर भेजें:",
+        reply_markup=ForceReply(selective=True, placeholder="यहाँ स्टोरी का नाम लिखें...")
     )
 
 # 5. Clean Search Process
