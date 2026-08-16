@@ -1,6 +1,6 @@
 from pyrogram import Client, filters, enums
 from pyrogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
-from database.db import get_story_by_title, send_log, is_user_registered, register_user
+from database.db import get_story_by_title, send_log, is_user_registered, register_user, get_user_purchases
 from config import BOT_USERNAME
 
 # Main Menu Keyboard Layout (Small Caps)
@@ -83,17 +83,41 @@ async def updates_handler(client, message):
     ])
     await message.reply_text("<b>📢 ᴜᴘᴅᴀᴛᴇs ᴄʜᴀɴɴᴇʟ:</b>\n\nᴊᴏɪɴ ᴏᴜʀ ᴄʜᴀɴɴᴇʟ ғᴏʀ ᴛʜᴇ ʟᴀᴛᴇsᴛ ᴜᴘᴅᴀᴛᴇs ᴀɴᴅ ɴᴇᴡ sᴛᴏʀɪᴇs!", reply_markup=kb)
 
+# ------------------ Updated My Account Handler ------------------
 @Client.on_message(filters.regex("^(👤 ᴍʏ ᴀᴄᴄᴏᴜɴᴛ|👤 My Account)$") & filters.private)
 async def account_handler(client, message):
     user = message.from_user
+    
+    # 1. Fetch purchased stories from DB
+    purchases = await get_user_purchases(user.id)
+    
     acc_text = (
-        f"<b>👤 ᴀᴄᴄᴏᴜɴᴛ ᴅᴇᴛᴀɪʟs:</b>\n\n"
+        f"<b>👤 ᴀᴄᴄᴏᴜɴᴛ ᴅᴇᴛᴀɪʟs:</b>\n"
+        f"━━━━━━━━━━━━━━━━━━━\n"
         f"<b>ɴᴀᴍᴇ:</b> {user.first_name}\n"
         f"<b>ᴜsᴇʀ ɪᴅ:</b> <code>{user.id}</code>\n"
         f"<b>ᴜsᴇʀɴᴀᴍᴇ:</b> @{user.username if user.username else 'N/A'}\n"
-        f"<b>sᴛᴀᴛᴜs:</b> ᴀᴄᴛɪᴠᴇ ᴜsᴇʀ ⚡"
+        f"<b>sᴛᴀᴛᴜs:</b> ᴀᴄᴛɪᴠᴇ ᴜsᴇʀ ⚡\n"
+        f"━━━━━━━━━━━━━━━━━━━\n\n"
     )
-    await message.reply_text(acc_text)
+    
+    if not purchases:
+        acc_text += "❌ <b>ʏᴏᴜ ʜᴀᴠᴇɴ'ᴛ ᴘᴜʀᴄʜᴀsᴇᴅ ᴀɴʏ sᴛᴏʀɪᴇs ʏᴇᴛ.</b>"
+        return await message.reply_text(acc_text)
+    
+    acc_text += "📖 <b>ʏᴏᴜʀ ᴘᴜʀᴄʜᴀsᴇᴅ sᴛᴏʀɪᴇs:</b>\n\n"
+    buttons = []
+    
+    # 2. Loop through purchased stories and attach Access URL Buttons
+    for item in purchases:
+        story = await get_story_by_title(item['story_title'])
+        if story:
+            acc_text += f"• <b>{story['title']}</b>\n"
+            buttons.append([InlineKeyboardButton(f"🚀 ᴀᴄᴄᴇss {story['title']}", url=story['link'])])
+            
+    reply_markup = InlineKeyboardMarkup(buttons) if buttons else None
+    await message.reply_text(acc_text, reply_markup=reply_markup)
+
 
 @Client.on_message(filters.regex("^(📞 sᴜᴘᴘᴏʀᴛ|📞 Support)$") & filters.private)
 async def support_handler(client, message):
