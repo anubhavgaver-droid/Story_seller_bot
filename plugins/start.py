@@ -3,6 +3,17 @@ from pyrogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMa
 from database.db import get_story_by_title, send_log, is_user_registered, register_user
 from config import BOT_USERNAME
 
+# Main Menu Keyboard Layout
+MAIN_MENU = ReplyKeyboardMarkup(
+    [
+        [KeyboardButton("📢 Updates Channel")],
+        [KeyboardButton("🔎 Search Story"), KeyboardButton("📻 Pocket FM")],
+        [KeyboardButton("📚 Pratilipi FM"), KeyboardButton("👤 My Account")],
+        [KeyboardButton("📞 Support")]
+    ],
+    resize_keyboard=True
+)
+
 # group=-1 से /start कमांड को Highest Priority मिलती है
 @Client.on_message(filters.command("start") & filters.private, group=-1)
 async def start_handler(client, message):
@@ -11,7 +22,6 @@ async def start_handler(client, message):
     # 1. Registration & Logging Check (नए और पुराने यूज़र का फ़िल्टर)
     registered = await is_user_registered(user.id)
     if not registered:
-        # नया यूज़र: रजिस्टर करें और लॉग भेजें
         await register_user(user.id, user.first_name, user.username)
         try:
             log_text = (
@@ -32,13 +42,15 @@ async def start_handler(client, message):
         story = await get_story_by_title(story_title)
         
         if story:
+            clean_title = story['title'].replace(" ", "_")
             btn = InlineKeyboardMarkup([
-                [InlineKeyboardButton("💳 Buy Now", callback_data=f"buy_{story['title']}_{story['price']}")]
+                [InlineKeyboardButton("💳 Buy Now", callback_data=f"buy_{clean_title}_{story['price']}")]
             ])
             photo_url = story.get('photo', 'https://picsum.photos/400/200')
             desc = story.get('desc', 'कोई विवरण उपलब्ध नहीं है।')
             
             try:
+                # reply_photo के साथ भी Main Menu Keyboard जुड़ा रहेगा
                 return await message.reply_photo(
                     photo=photo_url,
                     caption=f"📖 <b>Title:</b> {story['title']}\n💰 <b>Price:</b> ₹{story['price']}\n📝 <b>Desc:</b> {desc}",
@@ -50,25 +62,15 @@ async def start_handler(client, message):
                     reply_markup=btn
                 )
         else:
-            return await message.reply_text("❌ यह स्टोरी उपलब्ध नहीं है।")
+            return await message.reply_text("❌ यह स्टोरी उपलब्ध नहीं है।", reply_markup=MAIN_MENU)
 
-    # 3. Main Menu Layout
-    keyboard = ReplyKeyboardMarkup(
-        [
-            [KeyboardButton("📢 Updates Channel")],
-            [KeyboardButton("🔎 Search Story"), KeyboardButton("📻 Pocket FM")],
-            [KeyboardButton("📚 Pratilipi FM"), KeyboardButton("👤 My Account")],
-            [KeyboardButton("📞 Support")]
-        ],
-        resize_keyboard=True
-    )
-    
+    # 3. Normal Start Welcome Message
     welcome_text = (
         f"<b>━━━━━━━ 🌟 Story Seller Bot 🌟 ━━━━━━━</b>\n\n"
         f"हेलो {user.first_name}! 👋\n\n"
         "नीचे दिए गए बटन्स का उपयोग करके अपनी स्टोरीज़ खोजें या खरीदें।"
     )
-    await message.reply_text(welcome_text, reply_markup=keyboard)
+    await message.reply_text(welcome_text, reply_markup=MAIN_MENU)
 
 
 # ------------------ Dynamic Button Handlers ------------------
