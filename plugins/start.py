@@ -3,7 +3,8 @@ from pyrogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMa
 from database.db import get_story_by_title, send_log
 from config import BOT_USERNAME
 
-@Client.on_message(filters.command("start") & filters.private)
+# group=-1 देने से /start कमांड को Highest Priority मिलती है
+@Client.on_message(filters.command("start") & filters.private, group=-1)
 async def start_handler(client, message):
     user = message.from_user
     
