@@ -8,10 +8,10 @@ SEARCH_WAITING = {}
 # Main Menu Keyboard (Small Caps Layout)
 MAIN_MENU = ReplyKeyboardMarkup(
     [
-        [KeyboardButton("📢 ᴜᴘᴅᴀᴛᴇs ᴄʜᴀɴɴᴇʟ")],
-        [KeyboardButton("🔎 sᴇᴀʀᴄʜ sᴛᴏʀʏ"), KeyboardButton("📻 ᴘᴏᴄᴋᴇᴛ ғᴍ")],
-        [KeyboardButton("📚 ᴘʀᴀᴛɪʟɪᴘɪ ғᴍ"), KeyboardButton("👤 ᴍʏ ᴀᴄᴄᴏᴜɴᴛ")],
-        [KeyboardButton("📞 sᴜᴘᴘᴏʀᴛ")]
+        [KeyboardButton("📢 ᴜᴘᴅᴀᴛᴇs ᴄʜᴀɴɴᴇʟ", style=enums.ButtonStyle.PRIMARY)],
+        [KeyboardButton("🔎 sᴇᴀʀᴄʜ sᴛᴏʀʏ", style=enums.ButtonStyle.SUCCESS), KeyboardButton("📻 ᴘᴏᴄᴋᴇᴛ ғᴍ", style=enums.ButtonStyle.DANGER)],
+        [KeyboardButton("📚 ᴘʀᴀᴛɪʟɪᴘɪ ғᴍ", style=enums.ButtonStyle.DANGER), KeyboardButton("👤 ᴍʏ ᴀᴄᴄᴏᴜɴᴛ", style=enums.ButtonStyle.PRIMARY)],
+        [KeyboardButton("📞 sᴜᴘᴘᴏʀᴛ", style=enums.ButtonStyle.SUCCESS)]
     ],
     resize_keyboard=True
 )
