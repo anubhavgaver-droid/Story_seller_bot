@@ -4,6 +4,7 @@ from config import MONGO_URL, LOG_CHANNEL
 client = AsyncIOMotorClient(MONGO_URL)
 db = client["story_seller_db"]
 stories_col = db["stories"]
+users_col = db["users"]  # New Collection for User Registration
 
 # -------------------- LOG HELPER FUNCTION --------------------
 async def send_log(client_bot, text: str):
@@ -14,9 +15,42 @@ async def send_log(client_bot, text: str):
         except Exception as e:
             print(f"Log Error: {e}")
 
-# -------------------- DATABASE FUNCTIONS --------------------
+# -------------------- USER REGISTRATION FUNCTIONS --------------------
+async def is_user_registered(user_id: int) -> bool:
+    """चेक करेगा कि यूज़र पहले से रजिस्टर्ड है या नहीं (Returns True or False)"""
+    user = await users_col.find_one({"user_id": user_id})
+    if user:
+        return user.get("is_registered", False)
+    return False
+
+async def register_user(user_id: int, first_name: str, username: str = None):
+    """नए यूज़र को रजिस्टर करेगा और status True सेट करेगा"""
+    await users_col.update_one(
+        {"user_id": user_id},
+        {
+            "$set": {
+                "user_id": user_id,
+                "first_name": first_name,
+                "username": username,
+                "is_registered": True
+            }
+        },
+        upsert=True
+    )
+
+# -------------------- STORY DATABASE FUNCTIONS --------------------
 async def add_story_db(data):
     await stories_col.insert_one(data)
+
+async def delete_story_db(title: str) -> bool:
+    """स्टोरी डिलीट करने के लिए फ़ंक्शन"""
+    res = await stories_col.delete_one({"title": title})
+    return res.deleted_count > 0
+
+async def get_all_stories():
+    """सभी स्टोरीज़ की लिस्ट निकालने के लिए फ़ंक्शन"""
+    cursor = stories_col.find({})
+    return await cursor.to_list(length=None)
 
 async def get_stories_by_cat(category, page=1, limit=10):
     skip = (page - 1) * limit
