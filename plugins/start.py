@@ -1,28 +1,32 @@
 from pyrogram import Client, filters
 from pyrogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
-from database.db import get_story_by_title, send_log
+from database.db import get_story_by_title, send_log, is_user_registered, register_user
 from config import BOT_USERNAME
 
-# group=-1 देने से /start कमांड को Highest Priority मिलती है
+# group=-1 से /start कमांड को Highest Priority मिलती है
 @Client.on_message(filters.command("start") & filters.private, group=-1)
 async def start_handler(client, message):
     user = message.from_user
     
-    # 1. Log Channel Notification
-    try:
-        log_text = (
-            f"<b>🚀 Bot Started!</b>\n"
-            f"<b>Name:</b> {user.first_name}\n"
-            f"<b>User ID:</b> <code>{user.id}</code>\n"
-            f"<b>Username:</b> @{user.username if user.username else 'None'}"
-        )
-        await send_log(client, log_text)
-    except Exception as e:
-        print(f"Log Error: {e}")
+    # 1. Registration & Logging Check (नए और पुराने यूज़र का फ़िल्टर)
+    registered = await is_user_registered(user.id)
+    if not registered:
+        # नया यूज़र: रजिस्टर करें और लॉग भेजें
+        await register_user(user.id, user.first_name, user.username)
+        try:
+            log_text = (
+                f"<b>🆕 New User Registered!</b>\n"
+                f"<b>Name:</b> {user.first_name}\n"
+                f"<b>User ID:</b> <code>{user.id}</code>\n"
+                f"<b>Username:</b> @{user.username if user.username else 'None'}"
+            )
+            await send_log(client, log_text)
+        except Exception as e:
+            print(f"Log Error: {e}")
 
     args = message.text.split(maxsplit=1)
     
-    # 2. Deep Linking Handling
+    # 2. Deep Linking Handling (Direct Link Clicked)
     if len(args) > 1 and args[1].startswith("story_"):
         story_title = args[1].replace("story_", "").replace("_", " ")
         story = await get_story_by_title(story_title)
