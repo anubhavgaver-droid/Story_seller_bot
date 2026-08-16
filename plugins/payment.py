@@ -1,6 +1,6 @@
 import urllib.parse
 from pyrogram import Client, filters
-from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ForceReply
+from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from config import UPI_ID, ADMIN_ID
 from database.db import get_story_by_title, add_user_purchase
 
@@ -47,7 +47,7 @@ async def generate_qr(client, callback):
     await callback.message.reply_photo(photo=qr_url, caption=caption, reply_markup=btn)
     await callback.answer()
 
-# 3. Ask User for Screenshot
+# 3. Ask User for Screenshot (Without ForceReply)
 @Client.on_callback_query(filters.regex("^sent_"))
 async def ask_screenshot(client, callback):
     try:
@@ -62,8 +62,7 @@ async def ask_screenshot(client, callback):
     
     await callback.message.reply_text(
         "📸 <b>ᴘʟᴇᴀsᴇ sᴇɴᴅ ʏᴏᴜʀ ᴘᴀʏᴍᴇɴᴛ sᴄʀᴇᴇɴsʜᴏᴛ:</b>\n\n"
-        "sᴇɴᴅ ʏᴏᴜʀ sᴄʀᴇᴇɴsʜᴏᴛ ᴀs ᴀ ᴘʜᴏᴛᴏ ɪɴ ᴛʜɪs ᴄʜᴀᴛ.",
-        reply_markup=ForceReply(True)
+        "sᴇɴᴅ ʏᴏᴜʀ sᴄʀᴇᴇɴsʜᴏᴛ ᴀs ᴀ ᴘʜᴏᴛᴏ ɪɴ ᴛʜɪs ᴄʜᴀᴛ."
     )
     await callback.answer()
 
