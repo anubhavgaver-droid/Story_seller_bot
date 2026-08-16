@@ -2,7 +2,7 @@ import urllib.parse
 from pyrogram import Client, filters
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ForceReply
 from config import UPI_ID, ADMIN_ID
-from database.db import get_story_by_title
+from database.db import get_story_by_title, add_user_purchase
 
 # Payment Screenshot Waiting State
 PAYMENT_WAITING = {}
@@ -106,7 +106,7 @@ async def receive_screenshot(client, message):
     await message.reply_text("✅ <b>sᴄʀᴇᴇɴsʜᴏᴛ ʀᴇᴄᴇɪᴠᴇᴅ!</b>\nʏᴏᴜʀ ᴀᴄᴄᴇss ʟɪɴᴋ ᴡɪʟʟ ʙᴇ sᴇɴᴛ ᴀғᴛᴇʀ ᴀᴅᴍɪɴ ᴠᴇʀɪғɪᴄᴀᴛɪᴏɴ.")
     del PAYMENT_WAITING[user_id]
 
-# 5. Approve Payment Handler (Inline Button Link + Copy/Forward Restricted)
+# 5. Approve Payment Handler (Auto Save to Database + Send Access Link)
 @Client.on_callback_query(filters.regex("^app_") & filters.user(ADMIN_ID))
 async def approve_order(client, callback):
     data = callback.data.split("_")
@@ -117,6 +117,9 @@ async def approve_order(client, callback):
     if not story:
         return await callback.answer("❌ sᴛᴏʀʏ ɴᴏᴛ ғᴏᴜɴᴅ ɪɴ ᴅᴀᴛᴀʙᴀsᴇ!", show_alert=True)
         
+    # Save purchase record in Mongo DB for "My Account"
+    await add_user_purchase(user_id, story['title'])
+
     access_btn = InlineKeyboardMarkup([
         [InlineKeyboardButton("🚀 ᴀᴄᴄᴇss sᴛᴏʀʏ", url=story['link'])]
     ])
@@ -126,14 +129,14 @@ async def approve_order(client, callback):
             chat_id=user_id,
             text=(
                 f"🎉 <b>ʏᴏᴜʀ ᴘᴀʏᴍᴇɴᴛ ʜᴀs ʙᴇᴇɴ ᴀᴘᴘʀᴏᴠᴇᴅ!</b>\n\n"
-                f"📖 <b>sᴛᴏʀʏ:</b> {title}\n\n"
+                f"📖 <b>sᴛᴏʀʏ:</b> {story['title']}\n\n"
                 f"ᴄʟɪᴄᴋ ᴛʜᴇ ʙᴜᴛᴛᴏɴ ʙᴇʟᴏᴡ ᴛᴏ ᴀᴄᴄᴇss ʏᴏᴜʀ ᴄᴏɴᴛᴇɴᴛ:"
             ),
             reply_markup=access_btn,
             protect_content=True
         )
         await callback.message.edit_caption(caption=f"{callback.message.caption.html}\n\n✅ <b>ᴀᴘᴘʀᴏᴠᴇᴅ ʙʏ ᴀᴅᴍɪɴ</b>")
-        await callback.answer("Approved Successfully!", show_alert=True)
+        await callback.answer("Approved & Saved to DB Successfully!", show_alert=True)
     except Exception as e:
         await callback.answer(f"Error sending message to user: {e}", show_alert=True)
 
