@@ -33,8 +33,8 @@ async def category_handler(client, message):
     category_keyboard = ReplyKeyboardMarkup(keyboard_buttons, resize_keyboard=True)
     await message.reply_text(f"<b>📚 Available Stories ({message.text}):</b>\n\nनीचे दी गई लिस्ट से अपनी स्टोरी चुनें:", reply_markup=category_keyboard)
 
-# 2. Back to Main Menu Handler
-@Client.on_message(filters.regex("^(🔙 Back to Main Menu|/start)$") & filters.private)
+# 2. Back to Main Menu Handler (Fix: Removed /start from regex)
+@Client.on_message(filters.regex("^🔙 Back to Main Menu$") & filters.private)
 async def back_to_main_menu(client, message):
     user_id = message.from_user.id
     SEARCH_WAITING.pop(user_id, None)  # Reset search state
@@ -47,7 +47,7 @@ async def story_selected_handler(client, message):
     story = await get_story_by_title(story_title)
     
     if not story:
-        return await message.reply_text("❌ यह स्टोरी उपलब्ध नहीं है।")
+        return await message.reply_text("❌ यह स्टोरी उपलब्ध नहीं है。")
         
     clean_title = story['title'].replace(" ", "_")
     btn = InlineKeyboardMarkup([[InlineKeyboardButton("💳 Buy Now", callback_data=f"buy_{clean_title}_{story['price']}")]])
@@ -66,7 +66,7 @@ async def story_selected_handler(client, message):
             reply_markup=btn
         )
 
-# 4. Simple Search Prompt Handler (ForceReply Completely Removed)
+# 4. Simple Search Prompt Handler
 @Client.on_message(filters.regex("^🔎 Search Story$") & filters.private)
 async def search_prompt(client, message):
     user_id = message.from_user.id
