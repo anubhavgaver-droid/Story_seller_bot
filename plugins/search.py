@@ -45,7 +45,8 @@ async def story_selected_handler(client, message):
     if not story:
         return await message.reply_text("❌ यह स्टोरी उपलब्ध नहीं है।")
         
-    btn = InlineKeyboardMarkup([[InlineKeyboardButton("💳 Buy Now", callback_data=f"buy_{story['title']}_{story['price']}")]])
+    clean_title = story['title'].replace(" ", "_")
+    btn = InlineKeyboardMarkup([[InlineKeyboardButton("💳 Buy Now", callback_data=f"buy_{clean_title}_{story['price']}")]])
     photo_url = story.get('photo', 'https://picsum.photos/400/200')
     desc = story.get('desc', 'कोई विवरण उपलब्ध नहीं है।')
     
@@ -69,8 +70,13 @@ async def search_prompt(client, message):
         reply_markup=ForceReply(True)
     )
 
-# 5. Search Text Filter Process
-@Client.on_message(filters.private & ~filters.command(["start", "addstory", "cancel"]) & ~filters.regex("^(📢 Updates Channel|👤 My Account|📞 Support|📻 Pocket FM|📚 Pratilipi FM|🔙 Back to Main Menu|📖 )"))
+# 5. Search Text Filter Process (Prevents overlapping with Admin & Payment Flow)
+@Client.on_message(
+    filters.private 
+    & filters.text 
+    & ~filters.command(["start", "addstory", "deletestory", "allstories", "cancel"]) 
+    & ~filters.regex("^(📢 Updates Channel|👤 My Account|📞 Support|📻 Pocket FM|📚 Pratilipi FM|🔙 Back to Main Menu|📖 |🔎 Search Story)")
+)
 async def process_search(client, message):
     query = message.text.strip()
     stories, total_pages = await search_stories_db(query, page=1, limit=50)
