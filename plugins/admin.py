@@ -1,7 +1,7 @@
 from pyrogram import Client, filters
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ForceReply
 from config import ADMIN_ID, BOT_USERNAME
-from database.db import add_story_db
+from database.db import add_story_db, send_log
 
 ADD_STATE = {}
 
@@ -30,6 +30,7 @@ async def wizard_inputs(client, message):
     step = ADD_STATE[user_id]['step']
     
     if step == 'TITLE':
+        # केवल पहली लाइन को टाइटल के रूप में सेव करें
         ADD_STATE[user_id]['title'] = message.text.strip().split("\n")[0]
         ADD_STATE[user_id]['step'] = 'PRICE'
         await message.reply_text("<b>[Step 3/5]</b> Price (₹) दर्ज करें:", reply_markup=ForceReply(True))
@@ -51,11 +52,24 @@ async def wizard_inputs(client, message):
         data['link'] = message.text.strip()
         data['photo'] = "https://picsum.photos/400/200"
         
+        # MongoDB में डेटाबेस में सेव करें
         await add_story_db(data)
         
         clean_title = data['title'].replace(" ", "_")
         share_link = f"https://t.me/{BOT_USERNAME}?start=story_{clean_title}"
         
+        # Log Channel में नोटिफिकेशन भेजें
+        log_msg = (
+            f"<b>➕ New Story Added!</b>\n\n"
+            f"<b>📌 Title:</b> {data['title']}\n"
+            f"<b>📂 Category:</b> {data['category']}\n"
+            f"<b>💰 Price:</b> ₹{data['price']}\n"
+            f"<b>🔗 Destination Link:</b> {data['link']}\n"
+            f"<b>🔗 Shareable Link:</b> {share_link}"
+        )
+        await send_log(client, log_msg)
+        
+        # Admin को कन्फर्मेशन मैसेज भेजें
         await message.reply_text(
             f"✅ <b>Story Added Successfully!</b>\n\n"
             f"<b>Title:</b> {data['title']}\n"
