@@ -10,3 +10,4 @@ PORT = int(os.environ.get("PORT", "8080"))
 BOT_USERNAME = os.environ.get("BOT_USERNAME", "YourStorySellerBot")
 MONGO_URL = os.environ.get("MONGO_URL", "mongodb://localhost:27017")
 
+WEB_APP_URL = "https://story-seller-bot-0jtb.onrender.com" # Apni hosted web app ka HTTPS link
