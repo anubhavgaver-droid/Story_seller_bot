@@ -1,11 +1,15 @@
 from pyrogram import Client, filters, enums
-from pyrogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
+from pyrogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
 from database.db import get_story_by_title, send_log, is_user_registered, register_user, get_user_purchases
-from config import BOT_USERNAME
+from config import BOT_USERNAME, WEB_APP_URL
 
-# Main Menu Keyboard Layout (Small Caps)
+# Main Menu Keyboard Layout with Top Mini App Button
 MAIN_MENU = ReplyKeyboardMarkup(
     [
+        # 1. Sabse Upar Mini App Button
+        [KeyboardButton("🚀 ᴏᴘᴇɴ ᴍɪɴɪ ᴀᴘᴘ", web_app=WebAppInfo(url=WEB_APP_URL))],
+        
+        # 2. Aapke Purane Buttons (Unchanged)
         [KeyboardButton("📢 ᴜᴘᴅᴀᴛᴇs ᴄʜᴀɴɴᴇʟ", style=enums.ButtonStyle.PRIMARY)],
         [KeyboardButton("🔎 sᴇᴀʀᴄʜ sᴛᴏʀʏ", style=enums.ButtonStyle.SUCCESS), KeyboardButton("📻 ᴘᴏᴄᴋᴇᴛ ғᴍ", style=enums.ButtonStyle.DANGER)],
         [KeyboardButton("📚 ᴘʀᴀᴛɪʟɪᴘɪ ғᴍ", style=enums.ButtonStyle.DANGER), KeyboardButton("👤 ᴍʏ ᴀᴄᴄᴏᴜɴᴛ", style=enums.ButtonStyle.PRIMARY)],
