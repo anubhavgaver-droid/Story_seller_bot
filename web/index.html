@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>PREMIUM STORE BOT</title>
+    <!-- Telegram WebApp SDK -->
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
         :root {
@@ -214,7 +215,7 @@
         }
         .btn-action:active { transform: translate(2px, 2px); box-shadow: 0px 0px 0px #000; }
 
-        /* ---------------- FULL SCREEN STORY DETAIL MODAL (FIXED) ---------------- */
+        /* ---------------- FULL SCREEN STORY DETAIL MODAL ---------------- */
         .modal-overlay {
             position: fixed;
             top: 0; left: 0; width: 100vw; height: 100vh;
@@ -241,11 +242,10 @@
             overflow: hidden;
         }
 
-        /* Top Banner Hero (Upper Half) */
         .modal-hero {
             position: relative;
             width: 100%;
-            height: 45vh; /* Upper 45% for Photo Display */
+            height: 45vh;
             background: #000;
             overflow: hidden;
             flex-shrink: 0;
@@ -273,7 +273,6 @@
             z-index: 10;
         }
 
-        /* Overlapping Poster Image (Bottom Left) */
         .modal-poster-wrapper {
             position: absolute;
             bottom: 16px;
@@ -290,7 +289,6 @@
             background: #fff;
         }
 
-        /* Bottom Details Area (Lower Half) */
         .modal-body {
             flex-grow: 1;
             padding: 20px 16px 90px 16px;
@@ -327,7 +325,6 @@
             box-shadow: 2px 2px 0px #000;
         }
 
-        /* Fixed Bottom Action Bar */
         .modal-bottom-bar {
             position: absolute;
             bottom: 0; left: 0; right: 0;
@@ -489,7 +486,7 @@
                 <img id="uPhoto" src="https://picsum.photos/100" class="avatar">
                 <div>
                     <div id="uName" style="font-weight:900; font-size:16px;">Loading...</div>
-                    <div class="id-badge">ID: <span id="uId">00000000</span> 📋</div>
+                    <div class="id-badge">ID: <span id="uId">Fetching...</span> 📋</div>
                 </div>
             </div>
 
@@ -514,7 +511,7 @@
         </div>
     </div>
 
-    <!-- 🌟 FULL SCREEN STORY DETAIL MODAL -->
+    <!-- FULL SCREEN STORY DETAIL MODAL -->
     <div class="modal-overlay" id="storyModal">
         <div class="modal-content">
             <div class="modal-hero">
@@ -567,29 +564,38 @@
 
     <script>
         const tg = window.Telegram.WebApp;
-        tg.ready();
-        tg.expand();
 
-        let stories = [];
-        let userPurchases = [];
-
+        // DIRECT TELEGRAM USER DATA FETCHING LOGIC
         function initUserInfo() {
-            let user = null;
-            if (tg.initDataUnsafe && tg.initDataUnsafe.user) {
-                user = tg.initDataUnsafe.user;
-            }
+            try {
+                tg.ready();
+                tg.expand(); // स्क्रीन पूरी चौड़ी करने के लिए
 
-            if (user) {
-                const fullName = (user.first_name || "") + " " + (user.last_name || "");
-                document.getElementById('uName').innerText = fullName.trim() || "Telegram User";
-                document.getElementById('uId').innerText = user.id;
-                if (user.photo_url) document.getElementById('uPhoto').src = user.photo_url;
-                loadUserPurchases(user.id);
-            } else {
-                document.getElementById('uName').innerText = "Guest User";
+                let user = tg.initDataUnsafe ? tg.initDataUnsafe.user : null;
+
+                if (user && user.id) {
+                    const fullName = ((user.first_name || "") + " " + (user.last_name || "")).trim();
+                    document.getElementById('uName').innerText = fullName || user.username || "Telegram User";
+                    document.getElementById('uId').innerText = user.id;
+                    
+                    if (user.photo_url) {
+                        document.getElementById('uPhoto').src = user.photo_url;
+                    }
+                    loadUserPurchases(user.id);
+                } else {
+                    // यदि वेबअप डायरेक्ट ब्राउज़र में खोला गया हो तो बैकअप डाटा
+                    document.getElementById('uName').innerText = "Guest User";
+                    document.getElementById('uId').innerText = "Not Connected";
+                }
+            } catch (err) {
+                console.error("Error fetching user info:", err);
+                document.getElementById('uName').innerText = "Telegram User";
                 document.getElementById('uId').innerText = "N/A";
             }
         }
+
+        let stories = [];
+        let userPurchases = [];
 
         function setupSplashScreen(list) {
             const wrapper = document.getElementById('cardsWrapper');
@@ -663,6 +669,7 @@
 
         function renderGrid(list, target) {
             const el = document.getElementById(target);
+            if(!el) return;
             if(list.length === 0) {
                 el.innerHTML = '<p style="font-size:12px; font-weight:800;">No audio packs found.</p>';
                 return;
@@ -745,8 +752,11 @@
             if(idx !== -1) document.querySelectorAll('.nav-link')[idx].classList.add('active');
         }
 
-        initUserInfo();
-        loadStories();
+        // DOM लोड होने के बाद डायरेक्ट Telegram SDK से यूज़र डाटा फैच होगा
+        document.addEventListener('DOMContentLoaded', () => {
+            initUserInfo();
+            loadStories();
+        });
     </script>
 </body>
 </html>
