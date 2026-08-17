@@ -1,17 +1,46 @@
 import asyncio
+import os
+import motor.motor_asyncio
 from aiohttp import web
 from pyrogram import Client, idle
-from config import API_ID, API_HASH, BOT_TOKEN, PORT
+from config import API_ID, API_HASH, BOT_TOKEN, PORT, DB_URL, DB_NAME
+
+# MongoDB Setup
+mongo_client = motor.motor_asyncio.AsyncIOMotorClient(DB_URL)
+db = mongo_client[DB_NAME]
+stories_collection = db["stories"]
 
 # Plugins setup
 plugins = dict(root="plugins")
 
-async def handle_ping(request):
-    return web.Response(text="Render Web Server Active & Bot Online!")
+# 1. Serve Mini App HTML File
+async def handle_miniapp(request):
+    html_path = os.path.join(os.path.dirname(__file__), "web", "index.html")
+    if os.path.exists(html_path):
+        with open(html_path, "r", encoding="utf-8") as f:
+            return web.Response(text=f.read(), content_type="text/html")
+    return web.Response(text="<h3>index.html not found in web/ folder!</h3>", content_type="text/html", status=404)
+
+# 2. API Endpoint to Fetch Stories for Mini App
+async def handle_get_stories(request):
+    stories = []
+    async for story in stories_collection.find():
+        stories.append({
+            "title": story.get("title", "Untitled"),
+            "price": story.get("price", 0),
+            "platform": story.get("platform", "PRATILIPI FM"),
+            "desc": story.get("desc", ""),
+            "photo": story.get("photo", "https://picsum.photos/200")
+        })
+    return web.json_response(stories)
 
 async def start_web_server():
     app_web = web.Application()
-    app_web.router.add_get("/", handle_ping)
+    
+    # Routes Setup
+    app_web.router.add_get("/", handle_miniapp)
+    app_web.router.add_get("/api/stories", handle_get_stories)
+    
     runner = web.AppRunner(app_web)
     await runner.setup()
     site = web.TCPSite(runner, "0.0.0.0", PORT)
