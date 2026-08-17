@@ -7,6 +7,7 @@
     <!-- Telegram WebApp SDK -->
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
+        /* default light theme */
         :root {
             --bg: #fafafa;
             --card-bg: #ffffff;
@@ -14,6 +15,29 @@
             --border: #000000;
             --accent: #ffcc00;
             --radius: 18px;
+            --box-bg: #ffffff;
+            --item-bg: #f8fafc;
+        }
+
+        /* dark theme options */
+        body.theme-dark {
+            --bg: #0f172a;
+            --card-bg: #1e293b;
+            --text: #f8fafc;
+            --border: #38bdf8;
+            --accent: #f59e0b;
+            --box-bg: #1e293b;
+            --item-bg: #334155;
+        }
+
+        body.theme-cyber {
+            --bg: #050505;
+            --card-bg: #111111;
+            --text: #00ff66;
+            --border: #00ff66;
+            --accent: #ff007f;
+            --box-bg: #111111;
+            --item-bg: #1a1a1a;
         }
 
         body {
@@ -24,6 +48,7 @@
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
             -webkit-tap-highlight-color: transparent;
             overflow-x: hidden;
+            transition: background-color 0.3s ease, color 0.3s ease;
         }
 
         /* ---------------- WELCOME SPLASH SCREEN ANIMATION ---------------- */
@@ -130,7 +155,7 @@
             align-items: center;
             justify-content: space-between;
             padding: 12px 16px;
-            background: #fff;
+            background: var(--box-bg);
             border-bottom: 2.5px solid var(--border);
             position: sticky;
             top: 0;
@@ -144,10 +169,11 @@
             border: 2px solid var(--border);
             font-size: 11px;
             font-weight: 800;
-            background: #fff;
-            box-shadow: 2px 2px 0px #000;
+            background: var(--box-bg);
+            color: var(--text);
+            box-shadow: 2px 2px 0px var(--border);
         }
-        .chip-yellow { background: var(--accent); }
+        .chip-yellow { background: var(--accent); color: #000; }
 
         .container { padding: 16px; }
         .tab-content { display: none; }
@@ -159,11 +185,12 @@
             padding: 12px 16px 12px 40px;
             border-radius: 14px;
             border: 2px solid var(--border);
-            background: #fff;
+            background: var(--box-bg);
+            color: var(--text);
             font-weight: 600;
             font-size: 13px;
             box-sizing: border-box;
-            box-shadow: 3px 3px 0px #000;
+            box-shadow: 3px 3px 0px var(--border);
             outline: none;
         }
         .search-icon { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); font-size: 14px; }
@@ -178,7 +205,7 @@
             border: 2.5px solid var(--border);
             border-radius: var(--radius);
             overflow: hidden;
-            box-shadow: 4px 4px 0px #000;
+            box-shadow: 4px 4px 0px var(--border);
             display: flex;
             flex-direction: column;
             cursor: pointer;
@@ -195,31 +222,32 @@
             font-weight: 800;
             padding: 3px 8px;
             border-radius: 6px;
-            border: 1.5px solid #000;
+            border: 1.5px solid var(--border);
             text-transform: uppercase;
             margin-bottom: 6px;
         }
         .title { font-size: 13px; font-weight: 800; margin: 0 0 4px 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .price-tag { font-size: 15px; font-weight: 900; color: #000; margin: 6px 0; }
+        .price-tag { font-size: 15px; font-weight: 900; margin: 6px 0; }
         
         .btn-action {
             width: 100%;
             padding: 8px 0;
             background: var(--accent);
+            color: #000;
             border: 2px solid var(--border);
             border-radius: 10px;
             font-weight: 800;
             font-size: 12px;
             cursor: pointer;
-            box-shadow: 2px 2px 0px #000;
+            box-shadow: 2px 2px 0px var(--border);
         }
-        .btn-action:active { transform: translate(2px, 2px); box-shadow: 0px 0px 0px #000; }
+        .btn-action:active { transform: translate(2px, 2px); box-shadow: 0px 0px 0px var(--border); }
 
         /* ---------------- FULL SCREEN STORY DETAIL MODAL ---------------- */
         .modal-overlay {
             position: fixed;
             top: 0; left: 0; width: 100vw; height: 100vh;
-            background: #ffffff;
+            background: var(--bg);
             z-index: 1000;
             display: flex;
             flex-direction: column;
@@ -238,7 +266,7 @@
             display: flex;
             flex-direction: column;
             position: relative;
-            background: #fff;
+            background: var(--bg);
             overflow: hidden;
         }
 
@@ -262,14 +290,15 @@
             position: absolute;
             top: 16px; right: 16px;
             width: 36px; height: 36px;
-            background: #fff;
-            border: 2px solid #000;
+            background: var(--box-bg);
+            color: var(--text);
+            border: 2px solid var(--border);
             border-radius: 50%;
             font-weight: 900;
             font-size: 16px;
             display: flex; justify-content: center; align-items: center;
             cursor: pointer;
-            box-shadow: 2px 2px 0px #000;
+            box-shadow: 2px 2px 0px var(--border);
             z-index: 10;
         }
 
@@ -284,9 +313,9 @@
             height: 135px;
             object-fit: cover;
             border-radius: 12px;
-            border: 2.5px solid #000;
-            box-shadow: 4px 4px 0px #000;
-            background: #fff;
+            border: 2.5px solid var(--border);
+            box-shadow: 4px 4px 0px var(--border);
+            background: var(--box-bg);
         }
 
         .modal-body {
@@ -296,7 +325,7 @@
             display: flex;
             flex-direction: column;
             gap: 12px;
-            background: #fff;
+            background: var(--bg);
         }
 
         .modal-meta-row {
@@ -309,27 +338,27 @@
             font-size: 20px;
             font-weight: 900;
             margin: 0;
-            color: #000;
+            color: var(--text);
             line-height: 1.3;
         }
 
         .modal-desc-box {
-            background: #f8fafc;
-            border: 2px solid #000;
+            background: var(--item-bg);
+            border: 2px solid var(--border);
             border-radius: 14px;
             padding: 12px;
             font-size: 13px;
             line-height: 1.5;
-            color: #334155;
+            color: var(--text);
             font-weight: 600;
-            box-shadow: 2px 2px 0px #000;
+            box-shadow: 2px 2px 0px var(--border);
         }
 
         .modal-bottom-bar {
             position: absolute;
             bottom: 0; left: 0; right: 0;
-            background: #fff;
-            border-top: 2.5px solid #000;
+            background: var(--box-bg);
+            border-top: 2.5px solid var(--border);
             padding: 14px 16px;
             display: flex;
             align-items: center;
@@ -340,25 +369,26 @@
         .modal-price {
             font-size: 22px;
             font-weight: 900;
-            color: #000;
+            color: var(--text);
         }
 
         .profile-card {
-            background: #fff;
+            background: var(--box-bg);
             border: 2.5px solid var(--border);
             border-radius: 20px;
             padding: 16px;
-            box-shadow: 4px 4px 0px #000;
+            box-shadow: 4px 4px 0px var(--border);
             display: flex;
             align-items: center;
             gap: 14px;
             margin-bottom: 16px;
         }
-        .avatar { width: 60px; height: 60px; border-radius: 14px; border: 2px solid #000; object-fit: cover; }
+        .avatar { width: 60px; height: 60px; border-radius: 14px; border: 2px solid var(--border); object-fit: cover; }
         .id-badge {
             display: inline-block;
             background: var(--accent);
-            border: 1.5px solid #000;
+            color: #000;
+            border: 1.5px solid var(--border);
             padding: 2px 8px;
             border-radius: 10px;
             font-size: 11px;
@@ -368,22 +398,22 @@
 
         .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
         .stat-box {
-            background: #fff;
-            border: 2.5px solid #000;
+            background: var(--box-bg);
+            border: 2.5px solid var(--border);
             border-radius: 16px;
             padding: 14px;
             text-align: center;
-            box-shadow: 3px 3px 0px #000;
+            box-shadow: 3px 3px 0px var(--border);
         }
         .stat-num { font-size: 22px; font-weight: 900; }
         .stat-lbl { font-size: 10px; font-weight: 800; opacity: 0.7; text-transform: uppercase; }
 
         .section-box {
-            background: #fff;
-            border: 2.5px solid #000;
+            background: var(--box-bg);
+            border: 2.5px solid var(--border);
             border-radius: 16px;
             padding: 14px;
-            box-shadow: 3px 3px 0px #000;
+            box-shadow: 3px 3px 0px var(--border);
             margin-bottom: 12px;
         }
         .section-title { font-size: 12px; font-weight: 900; text-transform: uppercase; margin-bottom: 10px; }
@@ -392,10 +422,28 @@
             justify-content: space-between;
             align-items: center;
             padding: 10px;
-            border: 2px solid #000;
+            border: 2px solid var(--border);
             border-radius: 12px;
             margin-bottom: 8px;
-            background: #f8fafc;
+            background: var(--item-bg);
+        }
+
+        /* ---------------- THEME SELECTOR BUTTONS ---------------- */
+        .theme-grid {
+            display: flex;
+            gap: 8px;
+            margin-top: 8px;
+        }
+        .theme-btn {
+            flex: 1;
+            padding: 8px;
+            border: 2px solid var(--border);
+            border-radius: 10px;
+            font-size: 11px;
+            font-weight: 800;
+            cursor: pointer;
+            box-shadow: 2px 2px 0px var(--border);
+            text-align: center;
         }
 
         .bottom-nav {
@@ -403,7 +451,7 @@
             bottom: 0;
             left: 0;
             width: 100%;
-            background: #fff;
+            background: var(--box-bg);
             border-top: 2.5px solid var(--border);
             display: flex;
             justify-content: space-around;
@@ -416,7 +464,7 @@
             align-items: center;
             font-size: 9px;
             font-weight: 900;
-            color: #000;
+            color: var(--text);
             text-decoration: none;
             opacity: 0.6;
             cursor: pointer;
@@ -424,10 +472,11 @@
         .nav-link.active { opacity: 1; }
         .nav-link.active .nav-icon {
             background: var(--accent);
-            border: 1.5px solid #000;
+            color: #000;
+            border: 1.5px solid var(--border);
             border-radius: 10px;
             padding: 2px 10px;
-            box-shadow: 1.5px 1.5px 0px #000;
+            box-shadow: 1.5px 1.5px 0px var(--border);
         }
         .nav-icon { font-size: 16px; margin-bottom: 2px; }
     </style>
@@ -501,6 +550,16 @@
                 </div>
             </div>
 
+            <!-- THEME SWITCHER SECTION -->
+            <div class="section-box">
+                <div class="section-title">App Theme 🎨</div>
+                <div class="theme-grid">
+                    <button class="theme-btn" style="background: #fafafa; color: #000;" onclick="changeTheme('light')">☀️ Light</button>
+                    <button class="theme-btn" style="background: #0f172a; color: #fff;" onclick="changeTheme('dark')">🌙 Dark</button>
+                    <button class="theme-btn" style="background: #050505; color: #00ff66;" onclick="changeTheme('cyber')">🟢 Cyber</button>
+                </div>
+            </div>
+
             <div class="section-box">
                 <div class="section-title">Quick Links</div>
                 <div class="item-row" onclick="switchTab('orders')">
@@ -565,11 +624,25 @@
     <script>
         const tg = window.Telegram.WebApp;
 
+        // USER INDIVIDUAL THEME SYSTEM USING LOCALSTORAGE
+        function applySavedTheme() {
+            const savedTheme = localStorage.getItem('user_theme') || 'light';
+            document.body.className = '';
+            if (savedTheme !== 'light') {
+                document.body.classList.add(`theme-${savedTheme}`);
+            }
+        }
+
+        function changeTheme(themeName) {
+            localStorage.setItem('user_theme', themeName);
+            applySavedTheme();
+        }
+
         // DIRECT TELEGRAM USER DATA FETCHING LOGIC
         function initUserInfo() {
             try {
                 tg.ready();
-                tg.expand(); // स्क्रीन पूरी चौड़ी करने के लिए
+                tg.expand();
 
                 let user = tg.initDataUnsafe ? tg.initDataUnsafe.user : null;
 
@@ -583,7 +656,6 @@
                     }
                     loadUserPurchases(user.id);
                 } else {
-                    // यदि वेबअप डायरेक्ट ब्राउज़र में खोला गया हो तो बैकअप डाटा
                     document.getElementById('uName').innerText = "Guest User";
                     document.getElementById('uId').innerText = "Not Connected";
                 }
@@ -752,8 +824,8 @@
             if(idx !== -1) document.querySelectorAll('.nav-link')[idx].classList.add('active');
         }
 
-        // DOM लोड होने के बाद डायरेक्ट Telegram SDK से यूज़र डाटा फैच होगा
         document.addEventListener('DOMContentLoaded', () => {
+            applySavedTheme();
             initUserInfo();
             loadStories();
         });
