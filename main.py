@@ -3,7 +3,7 @@ import os
 from aiohttp import web
 from pyrogram import Client, idle
 from config import API_ID, API_HASH, BOT_TOKEN, PORT
-from database.db import stories_col  # Clean DB reference import
+from database.db import stories_col, get_user_purchases, get_story_by_title
 
 # Plugins setup
 plugins = dict(root="plugins")
@@ -29,12 +29,31 @@ async def handle_get_stories(request):
         })
     return web.json_response(stories)
 
+# 3. API Endpoint to Fetch User Purchases for Mini App
+async def handle_get_user_purchases(request):
+    user_id = request.query.get("user_id")
+    purchases_data = []
+    if user_id:
+        try:
+            purchases = await get_user_purchases(int(user_id))
+            for item in purchases:
+                story = await get_story_by_title(item.get('story_title', ''))
+                purchases_data.append({
+                    "story_title": item.get('story_title', 'Untitled'),
+                    "link": story.get("link", "#") if story else "#"
+                })
+        except Exception as e:
+            print(f"Error fetching purchases for web app: {e}")
+            
+    return web.json_response(purchases_data)
+
 async def start_web_server():
     app_web = web.Application()
     
     # Routes Setup
     app_web.router.add_get("/", handle_miniapp)
     app_web.router.add_get("/api/stories", handle_get_stories)
+    app_web.router.add_get("/api/user_purchases", handle_get_user_purchases)
     
     runner = web.AppRunner(app_web)
     await runner.setup()
