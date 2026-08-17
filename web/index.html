@@ -181,7 +181,10 @@
             box-shadow: 4px 4px 0px #000;
             display: flex;
             flex-direction: column;
+            cursor: pointer;
+            transition: transform 0.1s ease;
         }
+        .card:active { transform: scale(0.98); }
         .card-img { width: 100%; height: 140px; object-fit: cover; border-bottom: 2px solid var(--border); }
         .card-body { padding: 10px; display: flex; flex-direction: column; flex-grow: 1; }
         .badge {
@@ -198,6 +201,7 @@
         }
         .title { font-size: 13px; font-weight: 800; margin: 0 0 4px 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .price-tag { font-size: 15px; font-weight: 900; color: #000; margin: 6px 0; }
+        
         .btn-action {
             width: 100%;
             padding: 8px 0;
@@ -210,6 +214,144 @@
             box-shadow: 2px 2px 0px #000;
         }
         .btn-action:active { transform: translate(2px, 2px); box-shadow: 0px 0px 0px #000; }
+
+        /* ---------------- STORY DETAIL MODAL (NEW) ---------------- */
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100vw; height: 100vh;
+            background: rgba(0, 0, 0, 0.75);
+            backdrop-filter: blur(4px);
+            z-index: 1000;
+            display: flex;
+            justify-content: center;
+            align-items: flex-end;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+        }
+        .modal-overlay.active {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .modal-content {
+            width: 100%;
+            max-width: 500px;
+            max-height: 88vh;
+            background: #fff;
+            border-top: 3px solid #000;
+            border-radius: 24px 24px 0 0;
+            overflow-y: auto;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 -10px 30px rgba(0,0,0,0.5);
+            transform: translateY(100%);
+            transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        .modal-overlay.active .modal-content {
+            transform: translateY(0);
+        }
+
+        /* Background Photo Hero Section */
+        .modal-hero {
+            position: relative;
+            width: 100%;
+            height: 180px;
+            overflow: hidden;
+            background: #000;
+        }
+        .modal-bg-img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            opacity: 0.55;
+            filter: blur(3px);
+            transform: scale(1.1);
+        }
+        .modal-close-btn {
+            position: absolute;
+            top: 12px; right: 12px;
+            width: 32px; height: 32px;
+            background: #fff;
+            border: 2px solid #000;
+            border-radius: 50%;
+            font-weight: 900;
+            font-size: 14px;
+            display: flex; justify-content: center; align-items: center;
+            cursor: pointer;
+            box-shadow: 2px 2px 0px #000;
+            z-index: 10;
+        }
+
+        /* Small Poster overlapping Bottom Left */
+        .modal-poster-wrapper {
+            position: absolute;
+            bottom: -25px;
+            left: 16px;
+            z-index: 5;
+        }
+        .modal-poster-img {
+            width: 85px;
+            height: 110px;
+            object-fit: cover;
+            border-radius: 12px;
+            border: 2.5px solid #000;
+            box-shadow: 3px 3px 0px #000;
+            background: #fff;
+        }
+
+        .modal-body {
+            padding: 35px 16px 90px 16px; /* Space for bottom floating button */
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .modal-meta-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 4px;
+        }
+
+        .modal-title {
+            font-size: 18px;
+            font-weight: 900;
+            margin: 0;
+            color: #000;
+        }
+
+        .modal-desc-box {
+            background: #f8fafc;
+            border: 2px solid #000;
+            border-radius: 14px;
+            padding: 12px;
+            font-size: 12px;
+            line-height: 1.5;
+            color: #334155;
+            font-weight: 600;
+        }
+
+        /* Fixed Bottom Action Container (Bottom Buy Button) */
+        .modal-bottom-bar {
+            position: fixed;
+            bottom: 0; left: 0; right: 0;
+            background: #fff;
+            border-top: 2.5px solid #000;
+            padding: 12px 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            z-index: 20;
+            box-shadow: 0 -4px 10px rgba(0,0,0,0.05);
+        }
+        .modal-price {
+            font-size: 20px;
+            font-weight: 900;
+            color: #000;
+        }
 
         .profile-card {
             background: #fff;
@@ -304,9 +446,7 @@
 
     <!-- 🌟 ANIMATED WELCOME SPLASH SCREEN -->
     <div id="splash-screen">
-        <div class="cards-stack-wrapper" id="cardsWrapper">
-            <!-- Dynamic Posters will be inserted here -->
-        </div>
+        <div class="cards-stack-wrapper" id="cardsWrapper"></div>
         <div class="splash-title">WELCOME TO STORE</div>
         <div class="splash-sub">Your premium hub for unlocked audio & video series — instant access directly in bot chat.</div>
         <div class="loader-spinner"></div>
@@ -322,7 +462,6 @@
     </div>
 
     <div class="container">
-        
         <div id="tab-home" class="tab-content active">
             <div class="search-wrapper">
                 <span class="search-icon">🔍</span>
@@ -380,9 +519,44 @@
                 </div>
             </div>
         </div>
-
     </div>
 
+    <!-- 🌟 STORY DETAIL MODAL (NEW) -->
+    <div class="modal-overlay" id="storyModal" onclick="closeModalOnOverlay(event)">
+        <div class="modal-content">
+            <div class="modal-hero">
+                <div class="modal-close-btn" onclick="closeModal()">✕</div>
+                <img id="mBgImg" src="" class="modal-bg-img">
+                <div class="modal-poster-wrapper">
+                    <img id="mPosterImg" src="" class="modal-poster-img">
+                </div>
+            </div>
+
+            <div class="modal-body">
+                <div class="modal-meta-row">
+                    <span class="badge" id="mPlatform">PLATFORM</span>
+                    <span class="chip" id="mAccessType" style="font-size:10px;">PAID SHOW</span>
+                </div>
+
+                <h3 class="modal-title" id="mTitle">Story Title</h3>
+
+                <div class="section-title" style="margin-top: 10px; margin-bottom: 4px;">Description</div>
+                <div class="modal-desc-box" id="mDesc">
+                    Full details and synopsis of the show will appear here.
+                </div>
+            </div>
+
+            <div class="modal-bottom-bar">
+                <div>
+                    <div style="font-size:10px; font-weight:800; opacity:0.6;">TOTAL PRICE</div>
+                    <div class="modal-price" id="mPrice">₹0</div>
+                </div>
+                <button class="btn-action" id="mBuyBtn" style="width: auto; padding: 12px 28px;">BUY & UNLOCK</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- BOTTOM NAV BAR -->
     <div class="bottom-nav">
         <div class="nav-link active" onclick="switchTab('home')">
             <span class="nav-icon">🏠</span>HOME
@@ -400,18 +574,14 @@
 
     <script>
         const tg = window.Telegram.WebApp;
-
-        // Telegram WebApp Initialize
         tg.ready();
         tg.expand();
 
         let stories = [];
         let userPurchases = [];
 
-        // 🌟 USER DETAILS FETCH LOGIC
         function initUserInfo() {
             let user = null;
-
             if (tg.initDataUnsafe && tg.initDataUnsafe.user) {
                 user = tg.initDataUnsafe.user;
             }
@@ -420,12 +590,7 @@
                 const fullName = (user.first_name || "") + " " + (user.last_name || "");
                 document.getElementById('uName').innerText = fullName.trim() || "Telegram User";
                 document.getElementById('uId').innerText = user.id;
-                
-                if (user.photo_url) {
-                    document.getElementById('uPhoto').src = user.photo_url;
-                }
-                
-                // Purchase History Load
+                if (user.photo_url) document.getElementById('uPhoto').src = user.photo_url;
                 loadUserPurchases(user.id);
             } else {
                 document.getElementById('uName').innerText = "Guest User";
@@ -438,10 +603,8 @@
             if(!wrapper) return;
             wrapper.innerHTML = '';
             
-            // Randomly pick up to 5 stories
             const shuffled = [...list].sort(() => 0.5 - Math.random());
             const picked = shuffled.slice(0, 5);
-            
             const posClasses = ['card-left-2', 'card-left-1', 'card-center', 'card-right-1', 'card-right-2'];
             
             picked.forEach((story, idx) => {
@@ -451,12 +614,7 @@
                 wrapper.appendChild(img);
             });
 
-            // Trigger Animation after DOM Render
-            setTimeout(() => {
-                wrapper.classList.add('active');
-            }, 100);
-
-            // Hide Splash after 2.5s
+            setTimeout(() => { wrapper.classList.add('active'); }, 100);
             setTimeout(() => {
                 const splash = document.getElementById('splash-screen');
                 if(splash) splash.classList.add('hidden');
@@ -516,17 +674,53 @@
                 el.innerHTML = '<p style="font-size:12px; font-weight:800;">No audio packs found.</p>';
                 return;
             }
-            el.innerHTML = list.map(s => `
-                <div class="card">
+            el.innerHTML = list.map((s, idx) => `
+                <div class="card" onclick="openStoryModal(${s.id || idx})">
                     <img src="${s.photo || 'https://picsum.photos/200'}" class="card-img">
                     <div class="card-body">
                         <span class="badge">${s.platform || 'AUDIO'}</span>
                         <h4 class="title">${s.title}</h4>
-                        <div class="price-tag">₹${s.price}</div>
-                        <button class="btn-action" onclick="buyStory('${s.title}', ${s.price})">BUY NOW</button>
+                        <div class="price-tag">${s.price == 0 ? 'FREE' : '₹' + s.price}</div>
+                        <button class="btn-action">VIEW DETAILS</button>
                     </div>
                 </div>
             `).join('');
+        }
+
+        // 🌟 OPEN MODAL WITH FULL DETAILS
+        function openStoryModal(storyId) {
+            let story = stories.find(s => s.id === storyId) || stories[storyId];
+            if (!story) return;
+
+            const photoUrl = story.photo || 'https://picsum.photos/200';
+            document.getElementById('mBgImg').src = photoUrl;
+            document.getElementById('mPosterImg').src = photoUrl;
+            document.getElementById('mTitle').innerText = story.title;
+            document.getElementById('mPlatform').innerText = story.platform || 'AUDIO';
+            
+            const priceText = story.price == 0 ? 'FREE' : `₹${story.price}`;
+            document.getElementById('mPrice').innerText = priceText;
+            document.getElementById('mAccessType').innerText = story.price == 0 ? '🎁 FREE ACCESS' : '💎 PAID SHOW';
+
+            document.getElementById('mDesc').innerText = story.description || story.desc || 'Complete audio series package with high quality audio episodes. Instant access after unlocking.';
+
+            const buyBtn = document.getElementById('mBuyBtn');
+            buyBtn.innerText = story.price == 0 ? 'CLAIM NOW (FREE)' : 'BUY & UNLOCK';
+            buyBtn.onclick = function() {
+                buyStory(story.title, story.price);
+            };
+
+            document.getElementById('storyModal').classList.add('active');
+        }
+
+        function closeModal() {
+            document.getElementById('storyModal').classList.remove('active');
+        }
+
+        function closeModalOnOverlay(e) {
+            if (e.target.id === 'storyModal') {
+                closeModal();
+            }
         }
 
         function buyStory(title, price) {
@@ -535,6 +729,7 @@
                 title: title,
                 price: price
             }));
+            closeModal();
         }
 
         function openStoryLink(url) {
@@ -564,7 +759,6 @@
             if(idx !== -1) document.querySelectorAll('.nav-link')[idx].classList.add('active');
         }
 
-        // Execution Sequence
         initUserInfo();
         loadStories();
     </script>
