@@ -1,290 +1,470 @@
 <!DOCTYPE html>
-<html lang="hi" data-theme="dark">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Story Seller Mini App</title>
+    <title>PREMIUM STORE BOT</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
-        :root[data-theme="dark"] { --bg: #0f0f11; --card: #1a1a1e; --text: #ffffff; --accent: #2563eb; --border: #2a2a30; }
-        :root[data-theme="nano"] { --bg: #f5f5f7; --card: #ffffff; --text: #1d1d1f; --accent: #0071e3; --border: #e5e5ea; }
-        :root[data-theme="cream"] { --bg: #fbf9f1; --card: #f3eed9; --text: #433d3c; --accent: #d4a373; --border: #e7e0c8; }
-        :root[data-theme="pink"] { --bg: #fff0f5; --card: #ffe4e1; --text: #4a2e35; --accent: #ff69b4; --border: #ffc0cb; }
+        :root {
+            --bg: #fafafa;
+            --card-bg: #ffffff;
+            --text: #0f172a;
+            --border: #000000;
+            --accent: #ffcc00;
+            --accent-soft: #fffbeb;
+            --radius: 18px;
+        }
 
-        body { margin: 0; padding: 0 0 80px 0; background: var(--bg); color: var(--text); font-family: system-ui, -apple-system, sans-serif; }
-        .header { display: flex; justify-content: space-between; align-items: center; padding: 15px 20px; background: var(--card); border-bottom: 1px solid var(--border); sticky; top: 0; z-index: 10; }
-        .header h2 { margin: 0; font-size: 18px; }
-        
-        .search-box { padding: 15px 20px; }
-        .search-input { width: 100%; padding: 12px; border-radius: 12px; border: 1px solid var(--border); background: var(--card); color: var(--text); box-sizing: border-box; outline: none; }
+        body {
+            margin: 0;
+            padding: 0 0 90px 0;
+            background-color: var(--bg);
+            color: var(--text);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            -webkit-tap-highlight-color: transparent;
+        }
 
+        /* TOP HEADER NAV */
+        .top-bar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 16px;
+            background: #fff;
+            border-bottom: 2.5px solid var(--border);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        .brand-logo {
+            font-size: 20px;
+            font-weight: 900;
+            letter-spacing: -0.5px;
+        }
+        .header-chips {
+            display: flex;
+            gap: 6px;
+            align-items: center;
+        }
+        .chip {
+            padding: 5px 10px;
+            border-radius: 20px;
+            border: 2px solid var(--border);
+            font-size: 11px;
+            font-weight: 800;
+            background: #fff;
+            box-shadow: 2px 2px 0px #000;
+        }
+        .chip-yellow { background: var(--accent); }
+
+        /* CONTENT CONTAINER */
+        .container { padding: 16px; }
         .tab-content { display: none; }
         .tab-content.active { display: block; }
 
-        .story-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 15px; padding: 0 20px; }
-        .card { background: var(--card); border: 1px solid var(--border); border-radius: 16px; overflow: hidden; display: flex; flex-direction: column; }
-        .card-img { width: 100%; height: 130px; object-fit: cover; }
-        .card-body { padding: 10px; display: flex; flex-direction: column; flex-grow: 1; }
-        
-        .tag { align-self: flex-start; background: var(--accent); color: #fff; font-size: 9px; font-weight: bold; padding: 3px 6px; border-radius: 4px; text-transform: uppercase; margin-bottom: 5px; }
-        .title { font-size: 13px; font-weight: 600; margin: 0 0 4px 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .desc { font-size: 10px; opacity: 0.7; margin-bottom: 8px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-        .price { font-size: 14px; font-weight: bold; color: var(--accent); margin-bottom: 8px; }
+        /* SEARCH BAR */
+        .search-wrapper {
+            position: relative;
+            margin-bottom: 16px;
+        }
+        .search-input {
+            width: 100%;
+            padding: 12px 16px 12px 40px;
+            border-radius: 14px;
+            border: 2px solid var(--border);
+            background: #fff;
+            font-weight: 600;
+            font-size: 13px;
+            box-sizing: border-box;
+            box-shadow: 3px 3px 0px #000;
+            outline: none;
+        }
+        .search-icon {
+            position: absolute;
+            left: 14px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 14px;
+        }
 
-        .btn-row { display: flex; gap: 5px; margin-top: auto; }
-        .btn { flex: 1; padding: 8px 0; border: none; border-radius: 8px; font-size: 11px; font-weight: bold; cursor: pointer; text-align: center; }
-        .btn-buy { background: var(--accent); color: #fff; }
-        .btn-cart { background: transparent; border: 1px solid var(--border); color: var(--text); }
+        /* STORY CARDS GRID */
+        .story-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 14px;
+        }
+        .card {
+            background: var(--card-bg);
+            border: 2.5px solid var(--border);
+            border-radius: var(--radius);
+            overflow: hidden;
+            box-shadow: 4px 4px 0px #000;
+            display: flex;
+            flex-direction: column;
+        }
+        .card-img {
+            width: 100%;
+            height: 140px;
+            object-fit: cover;
+            border-bottom: 2px solid var(--border);
+        }
+        .card-body {
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+            flex-grow: 1;
+        }
+        .badge {
+            align-self: flex-start;
+            background: #2563eb;
+            color: #fff;
+            font-size: 9px;
+            font-weight: 800;
+            padding: 3px 8px;
+            border-radius: 6px;
+            border: 1.5px solid #000;
+            text-transform: uppercase;
+            margin-bottom: 6px;
+        }
+        .title {
+            font-size: 13px;
+            font-weight: 800;
+            margin: 0 0 4px 0;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .price-tag {
+            font-size: 15px;
+            font-weight: 900;
+            color: #000;
+            margin: 6px 0;
+        }
+        .btn-action {
+            width: 100%;
+            padding: 8px 0;
+            background: var(--accent);
+            border: 2px solid var(--border);
+            border-radius: 10px;
+            font-weight: 800;
+            font-size: 12px;
+            cursor: pointer;
+            box-shadow: 2px 2px 0px #000;
+            transition: transform 0.1s;
+        }
+        .btn-action:active { transform: translate(2px, 2px); box-shadow: 0px 0px 0px #000; }
 
-        /* Modals & Checkout */
-        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); backdrop-filter: blur(5px); justify-content: center; align-items: center; z-index: 99; }
-        .modal-box { background: var(--card); padding: 20px; border-radius: 20px; width: 85%; max-width: 320px; text-align: center; border: 1px solid var(--border); }
-        .theme-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 15px 0; }
-        .theme-chip { padding: 10px; border-radius: 10px; border: 1px solid var(--border); font-size: 12px; cursor: pointer; font-weight: bold; }
+        /* PROFILE SECTION */
+        .profile-card {
+            background: #fff;
+            border: 2.5px solid var(--border);
+            border-radius: 20px;
+            padding: 16px;
+            box-shadow: 4px 4px 0px #000;
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            margin-bottom: 16px;
+        }
+        .avatar {
+            width: 60px;
+            height: 60px;
+            border-radius: 14px;
+            border: 2px solid #000;
+            object-fit: cover;
+        }
+        .id-badge {
+            display: inline-block;
+            background: var(--accent);
+            border: 1.5px solid #000;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 11px;
+            font-weight: 800;
+            margin-top: 4px;
+        }
 
-        /* Bottom Nav */
-        .nav { position: fixed; bottom: 0; left: 0; width: 100%; background: var(--card); border-top: 1px solid var(--border); display: flex; justify-content: space-around; padding: 10px 0; z-index: 20; }
-        .nav-item { font-size: 10px; opacity: 0.6; text-align: center; cursor: pointer; }
-        .nav-item.active { opacity: 1; color: var(--accent); font-weight: bold; }
+        .stat-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+        .stat-box {
+            background: #fff;
+            border: 2.5px solid #000;
+            border-radius: 16px;
+            padding: 14px;
+            text-align: center;
+            box-shadow: 3px 3px 0px #000;
+        }
+        .stat-num { font-size: 22px; font-weight: 900; }
+        .stat-lbl { font-size: 10px; font-weight: 800; opacity: 0.7; text-transform: uppercase; }
 
-        .list-group { padding: 0 20px; }
-        .list-item { background: var(--card); border: 1px solid var(--border); padding: 12px; border-radius: 12px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
+        /* LIST ITEMS & ORDERS */
+        .section-box {
+            background: #fff;
+            border: 2.5px solid #000;
+            border-radius: 16px;
+            padding: 14px;
+            box-shadow: 3px 3px 0px #000;
+            margin-bottom: 12px;
+        }
+        .section-title {
+            font-size: 12px;
+            font-weight: 900;
+            text-transform: uppercase;
+            margin-bottom: 10px;
+            letter-spacing: 0.5px;
+        }
+        .item-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px;
+            border: 2px solid #000;
+            border-radius: 12px;
+            margin-bottom: 8px;
+            background: #f8fafc;
+        }
+
+        /* BOTTOM NAV */
+        .bottom-nav {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            background: #fff;
+            border-top: 2.5px solid var(--border);
+            display: flex;
+            justify-content: space-around;
+            padding: 8px 0;
+            z-index: 100;
+        }
+        .nav-link {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            font-size: 9px;
+            font-weight: 900;
+            color: #000;
+            text-decoration: none;
+            opacity: 0.6;
+            cursor: pointer;
+        }
+        .nav-link.active { opacity: 1; color: #000; }
+        .nav-link.active .nav-icon {
+            background: var(--accent);
+            border: 1.5px solid #000;
+            border-radius: 10px;
+            padding: 2px 10px;
+            box-shadow: 1.5px 1.5px 0px #000;
+        }
+        .nav-icon { font-size: 16px; margin-bottom: 2px; }
     </style>
 </head>
 <body>
 
-    <div class="header">
-        <h2 id="pageTitle">Story Seller | Home</h2>
-        <span onclick="openTheme()" style="cursor:pointer; font-size:18px;">⚙️</span>
-    </div>
-
-    <!-- 1. HOME TAB -->
-    <div id="tab-home" class="tab-content active">
-        <div class="search-box">
-            <input type="text" id="searchInput" class="search-input" placeholder="Search stories, platform..." onkeyup="filterStories()">
+    <!-- TOP BAR -->
+    <div class="top-bar">
+        <div class="brand-logo">STORE</div>
+        <div class="header-chips">
+            <span class="chip">🎧 AUDIO</span>
+            <span class="chip chip-yellow">🔑 <span id="unlockedCount">0</span> UNLOCKED</span>
         </div>
-        <div class="story-grid" id="storyGrid"></div>
     </div>
 
-    <!-- 2. EXPLORE TAB -->
-    <div id="tab-explore" class="tab-content">
-        <div style="padding:20px;">
-            <h3>CATEGORIES</h3>
-            <div class="theme-grid">
-                <div class="theme-chip" onclick="filterCategory('pocket_fm')">📻 Pocket FM</div>
-                <div class="theme-chip" onclick="filterCategory('pratilipi_fm')">📚 Pratilipi FM</div>
-                <div class="theme-chip" onclick="filterCategory('kuuku')">🎧 Kuuku FM</div>
-                <div class="theme-chip" onclick="loadStories()">🔄 Show All</div>
+    <div class="container">
+        
+        <!-- 1. HOME TAB -->
+        <div id="tab-home" class="tab-content active">
+            <div class="search-wrapper">
+                <span class="search-icon">🔍</span>
+                <input type="text" class="search-input" id="searchInp" placeholder="Search romantic, thriller, action..." onkeyup="doSearch()">
+            </div>
+            <div class="story-grid" id="homeGrid"></div>
+        </div>
+
+        <!-- 2. EXPLORE TAB -->
+        <div id="tab-explore" class="tab-content">
+            <div class="section-box">
+                <div class="section-title">Categories</div>
+                <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                    <button class="chip chip-yellow" onclick="loadStories()">All</button>
+                    <button class="chip" onclick="filterCat('pocket')">Pocket FM</button>
+                    <button class="chip" onclick="filterCat('pratilipi')">Pratilipi FM</button>
+                </div>
             </div>
             <div class="story-grid" id="exploreGrid"></div>
         </div>
-    </div>
 
-    <!-- 3. CART TAB -->
-    <div id="tab-cart" class="tab-content">
-        <div style="padding:20px;">
-            <h3>YOUR CART 🛒</h3>
-            <div id="cartList" class="list-group"></div>
-        </div>
-    </div>
-
-    <!-- 4. LIBRARY TAB -->
-    <div id="tab-library" class="tab-content">
-        <div style="padding:20px;">
-            <h3>MY PURCHASED STORIES 📚</h3>
-            <p style="font-size:12px; opacity:0.7;">All your bought content will appear here.</p>
-            <div id="libraryList" class="list-group">
-                <div class="list-item"><span>No purchased stories yet!</span></div>
+        <!-- 3. ORDERS / PURCHASED TAB -->
+        <div id="tab-orders" class="tab-content">
+            <div class="section-box">
+                <div class="section-title">Unlocked Library 📚</div>
+                <div id="unlockedList">
+                    <p style="font-size:12px; font-weight:700;">No unlocked stories found!</p>
+                </div>
             </div>
         </div>
-    </div>
 
-    <!-- 5. PROFILE TAB -->
-    <div id="tab-profile" class="tab-content">
-        <div style="padding:20px; text-align:center;">
-            <div style="font-size:50px;">👤</div>
-            <h3 id="userName">User Profile</h3>
-            <p id="userId" style="font-size:12px; opacity:0.7;"></p>
-            <div style="margin-top:20px;" class="list-group">
-                <div class="list-item" onclick="openTheme()"><span>🎨 Change Theme</span> <span>❯</span></div>
-                <div class="list-item" onclick="switchTab('cart')"><span>🛒 View Cart</span> <span>❯</span></div>
-                <div class="list-item" onclick="switchTab('library')"><span>📚 My Library</span> <span>❯</span></div>
+        <!-- 4. PROFILE TAB -->
+        <div id="tab-profile" class="tab-content">
+            <div class="profile-card">
+                <img id="uPhoto" src="https://picsum.photos/100" class="avatar">
+                <div>
+                    <div id="uName" style="font-weight:900; font-size:16px;">User Name</div>
+                    <div class="id-badge">ID: <span id="uId">00000000</span> 📋</div>
+                </div>
+            </div>
+
+            <div class="stat-grid">
+                <div class="stat-box">
+                    <div class="stat-num" id="pUnlocked">0</div>
+                    <div class="stat-lbl">Unlocked Stories</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-num" id="pTotal">0</div>
+                    <div class="stat-lbl">Available Shows</div>
+                </div>
+            </div>
+
+            <div class="section-box">
+                <div class="section-title">Quick Links</div>
+                <div class="item-row" onclick="switchTab('orders')">
+                    <span style="font-weight:800; font-size:12px;">📁 My Purchased Stories</span>
+                    <span>❯</span>
+                </div>
             </div>
         </div>
-    </div>
 
-    <!-- BUY MODAL (In-App Checkout) -->
-    <div class="modal" id="buyModal">
-        <div class="modal-box">
-            <h3 id="modalTitle">Buy Story</h3>
-            <p id="modalPrice" style="color:var(--accent); font-weight:bold;"></p>
-            <p style="font-size:11px; opacity:0.8;">Checkout process will complete inside Telegram Chat.</p>
-            <button class="btn btn-buy" style="width:100%; padding:10px; margin-top:10px;" onclick="confirmPurchase()">PROCEED TO BUY</button>
-            <button class="btn btn-cart" style="width:100%; padding:10px; margin-top:8px;" onclick="closeBuyModal()">Cancel</button>
-        </div>
-    </div>
-
-    <!-- THEME MODAL -->
-    <div class="modal" id="themeModal">
-        <div class="modal-box">
-            <h3>Appearance</h3>
-            <div class="theme-grid">
-                <div class="theme-chip" style="background:#f5f5f7; color:#000" onclick="setTheme('nano')">Nano</div>
-                <div class="theme-chip" style="background:#0f0f11; color:#fff" onclick="setTheme('dark')">Dark</div>
-                <div class="theme-chip" style="background:#fbf9f1; color:#000" onclick="setTheme('cream')">Cream</div>
-                <div class="theme-chip" style="background:#fff0f5; color:#000" onclick="setTheme('pink')">AP's Pink</div>
-            </div>
-            <button class="btn btn-buy" style="width:100%" onclick="closeTheme()">Close</button>
-        </div>
     </div>
 
     <!-- BOTTOM NAV -->
-    <div class="nav">
-        <div class="nav-item active" onclick="switchTab('home')">🏠<br>Home</div>
-        <div class="nav-item" onclick="switchTab('explore')">🧭<br>Explore</div>
-        <div class="nav-item" onclick="switchTab('cart')">🛒<br>Cart</div>
-        <div class="nav-item" onclick="switchTab('library')">📚<br>Library</div>
-        <div class="nav-item" onclick="switchTab('profile')">👤<br>Profile</div>
+    <div class="bottom-nav">
+        <div class="nav-link active" onclick="switchTab('home')">
+            <span class="nav-icon">🏠</span>HOME
+        </div>
+        <div class="nav-link" onclick="switchTab('explore')">
+            <span class="nav-icon">🧩</span>EXPLORE
+        </div>
+        <div class="nav-link" onclick="switchTab('orders')">
+            <span class="nav-icon">🔒</span>ORDERS
+        </div>
+        <div class="nav-link" onclick="switchTab('profile')">
+            <span class="nav-icon">👤</span>PROFILE
+        </div>
     </div>
 
     <script>
         const tg = window.Telegram.WebApp;
         tg.expand();
 
-        let allStories = [];
-        let cart = [];
-        let selectedStory = null;
+        let stories = [];
+        let userPurchases = [];
 
-        // User Info Init
+        // Fetch User Info
         if (tg.initDataUnsafe && tg.initDataUnsafe.user) {
-            document.getElementById('userName').innerText = tg.initDataUnsafe.user.first_name || "User";
-            document.getElementById('userId').innerText = "ID: " + (tg.initDataUnsafe.user.id || "N/A");
-        }
-
-        // Tab Switcher Function
-        function switchTab(tabName) {
-            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
-            document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
-
-            document.getElementById(`tab-${tabName}`).classList.add('active');
+            const u = tg.initDataUnsafe.user;
+            document.getElementById('uName').innerText = u.first_name + (u.last_name ? " " + u.last_name : "");
+            document.getElementById('uId').innerText = u.id;
+            if(u.photo_url) document.getElementById('uPhoto').src = u.photo_url;
             
-            const navs = ['home', 'explore', 'cart', 'library', 'profile'];
-            const idx = navs.indexOf(tabName);
-            if(idx !== -1) document.querySelectorAll('.nav-item')[idx].classList.add('active');
-
-            document.getElementById('pageTitle').innerText = "Story Seller | " + tabName.toUpperCase();
-
-            if(tabName === 'cart') renderCart();
+            // Load Purchases for User
+            loadUserPurchases(u.id);
         }
 
-        function setTheme(theme) {
-            document.documentElement.setAttribute('data-theme', theme);
-            closeTheme();
+        function switchTab(name) {
+            document.querySelectorAll('.tab-content').forEach(e => e.classList.remove('active'));
+            document.querySelectorAll('.nav-link').forEach(e => e.classList.remove('active'));
+            
+            document.getElementById(`tab-${name}`).classList.add('active');
+            
+            const tabs = ['home', 'explore', 'orders', 'profile'];
+            const idx = tabs.indexOf(name);
+            if(idx !== -1) document.querySelectorAll('.nav-link')[idx].classList.add('active');
         }
-        function openTheme() { document.getElementById('themeModal').style.display = 'flex'; }
-        function closeTheme() { document.getElementById('themeModal').style.display = 'none'; }
 
-        // Fetch Single Source Stories API
         async function loadStories() {
             try {
                 const res = await fetch('/api/stories');
-                allStories = await res.json();
-                renderStories(allStories, 'storyGrid');
-                renderStories(allStories, 'exploreGrid');
-            } catch (err) {
-                console.error("Error loading stories:", err);
-            }
+                stories = await res.json();
+                renderGrid(stories, 'homeGrid');
+                renderGrid(stories, 'exploreGrid');
+                document.getElementById('pTotal').innerText = stories.length;
+            } catch(e) { console.error(e); }
         }
 
-        function renderStories(stories, elementId) {
-            const grid = document.getElementById(elementId);
-            if(!grid) return;
-            if(stories.length === 0) {
-                grid.innerHTML = '<p style="font-size:12px; grid-column: 1/-1;">No stories found!</p>';
+        async function loadUserPurchases(userId) {
+            try {
+                const res = await fetch(`/api/user_purchases?user_id=${userId}`);
+                userPurchases = await res.json();
+                
+                document.getElementById('unlockedCount').innerText = userPurchases.length;
+                document.getElementById('pUnlocked').innerText = userPurchases.length;
+                
+                const box = document.getElementById('unlockedList');
+                if(userPurchases.length === 0) {
+                    box.innerHTML = '<p style="font-size:12px; font-weight:700;">No unlocked stories. Buy stories to access here!</p>';
+                    return;
+                }
+                
+                box.innerHTML = userPurchases.map(p => `
+                    <div class="item-row">
+                        <div>
+                            <div style="font-weight:900; font-size:13px;">${p.story_title}</div>
+                            <span style="font-size:10px; color:#16a34a; font-weight:800;">✓ UNLOCKED</span>
+                        </div>
+                        <button class="chip chip-yellow" onclick="openStoryLink('${p.link || '#'}')">ACCESS</button>
+                    </div>
+                `).join('');
+            } catch(e) { console.error(e); }
+        }
+
+        function renderGrid(list, target) {
+            const el = document.getElementById(target);
+            if(list.length === 0) {
+                el.innerHTML = '<p style="font-size:12px; font-weight:800;">No audio packs found.</p>';
                 return;
             }
-            grid.innerHTML = stories.map(s => `
+            el.innerHTML = list.map(s => `
                 <div class="card">
                     <img src="${s.photo || 'https://picsum.photos/200'}" class="card-img">
                     <div class="card-body">
-                        <span class="tag">${s.platform || 'Story'}</span>
+                        <span class="badge">${s.platform || 'AUDIO'}</span>
                         <h4 class="title">${s.title}</h4>
-                        <p class="desc">${s.desc || 'No description'}</p>
-                        <div class="price">₹${s.price}</div>
-                        <div class="btn-row">
-                            <button class="btn btn-buy" onclick="openBuyModal('${s.title}', ${s.price})">Buy</button>
-                            <button class="btn btn-cart" onclick="addToCart('${s.title}', ${s.price})">🛒</button>
-                        </div>
+                        <div class="price-tag">₹${s.price}</div>
+                        <button class="btn-action" onclick="buyStory('${s.title}', ${s.price})">BUY NOW</button>
                     </div>
                 </div>
             `).join('');
         }
 
-        function filterStories() {
-            const query = document.getElementById('searchInput').value.toLowerCase();
-            const filtered = allStories.filter(s => 
-                s.title.toLowerCase().includes(query) || 
-                (s.platform && s.platform.toLowerCase().includes(query))
-            );
-            renderStories(filtered, 'storyGrid');
+        function buyStory(title, price) {
+            tg.sendData(JSON.stringify({
+                action: "buy_story",
+                title: title,
+                price: price
+            }));
         }
 
-        function filterCategory(cat) {
-            const filtered = allStories.filter(s => 
-                (s.platform && s.platform.toLowerCase().includes(cat))
-            );
-            renderStories(filtered, 'exploreGrid');
+        function openStoryLink(url) {
+            if(url && url !== '#') tg.openTelegramLink(url);
+            else tg.showAlert("Access link will be provided in bot chat.");
         }
 
-        // Cart Management
-        function addToCart(title, price) {
-            cart.push({ title, price });
-            tg.showAlert(`" ${title} " added to cart!`);
+        function doSearch() {
+            const q = document.getElementById('searchInp').value.toLowerCase();
+            const f = stories.filter(s => s.title.toLowerCase().includes(q));
+            renderGrid(f, 'homeGrid');
         }
 
-        function renderCart() {
-            const container = document.getElementById('cartList');
-            if(cart.length === 0) {
-                container.innerHTML = '<div class="list-item"><span>Your cart is empty!</span></div>';
-                return;
-            }
-            let total = 0;
-            container.innerHTML = cart.map((item, idx) => {
-                total += item.price;
-                return `
-                    <div class="list-item">
-                        <span>${item.title} (₹${item.price})</span>
-                        <button class="btn btn-buy" style="padding:4px 8px;" onclick="openBuyModal('${item.title}', ${item.price})">Buy</button>
-                    </div>
-                `;
-            }).join('') + `<div style="margin-top:15px; font-weight:bold;">Total Amount: ₹${total}</div>`;
+        function filterCat(cat) {
+            const f = stories.filter(s => (s.platform && s.platform.toLowerCase().includes(cat)));
+            renderGrid(f, 'exploreGrid');
         }
 
-        // In-App Buy & Telegram Sync Function
-        function openBuyModal(title, price) {
-            selectedStory = { title, price };
-            document.getElementById('modalTitle').innerText = title;
-            document.getElementById('modalPrice').innerText = "Price: ₹" + price;
-            document.getElementById('buyModal').style.display = 'flex';
-        }
-
-        function closeBuyModal() {
-            document.getElementById('buyModal').style.display = 'none';
-        }
-
-        function confirmPurchase() {
-            if(selectedStory) {
-                // Send purchase request payload directly to Telegram Bot Chat
-                tg.sendData(JSON.stringify({ 
-                    action: "buy_story", 
-                    title: selectedStory.title, 
-                    price: selectedStory.price 
-                }));
-                closeBuyModal();
-            }
-        }
-
-        // Initial Load
         loadStories();
     </script>
 </body>
