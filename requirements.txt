@@ -3,3 +3,7 @@ tgcrypto
 motor
 aiohttp
 requests
+fastapi
+uvicorn
+jinja2
+python-multipart
