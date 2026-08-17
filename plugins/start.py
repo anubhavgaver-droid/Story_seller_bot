@@ -4,13 +4,10 @@ from pyrogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMa
 from database.db import get_story_by_title, send_log, is_user_registered, register_user, get_user_purchases
 from config import BOT_USERNAME, WEB_APP_URL
 
-# Main Menu Keyboard Layout with Top Mini App Button
+# Main Menu Keyboard Layout
 MAIN_MENU = ReplyKeyboardMarkup(
     [
-        # 1. Sabse Upar Mini App Button
         [KeyboardButton("🚀 ᴏᴘᴇɴ ᴍɪɴɪ ᴀᴘᴘ", web_app=WebAppInfo(url=WEB_APP_URL))],
-        
-        # 2. Aapke Purane Buttons
         [KeyboardButton("📢 ᴜᴘᴅᴀᴛᴇs ᴄʜᴀɴɴᴇʟ", style=enums.ButtonStyle.PRIMARY)],
         [KeyboardButton("🔎 sᴇᴀʀᴄʜ sᴛᴏʀʏ", style=enums.ButtonStyle.SUCCESS), KeyboardButton("📻 ᴘᴏᴄᴋᴇᴛ ғᴍ", style=enums.ButtonStyle.DANGER)],
         [KeyboardButton("📚 ᴘʀᴀᴛɪʟɪᴘɪ ғᴍ", style=enums.ButtonStyle.DANGER), KeyboardButton("👤 ᴍʏ ᴀᴄᴄᴏᴜɴᴛ", style=enums.ButtonStyle.PRIMARY)],
@@ -19,8 +16,14 @@ MAIN_MENU = ReplyKeyboardMarkup(
     resize_keyboard=True
 )
 
+# Custom Filter for WebApp Data
+async def web_app_filter(_, __, message):
+    return bool(message.web_app_data)
+
+filter_webapp = filters.create(web_app_filter)
+
 # ------------------ Mini App Web Data Receiver ------------------
-@Client.on_message(filters.web_app_data & filters.private)
+@Client.on_message(filters.service & filter_webapp & filters.private)
 async def web_app_data_handler(client, message):
     try:
         data = json.loads(message.web_app_data.data)
@@ -61,12 +64,11 @@ async def web_app_data_handler(client, message):
     except Exception as e:
         print(f"WebApp Data Error: {e}")
 
-# group=-1 gives Highest Priority to /start command
+# ------------------ Rest of Start Handlers ------------------
 @Client.on_message(filters.command("start") & filters.private, group=-1)
 async def start_handler(client, message):
     user = message.from_user
     
-    # 1. Registration & Logging Check
     registered = await is_user_registered(user.id)
     if not registered:
         await register_user(user.id, user.first_name, user.username)
@@ -83,7 +85,6 @@ async def start_handler(client, message):
 
     args = message.text.split(maxsplit=1)
     
-    # 2. Deep Linking Handling (Direct Link Clicked)
     if len(args) > 1 and args[1].startswith("story_"):
         story_title = args[1].replace("story_", "").replace("_", " ")
         story = await get_story_by_title(story_title)
@@ -112,7 +113,6 @@ async def start_handler(client, message):
         else:
             return await message.reply_text("❌ <b>ᴛʜɪs sᴛᴏʀʏ ɪs ɴᴏᴛ ᴀᴠᴀɪʟᴀʙʟᴇ.</b>", reply_markup=MAIN_MENU)
 
-    # 3. Normal Start Welcome Message
     welcome_text = (
         f"<b>━━━━━━━ 🌟 sᴛᴏʀʏ sᴇʟʟᴇʀ ʙᴏᴛ 🌟 ━━━━━━━</b>\n\n"
         f"ʜᴇʟʟᴏ {user.first_name}! 👋\n\n"
@@ -120,9 +120,7 @@ async def start_handler(client, message):
     )
     await message.reply_text(welcome_text, reply_markup=MAIN_MENU)
 
-
 # ------------------ Dynamic Button Handlers ------------------
-
 @Client.on_message(filters.regex("^(📢 ᴜᴘᴅᴀᴛᴇs ᴄʜᴀɴɴᴇʟ|📢 Updates Channel)$") & filters.private)
 async def updates_handler(client, message):
     kb = InlineKeyboardMarkup([
@@ -130,12 +128,9 @@ async def updates_handler(client, message):
     ])
     await message.reply_text("<b>📢 ᴜᴘᴅᴀᴛᴇs ᴄʜᴀɴɴᴇʟ:</b>\n\nᴊᴏɪɴ ᴏᴜʀ ᴄʜᴀɴɴᴇʟ ғᴏʀ ᴛʜᴇ ʟᴀᴛᴇsᴛ ᴜᴘᴅᴀᴛᴇs ᴀɴᴅ ɴᴇᴡ sᴛᴏʀɪᴇs!", reply_markup=kb)
 
-# ------------------ Updated My Account Handler ------------------
 @Client.on_message(filters.regex("^(👤 ᴍʏ ᴀᴄᴄᴏᴜɴᴛ|👤 My Account)$") & filters.private)
 async def account_handler(client, message):
     user = message.from_user
-    
-    # 1. Fetch purchased stories from DB
     purchases = await get_user_purchases(user.id)
     
     acc_text = (
@@ -155,7 +150,6 @@ async def account_handler(client, message):
     acc_text += "📖 <b>ʏᴏᴜʀ ᴘᴜʀᴄʜᴀsᴇᴅ sᴛᴏʀɪᴇs:</b>\n\n"
     buttons = []
     
-    # 2. Loop through purchased stories and attach Access URL Buttons
     for item in purchases:
         story = await get_story_by_title(item['story_title'])
         if story:
@@ -164,7 +158,6 @@ async def account_handler(client, message):
             
     reply_markup = InlineKeyboardMarkup(buttons) if buttons else None
     await message.reply_text(acc_text, reply_markup=reply_markup)
-
 
 @Client.on_message(filters.regex("^(📞 sᴜᴘᴘᴏʀᴛ|📞 Support)$") & filters.private)
 async def support_handler(client, message):
