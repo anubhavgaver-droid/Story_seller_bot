@@ -1,3 +1,4 @@
+import json
 from pyrogram import Client, filters, enums
 from pyrogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
 from database.db import get_story_by_title, send_log, is_user_registered, register_user, get_user_purchases
@@ -9,7 +10,7 @@ MAIN_MENU = ReplyKeyboardMarkup(
         # 1. Sabse Upar Mini App Button
         [KeyboardButton("🚀 ᴏᴘᴇɴ ᴍɪɴɪ ᴀᴘᴘ", web_app=WebAppInfo(url=WEB_APP_URL))],
         
-        # 2. Aapke Purane Buttons (Unchanged)
+        # 2. Aapke Purane Buttons
         [KeyboardButton("📢 ᴜᴘᴅᴀᴛᴇs ᴄʜᴀɴɴᴇʟ", style=enums.ButtonStyle.PRIMARY)],
         [KeyboardButton("🔎 sᴇᴀʀᴄʜ sᴛᴏʀʏ", style=enums.ButtonStyle.SUCCESS), KeyboardButton("📻 ᴘᴏᴄᴋᴇᴛ ғᴍ", style=enums.ButtonStyle.DANGER)],
         [KeyboardButton("📚 ᴘʀᴀᴛɪʟɪᴘɪ ғᴍ", style=enums.ButtonStyle.DANGER), KeyboardButton("👤 ᴍʏ ᴀᴄᴄᴏᴜɴᴛ", style=enums.ButtonStyle.PRIMARY)],
@@ -17,6 +18,48 @@ MAIN_MENU = ReplyKeyboardMarkup(
     ],
     resize_keyboard=True
 )
+
+# ------------------ Mini App Web Data Receiver ------------------
+@Client.on_message(filters.web_app_data & filters.private)
+async def web_app_data_handler(client, message):
+    try:
+        data = json.loads(message.web_app_data.data)
+        action = data.get("action")
+        story_title = data.get("title")
+        price = data.get("price")
+        
+        if action == "buy_story":
+            story = await get_story_by_title(story_title)
+            clean_title = story_title.replace(" ", "_")
+            
+            btn = InlineKeyboardMarkup([
+                [InlineKeyboardButton("💳 ᴘᴀʏ ɴᴏᴡ", callback_data=f"buy_{clean_title}_{price}")]
+            ])
+            
+            photo_url = story.get('photo', 'https://picsum.photos/400/200') if story else 'https://picsum.photos/400/200'
+            desc = story.get('desc', 'ɴᴏ ᴅᴇsᴄʀɪᴘᴛɪᴏɴ ᴀᴠᴀɪʟᴀʙʟᴇ.') if story else ''
+
+            caption_text = (
+                f"🛒 <b>ᴏʀᴅᴇʀ ɪɴɪᴛɪᴀᴛᴇᴅ ғʀᴏᴍ ᴍɪɴɪ ᴀᴘᴘ</b>\n\n"
+                f"📖 <b>ᴛɪᴛʟᴇ:</b> {story_title}\n"
+                f"💰 <b>ᴘʀɪᴄᴇ:</b> ₹{price}\n"
+                f"📝 <b>ᴅᴇsᴄ:</b> {desc}\n\n"
+                f"👇 **Click below to complete purchase:**"
+            )
+            
+            try:
+                await message.reply_photo(
+                    photo=photo_url,
+                    caption=caption_text,
+                    reply_markup=btn
+                )
+            except Exception:
+                await message.reply_text(
+                    caption_text,
+                    reply_markup=btn
+                )
+    except Exception as e:
+        print(f"WebApp Data Error: {e}")
 
 # group=-1 gives Highest Priority to /start command
 @Client.on_message(filters.command("start") & filters.private, group=-1)
