@@ -1,14 +1,9 @@
 import asyncio
 import os
-import motor.motor_asyncio
 from aiohttp import web
 from pyrogram import Client, idle
-from config import API_ID, API_HASH, BOT_TOKEN, PORT, DB_URL, DB_NAME
-
-# MongoDB Setup
-mongo_client = motor.motor_asyncio.AsyncIOMotorClient(DB_URL)
-db = mongo_client[DB_NAME]
-stories_collection = db["stories"]
+from config import API_ID, API_HASH, BOT_TOKEN, PORT
+from database.db import stories_col  # Clean DB reference import
 
 # Plugins setup
 plugins = dict(root="plugins")
@@ -24,11 +19,11 @@ async def handle_miniapp(request):
 # 2. API Endpoint to Fetch Stories for Mini App
 async def handle_get_stories(request):
     stories = []
-    async for story in stories_collection.find():
+    async for story in stories_col.find():
         stories.append({
             "title": story.get("title", "Untitled"),
             "price": story.get("price", 0),
-            "platform": story.get("platform", "PRATILIPI FM"),
+            "platform": story.get("platform", story.get("category", "PRATILIPI FM")),
             "desc": story.get("desc", ""),
             "photo": story.get("photo", "https://picsum.photos/200")
         })
