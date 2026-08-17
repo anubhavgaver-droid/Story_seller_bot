@@ -356,7 +356,7 @@
             <div class="profile-card">
                 <img id="uPhoto" src="https://picsum.photos/100" class="avatar">
                 <div>
-                    <div id="uName" style="font-weight:900; font-size:16px;">User Name</div>
+                    <div id="uName" style="font-weight:900; font-size:16px;">Loading...</div>
                     <div class="id-badge">ID: <span id="uId">00000000</span> 📋</div>
                 </div>
             </div>
@@ -400,22 +400,42 @@
 
     <script>
         const tg = window.Telegram.WebApp;
+
+        // Telegram WebApp Initialize
+        tg.ready();
         tg.expand();
 
         let stories = [];
         let userPurchases = [];
 
-        // Fetch User Info
-        if (tg.initDataUnsafe && tg.initDataUnsafe.user) {
-            const u = tg.initDataUnsafe.user;
-            document.getElementById('uName').innerText = u.first_name + (u.last_name ? " " + u.last_name : "");
-            document.getElementById('uId').innerText = u.id;
-            if(u.photo_url) document.getElementById('uPhoto').src = u.photo_url;
-            loadUserPurchases(u.id);
+        // 🌟 USER DETAILS FETCH LOGIC
+        function initUserInfo() {
+            let user = null;
+
+            if (tg.initDataUnsafe && tg.initDataUnsafe.user) {
+                user = tg.initDataUnsafe.user;
+            }
+
+            if (user) {
+                const fullName = (user.first_name || "") + " " + (user.last_name || "");
+                document.getElementById('uName').innerText = fullName.trim() || "Telegram User";
+                document.getElementById('uId').innerText = user.id;
+                
+                if (user.photo_url) {
+                    document.getElementById('uPhoto').src = user.photo_url;
+                }
+                
+                // Purchase History Load
+                loadUserPurchases(user.id);
+            } else {
+                document.getElementById('uName').innerText = "Guest User";
+                document.getElementById('uId').innerText = "N/A";
+            }
         }
 
         function setupSplashScreen(list) {
             const wrapper = document.getElementById('cardsWrapper');
+            if(!wrapper) return;
             wrapper.innerHTML = '';
             
             // Randomly pick up to 5 stories
@@ -438,7 +458,8 @@
 
             // Hide Splash after 2.5s
             setTimeout(() => {
-                document.getElementById('splash-screen').classList.add('hidden');
+                const splash = document.getElementById('splash-screen');
+                if(splash) splash.classList.add('hidden');
             }, 2500);
         }
 
@@ -447,10 +468,10 @@
                 const res = await fetch('/api/stories');
                 stories = await res.json();
                 
-                // Initialize Splash Screen Animation with fetched data
                 if(stories.length > 0) setupSplashScreen(stories);
                 else {
-                    document.getElementById('splash-screen').classList.add('hidden');
+                    const splash = document.getElementById('splash-screen');
+                    if(splash) splash.classList.add('hidden');
                 }
 
                 renderGrid(stories, 'homeGrid');
@@ -458,7 +479,8 @@
                 document.getElementById('pTotal').innerText = stories.length;
             } catch(e) {
                 console.error(e);
-                document.getElementById('splash-screen').classList.add('hidden');
+                const splash = document.getElementById('splash-screen');
+                if(splash) splash.classList.add('hidden');
             }
         }
 
@@ -542,6 +564,8 @@
             if(idx !== -1) document.querySelectorAll('.nav-link')[idx].classList.add('active');
         }
 
+        // Execution Sequence
+        initUserInfo();
         loadStories();
     </script>
 </body>
