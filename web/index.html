@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="hi" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ac Premium Mini App</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        :root[data-theme="dark"] { --bg: #0f0f11; --card: #1a1a1e; --text: #ffffff; --accent: #2563eb; --border: #2a2a30; }
+        :root[data-theme="nano"] { --bg: #f5f5f7; --card: #ffffff; --text: #1d1d1f; --accent: #0071e3; --border: #e5e5ea; }
+        :root[data-theme="cream"] { --bg: #fbf9f1; --card: #f3eed9; --text: #433d3c; --accent: #d4a373; --border: #e7e0c8; }
+        :root[data-theme="pink"] { --bg: #fff0f5; --card: #ffe4e1; --text: #4a2e35; --accent: #ff69b4; --border: #ffc0cb; }
+
+        body { margin: 0; padding: 0 0 80px 0; background: var(--bg); color: var(--text); font-family: system-ui, -apple-system, sans-serif; }
+        .header { display: flex; justify-content: space-between; align-items: center; padding: 15px 20px; background: var(--card); border-bottom: 1px solid var(--border); }
+        .header h2 { margin: 0; font-size: 18px; }
+        
+        .search-box { padding: 15px 20px; }
+        .search-input { width: 100%; padding: 12px; border-radius: 12px; border: 1px solid var(--border); background: var(--card); color: var(--text); box-sizing: border-box; }
+
+        .story-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 15px; padding: 0 20px; }
+        .card { background: var(--card); border: 1px solid var(--border); border-radius: 16px; overflow: hidden; display: flex; flex-direction: column; }
+        .card-img { width: 100%; height: 130px; object-fit: cover; }
+        .card-body { padding: 10px; display: flex; flex-direction: column; flex-grow: 1; }
+        
+        .tag { align-self: flex-start; background: var(--accent); color: #fff; font-size: 9px; font-weight: bold; padding: 3px 6px; border-radius: 4px; text-transform: uppercase; margin-bottom: 5px; }
+        .title { font-size: 13px; font-weight: 600; margin: 0 0 4px 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .desc { font-size: 10px; opacity: 0.7; margin-bottom: 8px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+        .price { font-size: 14px; font-weight: bold; color: var(--accent); margin-bottom: 8px; }
+
+        .btn-row { display: flex; gap: 5px; margin-top: auto; }
+        .btn { flex: 1; padding: 8px 0; border: none; border-radius: 8px; font-size: 11px; font-weight: bold; cursor: pointer; text-align: center; }
+        .btn-buy { background: var(--accent); color: #fff; }
+        .btn-cart { background: transparent; border: 1px solid var(--border); color: var(--text); }
+
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); backdrop-filter: blur(5px); justify-content: center; align-items: center; z-index: 99; }
+        .modal-box { background: var(--card); padding: 20px; border-radius: 20px; width: 80%; max-width: 280px; text-align: center; border: 1px solid var(--border); }
+        .theme-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 15px 0; }
+        .theme-chip { padding: 10px; border-radius: 10px; border: 1px solid var(--border); font-size: 12px; cursor: pointer; font-weight: bold; }
+
+        .nav { position: fixed; bottom: 0; left: 0; width: 100%; background: var(--card); border-top: 1px solid var(--border); display: flex; justify-content: space-around; padding: 10px 0; }
+        .nav-item { font-size: 10px; opacity: 0.6; text-align: center; cursor: pointer; }
+        .nav-item.active { opacity: 1; color: var(--accent); font-weight: bold; }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <h2>Arya | PREMIUM</h2>
+        <span onclick="openTheme()" style="cursor:pointer; font-size:18px;">⚙️</span>
+    </div>
+
+    <div class="search-box">
+        <input type="text" id="searchInput" class="search-input" placeholder="Search stories, platform..." onkeyup="filterStories()">
+    </div>
+
+    <div class="story-grid" id="storyGrid"></div>
+
+    <!-- Theme Modal -->
+    <div class="modal" id="themeModal">
+        <div class="modal-box">
+            <h3>Appearance</h3>
+            <div class="theme-grid">
+                <div class="theme-chip" style="background:#f5f5f7; color:#000" onclick="setTheme('nano')">Nano</div>
+                <div class="theme-chip" style="background:#0f0f11; color:#fff" onclick="setTheme('dark')">Dark</div>
+                <div class="theme-chip" style="background:#fbf9f1; color:#000" onclick="setTheme('cream')">Cream</div>
+                <div class="theme-chip" style="background:#fff0f5; color:#000" onclick="setTheme('pink')">AP's Pink</div>
+            </div>
+            <button class="btn btn-buy" style="width:100%" onclick="closeTheme()">Close</button>
+        </div>
+    </div>
+
+    <!-- Bottom Nav -->
+    <div class="nav">
+        <div class="nav-item active">🏠<br>Home</div>
+        <div class="nav-item">🧭<br>Explore</div>
+        <div class="nav-item">🛒<br>Cart</div>
+        <div class="nav-item">📚<br>Library</div>
+        <div class="nav-item">👤<br>Profile</div>
+    </div>
+
+    <script>
+        const tg = window.Telegram.WebApp;
+        tg.expand();
+        let allStories = [];
+
+        function setTheme(theme) {
+            document.documentElement.setAttribute('data-theme', theme);
+            closeTheme();
+        }
+        function openTheme() { document.getElementById('themeModal').style.display = 'flex'; }
+        function closeTheme() { document.getElementById('themeModal').style.display = 'none'; }
+
+        async function loadStories() {
+            try {
+                const res = await fetch('/api/stories');
+                allStories = await res.json();
+                renderStories(allStories);
+            } catch (err) {
+                console.error("Error loading stories:", err);
+            }
+        }
+
+        function renderStories(stories) {
+            const grid = document.getElementById('storyGrid');
+            grid.innerHTML = stories.map(s => `
+                <div class="card">
+                    <img src="${s.photo || 'https://picsum.photos/200'}" class="card-img">
+                    <div class="card-body">
+                        <span class="tag">${s.platform || 'Story'}</span>
+                        <h4 class="title">${s.title}</h4>
+                        <p class="desc">${s.desc || 'No description'}</p>
+                        <div class="price">₹${s.price}</div>
+                        <div class="btn-row">
+                            <button class="btn btn-buy" onclick="buyNow('${s.title}', ${s.price})">Buy Now</button>
+                            <button class="btn btn-cart" onclick="addToCart('${s.title}')">🛒</button>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function filterStories() {
+            const query = document.getElementById('searchInput').value.toLowerCase();
+            const filtered = allStories.filter(s => 
+                s.title.toLowerCase().includes(query) || 
+                (s.platform && s.platform.toLowerCase().includes(query))
+            );
+            renderStories(filtered);
+        }
+
+        function buyNow(title, price) {
+            tg.sendData(JSON.stringify({ action: "buy", title: title, price: price }));
+        }
+
+        function addToCart(title) {
+            tg.showAlert(`" ${title} " cart mein add ho gayi h!`);
+        }
+
+        loadStories();
+    </script>
+</body>
+</html>
