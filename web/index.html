@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>PREMIUM STORE BOT</title>
-    <!-- Telegram WebApp SDK -->
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
         /* default light theme */
@@ -209,10 +208,27 @@
             display: flex;
             flex-direction: column;
             cursor: pointer;
+            position: relative;
             transition: transform 0.1s ease;
         }
         .card:active { transform: scale(0.98); }
         .card-img { width: 100%; height: 140px; object-fit: cover; border-bottom: 2px solid var(--border); }
+        
+        /* Wishlist Heart Button on Card */
+        .card-fav-btn {
+            position: absolute;
+            top: 8px; right: 8px;
+            width: 30px; height: 30px;
+            background: rgba(255, 255, 255, 0.9);
+            border: 1.5px solid var(--border);
+            border-radius: 50%;
+            display: flex; justify-content: center; align-items: center;
+            font-size: 14px;
+            cursor: pointer;
+            z-index: 10;
+            box-shadow: 1px 1px 0px var(--border);
+        }
+
         .card-body { padding: 10px; display: flex; flex-direction: column; flex-grow: 1; }
         .badge {
             align-self: flex-start;
@@ -428,7 +444,6 @@
             background: var(--item-bg);
         }
 
-        /* ---------------- THEME SELECTOR BUTTONS ---------------- */
         .theme-grid {
             display: flex;
             gap: 8px;
@@ -483,7 +498,6 @@
 </head>
 <body>
 
-    <!-- ANIMATED WELCOME SPLASH SCREEN -->
     <div id="splash-screen">
         <div class="cards-stack-wrapper" id="cardsWrapper"></div>
         <div class="splash-title">WELCOME TO STORE</div>
@@ -491,7 +505,6 @@
         <div class="loader-spinner"></div>
     </div>
 
-    <!-- MAIN APP CONTENT -->
     <div class="top-bar">
         <div class="brand-logo">STORE</div>
         <div class="header-chips">
@@ -550,7 +563,13 @@
                 </div>
             </div>
 
-            <!-- THEME SWITCHER SECTION -->
+            <div class="section-box">
+                <div class="section-title">My Wishlist ❤️</div>
+                <div id="wishlistContainer">
+                    <p style="font-size:12px; font-weight:700; opacity:0.7;">No saved stories yet!</p>
+                </div>
+            </div>
+
             <div class="section-box">
                 <div class="section-title">App Theme 🎨</div>
                 <div class="theme-grid">
@@ -570,7 +589,6 @@
         </div>
     </div>
 
-    <!-- FULL SCREEN STORY DETAIL MODAL -->
     <div class="modal-overlay" id="storyModal">
         <div class="modal-content">
             <div class="modal-hero">
@@ -605,7 +623,6 @@
         </div>
     </div>
 
-    <!-- BOTTOM NAV BAR -->
     <div class="bottom-nav">
         <div class="nav-link active" onclick="switchTab('home')">
             <span class="nav-icon">🏠</span>HOME
@@ -624,7 +641,20 @@
     <script>
         const tg = window.Telegram.WebApp;
 
-        // USER INDIVIDUAL THEME SYSTEM USING LOCALSTORAGE
+        // ⚡ HAPTIC FEEDBACK HELPER FUNCTION
+        function triggerHaptic(type = 'light') {
+            try {
+                if (tg.HapticFeedback) {
+                    if (type === 'light' || type === 'medium' || type === 'heavy') {
+                        tg.HapticFeedback.impactOccurred(type);
+                    } else if (type === 'success' || type === 'warning' || type === 'error') {
+                        tg.HapticFeedback.notificationOccurred(type);
+                    }
+                }
+            } catch(e) { console.error("Haptic error:", e); }
+        }
+
+        // USER INDIVIDUAL THEME SYSTEM
         function applySavedTheme() {
             const savedTheme = localStorage.getItem('user_theme') || 'light';
             document.body.className = '';
@@ -634,11 +664,59 @@
         }
 
         function changeTheme(themeName) {
+            triggerHaptic('medium');
             localStorage.setItem('user_theme', themeName);
             applySavedTheme();
         }
 
-        // DIRECT TELEGRAM USER DATA FETCHING LOGIC
+        // ❤️ WISHLIST SYSTEM (LOCAL STORAGE BASED)
+        function getWishlist() {
+            return JSON.parse(localStorage.getItem('user_wishlist') || '[]');
+        }
+
+        function toggleWishlist(e, storyId) {
+            e.stopPropagation();
+            triggerHaptic('medium');
+
+            let wishlist = getWishlist();
+            const index = wishlist.indexOf(storyId);
+
+            if (index > -1) {
+                wishlist.splice(index, 1);
+            } else {
+                wishlist.push(storyId);
+            }
+
+            localStorage.setItem('user_wishlist', JSON.stringify(wishlist));
+            renderGrid(stories, 'homeGrid');
+            renderGrid(stories, 'exploreGrid');
+            renderWishlist();
+        }
+
+        function renderWishlist() {
+            const container = document.getElementById('wishlistContainer');
+            if (!container) return;
+
+            const wishlistIds = getWishlist();
+            const favStories = stories.filter(s => wishlistIds.includes(s.id || s.title));
+
+            if (favStories.length === 0) {
+                container.innerHTML = '<p style="font-size:12px; font-weight:700; opacity:0.7;">No saved stories yet!</p>';
+                return;
+            }
+
+            container.innerHTML = favStories.map(s => `
+                <div class="item-row">
+                    <div>
+                        <div style="font-weight:900; font-size:13px;">${s.title}</div>
+                        <span style="font-size:10px; opacity:0.7;">${s.platform || 'AUDIO'}</span>
+                    </div>
+                    <button class="chip chip-yellow" onclick="openStoryModal(${s.id})">VIEW</button>
+                </div>
+            `).join('');
+        }
+
+        // TELEGRAM USER DATA FETCHING LOGIC
         function initUserInfo() {
             try {
                 tg.ready();
@@ -705,6 +783,7 @@
 
                 renderGrid(stories, 'homeGrid');
                 renderGrid(stories, 'exploreGrid');
+                renderWishlist();
                 document.getElementById('pTotal').innerText = stories.length;
             } catch(e) {
                 console.error(e);
@@ -746,8 +825,17 @@
                 el.innerHTML = '<p style="font-size:12px; font-weight:800;">No audio packs found.</p>';
                 return;
             }
-            el.innerHTML = list.map((s, idx) => `
-                <div class="card" onclick="openStoryModal(${s.id || idx})">
+
+            const wishlist = getWishlist();
+
+            el.innerHTML = list.map((s, idx) => {
+                const sId = s.id || idx;
+                const isFav = wishlist.includes(sId);
+                return `
+                <div class="card" onclick="openStoryModal(${sId})">
+                    <div class="card-fav-btn" onclick="toggleWishlist(event, ${sId})">
+                        ${isFav ? '❤️' : '🤍'}
+                    </div>
                     <img src="${s.photo || 'https://picsum.photos/200'}" class="card-img">
                     <div class="card-body">
                         <span class="badge">${s.platform || 'AUDIO'}</span>
@@ -756,10 +844,11 @@
                         <button class="btn-action">VIEW DETAILS</button>
                     </div>
                 </div>
-            `).join('');
+            `}).join('');
         }
 
         function openStoryModal(storyId) {
+            triggerHaptic('light');
             let story = stories.find(s => s.id === storyId) || stories[storyId];
             if (!story) return;
 
@@ -785,10 +874,12 @@
         }
 
         function closeModal() {
+            triggerHaptic('light');
             document.getElementById('storyModal').classList.remove('active');
         }
 
         function buyStory(title, price) {
+            triggerHaptic('success');
             tg.sendData(JSON.stringify({
                 action: "buy_story",
                 title: title,
@@ -798,6 +889,7 @@
         }
 
         function openStoryLink(url) {
+            triggerHaptic('light');
             if(url && url !== '#') tg.openTelegramLink(url);
             else tg.showAlert("Access link will be provided in bot chat.");
         }
@@ -809,11 +901,13 @@
         }
 
         function filterCat(cat) {
+            triggerHaptic('light');
             const f = stories.filter(s => (s.platform && s.platform.toLowerCase().includes(cat)));
             renderGrid(f, 'exploreGrid');
         }
 
         function switchTab(name) {
+            triggerHaptic('light');
             document.querySelectorAll('.tab-content').forEach(e => e.classList.remove('active'));
             document.querySelectorAll('.nav-link').forEach(e => e.classList.remove('active'));
             
