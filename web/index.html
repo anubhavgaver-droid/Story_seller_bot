@@ -135,7 +135,7 @@
             opacity: 0.8;
         }
 
-        /* ---------------- WELCOME SPLASH SCREEN ---------------- */
+        /* ---------------- WELCOME SPLASH SCREEN (HD PREMIUM FAN STACK) ---------------- */
         #splash-screen {
             position: fixed;
             top: 0; left: 0;
@@ -157,20 +157,20 @@
 
         .cards-stack-wrapper {
             position: relative;
-            width: 240px;
-            height: 220px;
+            width: 280px;
+            height: 240px;
             display: flex;
             justify-content: center;
             align-items: center;
-            margin-bottom: 25px;
+            margin-bottom: 30px;
             perspective: 1000px;
         }
 
         .fan-card {
             position: absolute;
-            width: 130px;
-            height: 180px;
-            border-radius: 14px;
+            width: 135px;
+            height: 185px;
+            border-radius: 16px;
             border: 2.5px solid var(--border);
             object-fit: cover;
             box-shadow: var(--shadow);
@@ -179,16 +179,17 @@
             transform: scale(0.5) translateY(50px);
         }
 
-        .cards-stack-wrapper.active .card-left-2 { opacity: 0.6; transform: rotate(-24deg) translateX(-70px) scale(0.8); }
-        .cards-stack-wrapper.active .card-left-1 { opacity: 0.85; transform: rotate(-12deg) translateX(-35px) scale(0.9); z-index: 2; }
-        .cards-stack-wrapper.active .card-center { opacity: 1; transform: rotate(0deg) translateY(-10px) scale(1.05); z-index: 3; border-color: var(--border); background: var(--accent); }
-        .cards-stack-wrapper.active .card-right-1 { opacity: 0.85; transform: rotate(12deg) translateX(35px) scale(0.9); z-index: 2; }
-        .cards-stack-wrapper.active .card-right-2 { opacity: 0.6; transform: rotate(24deg) translateX(70px) scale(0.8); }
+        /* HD PREMIUM FAN STACK ROTATIONS */
+        .cards-stack-wrapper.active .card-left-2 { opacity: 0.65; transform: rotate(-24deg) translateX(-85px) scale(0.8); z-index: 1; }
+        .cards-stack-wrapper.active .card-left-1 { opacity: 0.85; transform: rotate(-12deg) translateX(-42px) scale(0.9); z-index: 2; }
+        .cards-stack-wrapper.active .card-center { opacity: 1; transform: rotate(0deg) translateY(-12px) scale(1.05); z-index: 4; border-color: var(--border); }
+        .cards-stack-wrapper.active .card-right-1 { opacity: 0.85; transform: rotate(12deg) translateX(42px) scale(0.9); z-index: 2; }
+        .cards-stack-wrapper.active .card-right-2 { opacity: 0.65; transform: rotate(24deg) translateX(85px) scale(0.8); z-index: 1; }
 
-        .splash-title { font-size: 22px; font-weight: 900; letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 6px; text-align: center; color: var(--text); }
-        .splash-sub { font-size: 11px; opacity: 0.7; max-width: 260px; text-align: center; line-height: 1.4; margin-bottom: 20px; font-weight: 600; }
+        .splash-title { font-size: 22px; font-weight: 900; letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 8px; text-align: center; color: var(--text); }
+        .splash-sub { font-size: 12px; opacity: 0.7; max-width: 270px; text-align: center; line-height: 1.4; margin-bottom: 24px; font-weight: 600; }
         .loader-spinner {
-            width: 24px; height: 24px;
+            width: 26px; height: 26px;
             border: 3px solid var(--item-bg);
             border-top: 3px solid var(--border);
             border-radius: 50%;
@@ -371,7 +372,6 @@
         .item-row { display: flex; justify-content: space-between; align-items: center; padding: 12px; border: 2px solid var(--border); border-radius: 12px; margin-bottom: 8px; background: var(--item-bg); cursor: pointer; color: var(--text); }
         .item-row:active { transform: translate(1px, 1px); }
 
-        /* CUSTOM PROFILE BUTTONS */
         .btn-support {
             background: var(--accent) !important;
             color: #000000 !important;
@@ -410,11 +410,11 @@
         <div class="loading-lbl">LOADING STORY DATA</div>
     </div>
 
-    <!-- WELCOME SPLASH SCREEN ANIMATION -->
+    <!-- WELCOME SPLASH SCREEN ANIMATION (HD PREMIUM LOOK) -->
     <div id="splash-screen">
         <div class="cards-stack-wrapper" id="cardsWrapper"></div>
-        <div class="splash-title">WELCOME TO STORE</div>
-        <div class="splash-sub">Your premium hub for unlocked audio & video series — instant access directly in bot chat.</div>
+        <div class="splash-title">WELCOME TO ARYA PREMIUM</div>
+        <div class="splash-sub">Your automated store inside Telegram for premium audio and video story series — delivered instantly to your chat.</div>
         <div class="loader-spinner"></div>
     </div>
 
@@ -483,7 +483,6 @@
                 </div>
             </div>
 
-            <!-- COMMUNITY & SUPPORT SECTION -->
             <div class="section-box">
                 <div class="section-title">Help & Updates 🚀</div>
                 <div class="item-row btn-support" onclick="openChannel('https://t.me/pratilipifm090')">
@@ -583,7 +582,7 @@
             } catch(e) { console.error("Haptic error:", e); }
         }
 
-        /* --- THEME SYSTEM (WHITE & BLACK ONLY) --- */
+        /* --- THEME SYSTEM --- */
         function applySavedTheme() {
             const savedTheme = localStorage.getItem('user_theme') || 'white';
             document.body.className = '';
@@ -647,7 +646,7 @@
             `}).join('');
         }
 
-        /* --- REDIRECT & DEEP LINK ANIMATION (EXACTLY 5 TO 6 SECONDS) --- */
+        /* --- DIRECT REDIRECT ANIMATION --- */
         function runDirectRedirectAnimation(callback) {
             const splash = document.getElementById('splash-screen');
             if(splash) splash.classList.add('hidden');
@@ -676,31 +675,33 @@
                     counter.innerText = `${current}%`;
                     fill.style.width = `${current}%`;
                 }
-            }, 55); 
+            }, 50); 
         }
 
+        /* --- UPDATED PARAMETER CHECK FOR TELEGRAM WEB APP --- */
         function checkUrlParamRouting() {
-            let targetStoryParam = null;
+            let targetParam = null;
 
             if (tg.initDataUnsafe && tg.initDataUnsafe.start_param) {
-                targetStoryParam = tg.initDataUnsafe.start_param;
+                targetParam = tg.initDataUnsafe.start_param;
             } else {
                 const urlParams = new URLSearchParams(window.location.search);
-                targetStoryParam = urlParams.get('story') || urlParams.get('start') || urlParams.get('tgWebAppStartParam');
+                targetParam = urlParams.get('startapp') || urlParams.get('story') || urlParams.get('start') || urlParams.get('tgWebAppStartParam');
             }
 
-            if (targetStoryParam) {
-                targetStoryParam = targetStoryParam.replace(/^story_/, '');
-                const cleanQuery = decodeURIComponent(targetStoryParam).replace(/_/g, ' ').toLowerCase().trim();
+            if (targetParam) {
+                const cleanParam = targetParam.replace(/^story_/, '').toLowerCase().trim();
                 
                 const foundStory = stories.find(s => {
-                    const titleMatch = s.title && s.title.toLowerCase().trim() === cleanQuery;
-                    const idMatch = s.id && String(s.id).toLowerCase().trim() === cleanQuery;
-                    return titleMatch || idMatch;
+                    const idMatch = s.id && String(s.id).toLowerCase().trim() === cleanParam;
+                    const titleMatch = s.title && s.title.toLowerCase().replace(/\s+/g, '_').trim() === cleanParam;
+                    return idMatch || titleMatch;
                 });
 
                 if (foundStory) {
-                    if (foundStory.photo) document.getElementById('loaderAnimeImg').src = foundStory.photo;
+                    if (foundStory.photo) {
+                        document.getElementById('loaderAnimeImg').src = foundStory.photo;
+                    }
                     runDirectRedirectAnimation(() => {
                         openStoryModal(foundStory.id || foundStory.title);
                     });
@@ -710,6 +711,7 @@
             return false;
         }
 
+        /* --- HD SPLASH FAN-STACK SCREEN SETUP --- */
         function setupSplashScreen(list) {
             const wrapper = document.getElementById('cardsWrapper');
             if(!wrapper) return;
@@ -726,11 +728,11 @@
                 wrapper.appendChild(img);
             });
 
-            setTimeout(() => { wrapper.classList.add('active'); }, 100);
+            setTimeout(() => { wrapper.classList.add('active'); }, 150);
             setTimeout(() => {
                 const splash = document.getElementById('splash-screen');
                 if(splash) splash.classList.add('hidden');
-            }, 2200);
+            }, 2500);
         }
 
         async function loadStories() {
@@ -741,7 +743,10 @@
                 renderGrid(stories, 'homeGrid');
                 renderGrid(stories, 'exploreGrid');
                 renderWishlist();
-                document.getElementById('pTotal').innerText = stories.length;
+                
+                if (document.getElementById('pTotal')) {
+                    document.getElementById('pTotal').innerText = stories.length;
+                }
 
                 const isDeepLinked = checkUrlParamRouting();
                 if (!isDeepLinked) {
@@ -752,7 +757,7 @@
                     }
                 }
             } catch(e) {
-                console.error(e);
+                console.error("Failed to fetch stories:", e);
                 const splash = document.getElementById('splash-screen');
                 if(splash) splash.classList.add('hidden');
             }
