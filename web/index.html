@@ -6,7 +6,6 @@
     <title>PREMIUM STORE BOT</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
-        /* default light theme */
         :root {
             --bg: #fafafa;
             --card-bg: #ffffff;
@@ -16,9 +15,9 @@
             --radius: 18px;
             --box-bg: #ffffff;
             --item-bg: #f8fafc;
+            --danger: #ef4444;
         }
 
-        /* dark theme options */
         body.theme-dark {
             --bg: #0f172a;
             --card-bg: #1e293b;
@@ -50,129 +49,49 @@
             transition: background-color 0.3s ease, color 0.3s ease;
         }
 
-        /* ---------------- WELCOME SPLASH SCREEN ANIMATION ---------------- */
         #splash-screen {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100vw;
-            height: 100vh;
-            background: #111111;
-            color: #ffffff;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            z-index: 9999;
-            transition: opacity 0.5s ease, visibility 0.5s ease;
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            background: #111111; color: #ffffff;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            z-index: 9999; transition: opacity 0.5s ease, visibility 0.5s ease;
         }
-        #splash-screen.hidden {
-            opacity: 0;
-            visibility: hidden;
-            pointer-events: none;
-        }
+        #splash-screen.hidden { opacity: 0; visibility: hidden; pointer-events: none; }
 
         .cards-stack-wrapper {
-            position: relative;
-            width: 240px;
-            height: 220px;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            margin-bottom: 25px;
-            perspective: 1000px;
+            position: relative; width: 240px; height: 220px;
+            display: flex; justify-content: center; align-items: center;
+            margin-bottom: 25px; perspective: 1000px;
         }
 
         .fan-card {
-            position: absolute;
-            width: 130px;
-            height: 180px;
-            border-radius: 14px;
-            border: 2px solid rgba(255, 255, 255, 0.2);
-            object-fit: cover;
+            position: absolute; width: 130px; height: 180px; border-radius: 14px;
+            border: 2px solid rgba(255, 255, 255, 0.2); object-fit: cover;
             box-shadow: 0 10px 25px rgba(0,0,0,0.8);
             transition: transform 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.5s ease;
-            opacity: 0;
-            transform: scale(0.5) translateY(50px);
+            opacity: 0; transform: scale(0.5) translateY(50px);
         }
 
-        .cards-stack-wrapper.active .card-left-2 {
-            opacity: 0.6;
-            transform: rotate(-24deg) translateX(-70px) scale(0.8);
-        }
-        .cards-stack-wrapper.active .card-left-1 {
-            opacity: 0.85;
-            transform: rotate(-12deg) translateX(-35px) scale(0.9);
-            z-index: 2;
-        }
-        .cards-stack-wrapper.active .card-center {
-            opacity: 1;
-            transform: rotate(0deg) translateY(-10px) scale(1.05);
-            z-index: 3;
-            border-color: var(--accent);
-            box-shadow: 0 0 20px rgba(255, 204, 0, 0.4);
-        }
-        .cards-stack-wrapper.active .card-right-1 {
-            opacity: 0.85;
-            transform: rotate(12deg) translateX(35px) scale(0.9);
-            z-index: 2;
-        }
-        .cards-stack-wrapper.active .card-right-2 {
-            opacity: 0.6;
-            transform: rotate(24deg) translateX(70px) scale(0.8);
-        }
+        .cards-stack-wrapper.active .card-left-2 { opacity: 0.6; transform: rotate(-24deg) translateX(-70px) scale(0.8); }
+        .cards-stack-wrapper.active .card-left-1 { opacity: 0.85; transform: rotate(-12deg) translateX(-35px) scale(0.9); z-index: 2; }
+        .cards-stack-wrapper.active .card-center { opacity: 1; transform: rotate(0deg) translateY(-10px) scale(1.05); z-index: 3; border-color: var(--accent); box-shadow: 0 0 20px rgba(255, 204, 0, 0.4); }
+        .cards-stack-wrapper.active .card-right-1 { opacity: 0.85; transform: rotate(12deg) translateX(35px) scale(0.9); z-index: 2; }
+        .cards-stack-wrapper.active .card-right-2 { opacity: 0.6; transform: rotate(24deg) translateX(70px) scale(0.8); }
 
-        .splash-title {
-            font-size: 20px;
-            font-weight: 900;
-            letter-spacing: 1px;
-            text-transform: uppercase;
-            margin-bottom: 6px;
-            text-align: center;
-        }
-        .splash-sub {
-            font-size: 11px;
-            color: #888888;
-            max-width: 260px;
-            text-align: center;
-            line-height: 1.4;
-            margin-bottom: 20px;
-        }
-        .loader-spinner {
-            width: 22px;
-            height: 22px;
-            border: 3px solid rgba(255,255,255,0.1);
-            border-top: 3px solid var(--accent);
-            border-radius: 50%;
-            animation: spin 0.8s linear infinite;
-        }
+        .splash-title { font-size: 20px; font-weight: 900; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 6px; text-align: center; }
+        .splash-sub { font-size: 11px; color: #888888; max-width: 260px; text-align: center; line-height: 1.4; margin-bottom: 20px; }
+        .loader-spinner { width: 22px; height: 22px; border: 3px solid rgba(255,255,255,0.1); border-top: 3px solid var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 
-        /* ---------------- MAIN APP STYLES ---------------- */
         .top-bar {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 12px 16px;
-            background: var(--box-bg);
-            border-bottom: 2.5px solid var(--border);
-            position: sticky;
-            top: 0;
-            z-index: 100;
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 12px 16px; background: var(--box-bg); border-bottom: 2.5px solid var(--border);
+            position: sticky; top: 0; z-index: 100;
         }
         .brand-logo { font-size: 20px; font-weight: 900; letter-spacing: -0.5px; }
         .header-chips { display: flex; gap: 6px; align-items: center; }
-        .chip {
-            padding: 5px 10px;
-            border-radius: 20px;
-            border: 2px solid var(--border);
-            font-size: 11px;
-            font-weight: 800;
-            background: var(--box-bg);
-            color: var(--text);
-            box-shadow: 2px 2px 0px var(--border);
-        }
+        .chip { padding: 5px 10px; border-radius: 20px; border: 2px solid var(--border); font-size: 11px; font-weight: 800; background: var(--box-bg); color: var(--text); box-shadow: 2px 2px 0px var(--border); }
         .chip-yellow { background: var(--accent); color: #000; }
+        .chip-red { background: var(--danger); color: #fff; border-color: var(--border); }
 
         .container { padding: 16px; }
         .tab-content { display: none; }
@@ -180,320 +99,107 @@
 
         .search-wrapper { position: relative; margin-bottom: 16px; }
         .search-input {
-            width: 100%;
-            padding: 12px 16px 12px 40px;
-            border-radius: 14px;
-            border: 2px solid var(--border);
-            background: var(--box-bg);
-            color: var(--text);
-            font-weight: 600;
-            font-size: 13px;
-            box-sizing: border-box;
-            box-shadow: 3px 3px 0px var(--border);
-            outline: none;
+            width: 100%; padding: 12px 16px 12px 40px; border-radius: 14px;
+            border: 2px solid var(--border); background: var(--box-bg); color: var(--text);
+            font-weight: 600; font-size: 13px; box-sizing: border-box; box-shadow: 3px 3px 0px var(--border); outline: none;
         }
         .search-icon { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); font-size: 14px; }
 
-        .story-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-            gap: 14px;
-        }
+        .story-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 14px; }
         .card {
-            background: var(--card-bg);
-            border: 2.5px solid var(--border);
-            border-radius: var(--radius);
-            overflow: hidden;
-            box-shadow: 4px 4px 0px var(--border);
-            display: flex;
-            flex-direction: column;
-            cursor: pointer;
-            position: relative;
-            transition: transform 0.1s ease;
+            background: var(--card-bg); border: 2.5px solid var(--border); border-radius: var(--radius);
+            overflow: hidden; box-shadow: 4px 4px 0px var(--border); display: flex; flex-direction: column;
+            cursor: pointer; position: relative; transition: transform 0.1s ease;
         }
         .card:active { transform: scale(0.98); }
         .card-img { width: 100%; height: 140px; object-fit: cover; border-bottom: 2px solid var(--border); }
         
-        /* Wishlist Heart Button on Card */
         .card-fav-btn {
-            position: absolute;
-            top: 8px; right: 8px;
-            width: 30px; height: 30px;
-            background: rgba(255, 255, 255, 0.9);
-            border: 1.5px solid var(--border);
-            border-radius: 50%;
-            display: flex; justify-content: center; align-items: center;
-            font-size: 14px;
-            cursor: pointer;
-            z-index: 10;
-            box-shadow: 1px 1px 0px var(--border);
+            position: absolute; top: 8px; right: 8px; width: 30px; height: 30px;
+            background: rgba(255, 255, 255, 0.9); border: 1.5px solid var(--border); border-radius: 50%;
+            display: flex; justify-content: center; align-items: center; font-size: 14px; cursor: pointer; z-index: 10; box-shadow: 1px 1px 0px var(--border);
         }
 
         .card-body { padding: 10px; display: flex; flex-direction: column; flex-grow: 1; }
-        .badge {
-            align-self: flex-start;
-            background: #2563eb;
-            color: #fff;
-            font-size: 9px;
-            font-weight: 800;
-            padding: 3px 8px;
-            border-radius: 6px;
-            border: 1.5px solid var(--border);
-            text-transform: uppercase;
-            margin-bottom: 6px;
-        }
+        .badge { align-self: flex-start; background: #2563eb; color: #fff; font-size: 9px; font-weight: 800; padding: 3px 8px; border-radius: 6px; border: 1.5px solid var(--border); text-transform: uppercase; margin-bottom: 6px; }
         .title { font-size: 13px; font-weight: 800; margin: 0 0 4px 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .price-tag { font-size: 15px; font-weight: 900; margin: 6px 0; }
         
         .btn-action {
-            width: 100%;
-            padding: 8px 0;
-            background: var(--accent);
-            color: #000;
-            border: 2px solid var(--border);
-            border-radius: 10px;
-            font-weight: 800;
-            font-size: 12px;
-            cursor: pointer;
-            box-shadow: 2px 2px 0px var(--border);
+            width: 100%; padding: 8px 0; background: var(--accent); color: #000;
+            border: 2px solid var(--border); border-radius: 10px; font-weight: 800; font-size: 12px;
+            cursor: pointer; box-shadow: 2px 2px 0px var(--border);
         }
         .btn-action:active { transform: translate(2px, 2px); box-shadow: 0px 0px 0px var(--border); }
 
-        /* ---------------- FULL SCREEN STORY DETAIL MODAL ---------------- */
         .modal-overlay {
-            position: fixed;
-            top: 0; left: 0; width: 100vw; height: 100vh;
-            background: var(--bg);
-            z-index: 1000;
-            display: flex;
-            flex-direction: column;
-            opacity: 0;
-            visibility: hidden;
-            transition: opacity 0.3s ease, visibility 0.3s ease;
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: var(--bg);
+            z-index: 1000; display: flex; flex-direction: column; opacity: 0; visibility: hidden; transition: opacity 0.3s ease, visibility 0.3s ease;
         }
-        .modal-overlay.active {
-            opacity: 1;
-            visibility: visible;
-        }
+        .modal-overlay.active { opacity: 1; visibility: visible; }
 
-        .modal-content {
-            width: 100%;
-            height: 100%;
-            display: flex;
-            flex-direction: column;
-            position: relative;
-            background: var(--bg);
-            overflow: hidden;
-        }
-
-        .modal-hero {
-            position: relative;
-            width: 100%;
-            height: 45vh;
-            background: #000;
-            overflow: hidden;
-            flex-shrink: 0;
-        }
-        .modal-bg-img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-            opacity: 0.65;
-            filter: blur(4px);
-            transform: scale(1.1);
-        }
+        .modal-content { width: 100%; height: 100%; display: flex; flex-direction: column; position: relative; background: var(--bg); overflow: hidden; }
+        .modal-hero { position: relative; width: 100%; height: 45vh; background: #000; overflow: hidden; flex-shrink: 0; }
+        .modal-bg-img { width: 100%; height: 100%; object-fit: cover; opacity: 0.65; filter: blur(4px); transform: scale(1.1); }
         .modal-close-btn {
-            position: absolute;
-            top: 16px; right: 16px;
-            width: 36px; height: 36px;
-            background: var(--box-bg);
-            color: var(--text);
-            border: 2px solid var(--border);
-            border-radius: 50%;
-            font-weight: 900;
-            font-size: 16px;
-            display: flex; justify-content: center; align-items: center;
-            cursor: pointer;
-            box-shadow: 2px 2px 0px var(--border);
-            z-index: 10;
+            position: absolute; top: 16px; right: 16px; width: 36px; height: 36px;
+            background: var(--box-bg); color: var(--text); border: 2px solid var(--border); border-radius: 50%;
+            font-weight: 900; font-size: 16px; display: flex; justify-content: center; align-items: center;
+            cursor: pointer; box-shadow: 2px 2px 0px var(--border); z-index: 10;
         }
 
-        .modal-poster-wrapper {
-            position: absolute;
-            bottom: 16px;
-            left: 16px;
-            z-index: 5;
-        }
-        .modal-poster-img {
-            width: 100px;
-            height: 135px;
-            object-fit: cover;
-            border-radius: 12px;
-            border: 2.5px solid var(--border);
-            box-shadow: 4px 4px 0px var(--border);
-            background: var(--box-bg);
-        }
+        .modal-poster-wrapper { position: absolute; bottom: 16px; left: 16px; z-index: 5; }
+        .modal-poster-img { width: 100px; height: 135px; object-fit: cover; border-radius: 12px; border: 2.5px solid var(--border); box-shadow: 4px 4px 0px var(--border); background: var(--box-bg); }
 
-        .modal-body {
-            flex-grow: 1;
-            padding: 20px 16px 90px 16px;
-            overflow-y: auto;
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-            background: var(--bg);
-        }
-
-        .modal-meta-row {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .modal-title {
-            font-size: 20px;
-            font-weight: 900;
-            margin: 0;
-            color: var(--text);
-            line-height: 1.3;
-        }
+        .modal-body { flex-grow: 1; padding: 20px 16px 90px 16px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; background: var(--bg); }
+        .modal-meta-row { display: flex; justify-content: space-between; align-items: center; }
+        .modal-title { font-size: 20px; font-weight: 900; margin: 0; color: var(--text); line-height: 1.3; }
 
         .modal-desc-box {
-            background: var(--item-bg);
-            border: 2px solid var(--border);
-            border-radius: 14px;
-            padding: 12px;
-            font-size: 13px;
-            line-height: 1.5;
-            color: var(--text);
-            font-weight: 600;
-            box-shadow: 2px 2px 0px var(--border);
+            background: var(--item-bg); border: 2px solid var(--border); border-radius: 14px;
+            padding: 12px; font-size: 13px; line-height: 1.5; color: var(--text); font-weight: 600; box-shadow: 2px 2px 0px var(--border);
         }
 
         .modal-bottom-bar {
-            position: absolute;
-            bottom: 0; left: 0; right: 0;
-            background: var(--box-bg);
-            border-top: 2.5px solid var(--border);
-            padding: 14px 16px;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 12px;
-            z-index: 20;
+            position: absolute; bottom: 0; left: 0; right: 0; background: var(--box-bg);
+            border-top: 2.5px solid var(--border); padding: 14px 16px; display: flex; align-items: center;
+            justify-content: space-between; gap: 12px; z-index: 20;
         }
-        .modal-price {
-            font-size: 22px;
-            font-weight: 900;
-            color: var(--text);
-        }
+        .modal-price { font-size: 22px; font-weight: 900; color: var(--text); }
 
         .profile-card {
-            background: var(--box-bg);
-            border: 2.5px solid var(--border);
-            border-radius: 20px;
-            padding: 16px;
-            box-shadow: 4px 4px 0px var(--border);
-            display: flex;
-            align-items: center;
-            gap: 14px;
-            margin-bottom: 16px;
+            background: var(--box-bg); border: 2.5px solid var(--border); border-radius: 20px;
+            padding: 16px; box-shadow: 4px 4px 0px var(--border); display: flex; align-items: center; gap: 14px; margin-bottom: 16px;
         }
         .avatar { width: 60px; height: 60px; border-radius: 14px; border: 2px solid var(--border); object-fit: cover; }
-        .id-badge {
-            display: inline-block;
-            background: var(--accent);
-            color: #000;
-            border: 1.5px solid var(--border);
-            padding: 2px 8px;
-            border-radius: 10px;
-            font-size: 11px;
-            font-weight: 800;
-            margin-top: 4px;
-        }
+        .id-badge { display: inline-block; background: var(--accent); color: #000; border: 1.5px solid var(--border); padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 800; margin-top: 4px; }
 
         .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
-        .stat-box {
-            background: var(--box-bg);
-            border: 2.5px solid var(--border);
-            border-radius: 16px;
-            padding: 14px;
-            text-align: center;
-            box-shadow: 3px 3px 0px var(--border);
-        }
+        .stat-box { background: var(--box-bg); border: 2.5px solid var(--border); border-radius: 16px; padding: 14px; text-align: center; box-shadow: 3px 3px 0px var(--border); }
         .stat-num { font-size: 22px; font-weight: 900; }
         .stat-lbl { font-size: 10px; font-weight: 800; opacity: 0.7; text-transform: uppercase; }
 
-        .section-box {
-            background: var(--box-bg);
-            border: 2.5px solid var(--border);
-            border-radius: 16px;
-            padding: 14px;
-            box-shadow: 3px 3px 0px var(--border);
-            margin-bottom: 12px;
-        }
+        .section-box { background: var(--box-bg); border: 2.5px solid var(--border); border-radius: 16px; padding: 14px; box-shadow: 3px 3px 0px var(--border); margin-bottom: 12px; }
         .section-title { font-size: 12px; font-weight: 900; text-transform: uppercase; margin-bottom: 10px; }
-        .item-row {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 10px;
-            border: 2px solid var(--border);
-            border-radius: 12px;
-            margin-bottom: 8px;
-            background: var(--item-bg);
-        }
+        .item-row { display: flex; justify-content: space-between; align-items: center; padding: 10px; border: 2px solid var(--border); border-radius: 12px; margin-bottom: 8px; background: var(--item-bg); }
 
-        .theme-grid {
-            display: flex;
-            gap: 8px;
-            margin-top: 8px;
-        }
-        .theme-btn {
-            flex: 1;
-            padding: 8px;
-            border: 2px solid var(--border);
-            border-radius: 10px;
-            font-size: 11px;
-            font-weight: 800;
-            cursor: pointer;
-            box-shadow: 2px 2px 0px var(--border);
-            text-align: center;
-        }
+        .theme-grid { display: flex; gap: 8px; margin-top: 8px; }
+        .theme-btn { flex: 1; padding: 8px; border: 2px solid var(--border); border-radius: 10px; font-size: 11px; font-weight: 800; cursor: pointer; box-shadow: 2px 2px 0px var(--border); text-align: center; }
 
         .bottom-nav {
-            position: fixed;
-            bottom: 0;
-            left: 0;
-            width: 100%;
-            background: var(--box-bg);
-            border-top: 2.5px solid var(--border);
-            display: flex;
-            justify-content: space-around;
-            padding: 8px 0;
-            z-index: 100;
+            position: fixed; bottom: 0; left: 0; width: 100%; background: var(--box-bg);
+            border-top: 2.5px solid var(--border); display: flex; justify-content: space-around; padding: 8px 0; z-index: 100;
         }
-        .nav-link {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            font-size: 9px;
-            font-weight: 900;
-            color: var(--text);
-            text-decoration: none;
-            opacity: 0.6;
-            cursor: pointer;
-        }
+        .nav-link { display: flex; flex-direction: column; align-items: center; font-size: 9px; font-weight: 900; color: var(--text); text-decoration: none; opacity: 0.6; cursor: pointer; }
         .nav-link.active { opacity: 1; }
-        .nav-link.active .nav-icon {
-            background: var(--accent);
-            color: #000;
-            border: 1.5px solid var(--border);
-            border-radius: 10px;
-            padding: 2px 10px;
-            box-shadow: 1.5px 1.5px 0px var(--border);
-        }
+        .nav-link.active .nav-icon { background: var(--accent); color: #000; border: 1.5px solid var(--border); border-radius: 10px; padding: 2px 10px; box-shadow: 1.5px 1.5px 0px var(--border); }
         .nav-icon { font-size: 16px; margin-bottom: 2px; }
+        
+        /* Red Boost Active Button State Fix */
+        .boost-btn-active {
+            background-color: var(--danger) !important;
+            color: #ffffff !important;
+        }
     </style>
 </head>
 <body>
@@ -529,6 +235,7 @@
                     <button class="chip chip-yellow" onclick="loadStories()">All</button>
                     <button class="chip" onclick="filterCat('pocket')">Pocket FM</button>
                     <button class="chip" onclick="filterCat('pratilipi')">Pratilipi FM</button>
+                    <button id="boostFilterBtn" class="chip chip-red" onclick="filterBoosted(this)">🚀 BOOST LIST</button>
                 </div>
             </div>
             <div class="story-grid" id="exploreGrid"></div>
@@ -564,7 +271,7 @@
             </div>
 
             <div class="section-box">
-                <div class="section-title">My Wishlist ❤️</div>
+                <div class="section-title">My Boost / Saved List 🚀</div>
                 <div id="wishlistContainer">
                     <p style="font-size:12px; font-weight:700; opacity:0.7;">No saved stories yet!</p>
                 </div>
@@ -640,11 +347,8 @@
 
     <script>
         const tg = window.Telegram.WebApp;
-
-        // ⚠️ BOT_USERNAME YAHAN APNE BOT KA USERNAME RAKHEIN (Bina @ ke)
         const BOT_USERNAME = "storysellerbyACbot"; 
 
-        // ⚡ HAPTIC FEEDBACK HELPER FUNCTION
         function triggerHaptic(type = 'light') {
             try {
                 if (tg.HapticFeedback) {
@@ -657,7 +361,6 @@
             } catch(e) { console.error("Haptic error:", e); }
         }
 
-        // USER INDIVIDUAL THEME SYSTEM
         function applySavedTheme() {
             const savedTheme = localStorage.getItem('user_theme') || 'light';
             document.body.className = '';
@@ -672,22 +375,22 @@
             applySavedTheme();
         }
 
-        // ❤️ WISHLIST SYSTEM (LOCAL STORAGE BASED)
+        // --- FIXED BOOST / WISHLIST LOGIC ---
         function getWishlist() {
             return JSON.parse(localStorage.getItem('user_wishlist') || '[]');
         }
 
-        function toggleWishlist(e, storyId) {
+        function toggleWishlist(e, keyId) {
             e.stopPropagation();
             triggerHaptic('medium');
 
             let wishlist = getWishlist();
-            const index = wishlist.indexOf(storyId);
+            const index = wishlist.indexOf(keyId);
 
             if (index > -1) {
                 wishlist.splice(index, 1);
             } else {
-                wishlist.push(storyId);
+                wishlist.push(keyId);
             }
 
             localStorage.setItem('user_wishlist', JSON.stringify(wishlist));
@@ -701,25 +404,35 @@
             if (!container) return;
 
             const wishlistIds = getWishlist();
-            const favStories = stories.filter(s => wishlistIds.includes(s.id || s.title));
+            const favStories = stories.filter(s => wishlistIds.includes(String(s.id)) || wishlistIds.includes(String(s.title)));
 
             if (favStories.length === 0) {
-                container.innerHTML = '<p style="font-size:12px; font-weight:700; opacity:0.7;">No saved stories yet!</p>';
+                container.innerHTML = '<p style="font-size:12px; font-weight:700; opacity:0.7;">No saved / boosted stories yet!</p>';
                 return;
             }
 
-            container.innerHTML = favStories.map(s => `
+            container.innerHTML = favStories.map(s => {
+                const itemKey = s.id || s.title;
+                return `
                 <div class="item-row">
                     <div>
                         <div style="font-weight:900; font-size:13px;">${s.title}</div>
-                        <span style="font-size:10px; opacity:0.7;">${s.platform || 'AUDIO'}</span>
+                        <span style="font-size:10px; opacity:0.7;">${s.category || s.platform || 'AUDIO'}</span>
                     </div>
-                    <button class="chip chip-yellow" onclick="openStoryModal(${s.id})">VIEW</button>
+                    <button class="chip chip-yellow" onclick="openStoryModal('${itemKey}')">VIEW</button>
                 </div>
-            `).join('');
+            `}).join('');
         }
 
-        // TELEGRAM USER DATA FETCHING LOGIC
+        function filterBoosted(btnElement) {
+            triggerHaptic('heavy');
+            const wishlistIds = getWishlist();
+            const boostedStories = stories.filter(s => wishlistIds.includes(String(s.id)) || wishlistIds.includes(String(s.title)));
+            
+            // Render boosted items on explore tab
+            renderGrid(boostedStories, 'exploreGrid');
+        }
+
         function initUserInfo() {
             try {
                 tg.ready();
@@ -824,24 +537,25 @@
         function renderGrid(list, target) {
             const el = document.getElementById(target);
             if(!el) return;
-            if(list.length === 0) {
-                el.innerHTML = '<p style="font-size:12px; font-weight:800;">No audio packs found.</p>';
+            if(!list || list.length === 0) {
+                el.innerHTML = '<p style="font-size:12px; font-weight:800; grid-column: 1/-1; text-align:center;">No stories found in this section.</p>';
                 return;
             }
 
             const wishlist = getWishlist();
 
-            el.innerHTML = list.map((s, idx) => {
-                const sId = s.id || idx;
-                const isFav = wishlist.includes(sId);
+            el.innerHTML = list.map((s) => {
+                const keyId = String(s.id || s.title);
+                const isFav = wishlist.includes(keyId);
+                const displayCat = (s.category || s.platform || 'AUDIO').replace("_", " ").toUpperCase();
                 return `
-                <div class="card" onclick="openStoryModal(${sId})">
-                    <div class="card-fav-btn" onclick="toggleWishlist(event, ${sId})">
+                <div class="card" onclick="openStoryModal('${keyId}')">
+                    <div class="card-fav-btn" onclick="toggleWishlist(event, '${keyId}')">
                         ${isFav ? '❤️' : '🤍'}
                     </div>
                     <img src="${s.photo || 'https://picsum.photos/200'}" class="card-img">
                     <div class="card-body">
-                        <span class="badge">${s.platform || 'AUDIO'}</span>
+                        <span class="badge">${displayCat}</span>
                         <h4 class="title">${s.title}</h4>
                         <div class="price-tag">${s.price == 0 ? 'FREE' : '₹' + s.price}</div>
                         <button class="btn-action">VIEW DETAILS</button>
@@ -850,27 +564,29 @@
             `}).join('');
         }
 
-        function openStoryModal(storyId) {
+        function openStoryModal(keyId) {
             triggerHaptic('light');
-            let story = stories.find(s => s.id === storyId) || stories[storyId];
+            let story = stories.find(s => (String(s.id) === String(keyId) || String(s.title) === String(keyId)));
             if (!story) return;
 
             const photoUrl = story.photo || 'https://picsum.photos/200';
             document.getElementById('mBgImg').src = photoUrl;
             document.getElementById('mPosterImg').src = photoUrl;
             document.getElementById('mTitle').innerText = story.title;
-            document.getElementById('mPlatform').innerText = story.platform || 'AUDIO';
+            
+            const displayCat = (story.category || story.platform || 'AUDIO').replace("_", " ").toUpperCase();
+            document.getElementById('mPlatform').innerText = displayCat;
             
             const priceText = story.price == 0 ? 'FREE' : `₹${story.price}`;
             document.getElementById('mPrice').innerText = priceText;
             document.getElementById('mAccessType').innerText = story.price == 0 ? '🎁 FREE ACCESS' : '💎 PAID SHOW';
 
-            document.getElementById('mDesc').innerText = story.description || story.desc || 'Complete audio series package with high quality audio episodes. Instant access after unlocking.';
+            document.getElementById('mDesc').innerText = story.desc || story.description || 'Complete audio series package with high quality audio episodes. Instant access after unlocking.';
 
             const buyBtn = document.getElementById('mBuyBtn');
             buyBtn.innerText = story.price == 0 ? 'CLAIM NOW (FREE)' : 'BUY & UNLOCK';
             buyBtn.onclick = function() {
-                buyStory(story.title, story.price);
+                buyStory(story.title);
             };
 
             document.getElementById('storyModal').classList.add('active');
@@ -881,14 +597,12 @@
             document.getElementById('storyModal').classList.remove('active');
         }
 
-        function buyStory(title, price) {
+        function buyStory(title) {
             triggerHaptic('success');
             
-            // Title se space ko underscore (_) se replace kiya start param ke liye
             const cleanTitle = encodeURIComponent(title.replace(/ /g, "_"));
             const deepLink = `https://t.me/${BOT_USERNAME}?start=story_${cleanTitle}`;
 
-            // Mini App close karke Direct Bot Chat par Redirect karein
             if (tg && tg.openTelegramLink) {
                 tg.openTelegramLink(deepLink);
                 tg.close();
@@ -911,7 +625,10 @@
 
         function filterCat(cat) {
             triggerHaptic('light');
-            const f = stories.filter(s => (s.platform && s.platform.toLowerCase().includes(cat)));
+            const f = stories.filter(s => {
+                const category = (s.category || s.platform || '').toLowerCase();
+                return category.includes(cat);
+            });
             renderGrid(f, 'exploreGrid');
         }
 
@@ -925,6 +642,10 @@
             const tabs = ['home', 'explore', 'orders', 'profile'];
             const idx = tabs.indexOf(name);
             if(idx !== -1) document.querySelectorAll('.nav-link')[idx].classList.add('active');
+
+            if(name === 'profile') {
+                renderWishlist();
+            }
         }
 
         document.addEventListener('DOMContentLoaded', () => {
