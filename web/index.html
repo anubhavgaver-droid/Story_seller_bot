@@ -159,16 +159,30 @@
             border: 2.5px solid var(--border);
             object-fit: cover;
             box-shadow: var(--shadow);
-            transition: transform 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.5s ease;
+            transition: all 0.8s ease-in-out;
             opacity: 0;
             transform: scale(0.5) translateY(50px);
         }
 
-        .cards-stack-wrapper.active .card-left-2 { opacity: 0.65; transform: rotate(-24deg) translateX(-85px) scale(0.8); z-index: 1; }
-        .cards-stack-wrapper.active .card-left-1 { opacity: 0.85; transform: rotate(-12deg) translateX(-42px) scale(0.9); z-index: 2; }
-        .cards-stack-wrapper.active .card-center { opacity: 1; transform: rotate(0deg) translateY(-12px) scale(1.05); z-index: 4; border-color: var(--border); }
-        .cards-stack-wrapper.active .card-right-1 { opacity: 0.85; transform: rotate(12deg) translateX(42px) scale(0.9); z-index: 2; }
-        .cards-stack-wrapper.active .card-right-2 { opacity: 0.65; transform: rotate(24deg) translateX(85px) scale(0.8); z-index: 1; }
+        /* Card 3D Dynamic Rotation Animations */
+        @keyframes rotateShuffle {
+            0% { transform: rotate(0deg) translate(0px) scale(1); z-index: 5; }
+            25% { transform: rotate(15deg) translate(60px, -10px) scale(0.9); z-index: 3; }
+            50% { transform: rotate(0deg) translate(0px, 15px) scale(0.8); z-index: 1; }
+            75% { transform: rotate(-15deg) translate(-60px, -10px) scale(0.9); z-index: 3; }
+            100% { transform: rotate(0deg) translate(0px) scale(1); z-index: 5; }
+        }
+
+        .cards-stack-wrapper.active .fan-card {
+            opacity: 1;
+            animation: rotateShuffle 3s infinite ease-in-out;
+        }
+
+        .cards-stack-wrapper.active .card-pos-0 { animation-delay: 0s; }
+        .cards-stack-wrapper.active .card-pos-1 { animation-delay: 0.6s; }
+        .cards-stack-wrapper.active .card-pos-2 { animation-delay: 1.2s; }
+        .cards-stack-wrapper.active .card-pos-3 { animation-delay: 1.8s; }
+        .cards-stack-wrapper.active .card-pos-4 { animation-delay: 2.4s; }
 
         .splash-title { font-size: 22px; font-weight: 900; letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 8px; text-align: center; color: var(--text); }
         .splash-sub { font-size: 12px; opacity: 0.7; max-width: 270px; text-align: center; line-height: 1.4; margin-bottom: 24px; font-weight: 600; }
@@ -370,7 +384,7 @@
             background: var(--box-bg);
             border-top: 2.5px solid var(--border);
             display: flex;
-            justify-around: space-around;
+            justify-content: space-around;
             padding: 8px 0;
             z-index: 100;
         }
@@ -627,7 +641,7 @@
             `}).join('');
         }
 
-        /* --- DIRECT REDIRECT ANIMATION (GRADIENT COUNTER & SMOOTH FLOW) --- */
+        /* --- DIRECT REDIRECT ANIMATION --- */
         function runDirectRedirectAnimation(callback) {
             const splash = document.getElementById('splash-screen');
             if(splash) splash.classList.add('hidden');
@@ -689,7 +703,7 @@
             return false;
         }
 
-        /* --- SPLASH FAN STACK SCREEN SETUP --- */
+        /* --- ROTATING SPLASH FAN STACK SCREEN (4.5 SEC TIMING) --- */
         function setupSplashScreen(list) {
             const wrapper = document.getElementById('cardsWrapper');
             if(!wrapper) return;
@@ -697,21 +711,22 @@
             
             const shuffled = [...list].sort(() => 0.5 - Math.random());
             const picked = shuffled.slice(0, 5);
-            const posClasses = ['card-left-2', 'card-left-1', 'card-center', 'card-right-1', 'card-right-2'];
             
             picked.forEach((story, idx) => {
                 const img = document.createElement('img');
                 img.src = story.photo || 'https://picsum.photos/200';
-                img.className = `fan-card ${posClasses[idx] || 'card-center'}`;
+                img.className = `fan-card card-pos-${idx}`;
                 img.alt = "Splash Card Image";
                 wrapper.appendChild(img);
             });
 
-            setTimeout(() => { wrapper.classList.add('active'); }, 150);
+            setTimeout(() => { wrapper.classList.add('active'); }, 100);
+            
+            /* Extended splash screen duration to 4.5 seconds for complete card rotation */
             setTimeout(() => {
                 const splash = document.getElementById('splash-screen');
                 if(splash) splash.classList.add('hidden');
-            }, 2500);
+            }, 4500);
         }
 
         async function loadStories() {
@@ -747,25 +762,33 @@
                 const res = await fetch(`/api/user_purchases?user_id=${userId}`);
                 userPurchases = await res.json();
                 
-                document.getElementById('unlockedCount').innerText = userPurchases.length;
-                document.getElementById('pUnlocked').innerText = userPurchases.length;
-                
-                const box = document.getElementById('unlockedList');
-                if(userPurchases.length === 0) {
-                    box.innerHTML = '<p style="font-size:12px; font-weight:700;">No unlocked stories. Buy stories to access here!</p>';
-                    return;
-                }
-                
-                box.innerHTML = userPurchases.map(p => `
-                    <div class="item-row">
-                        <div>
-                            <div style="font-weight:900; font-size:13px;">${p.story_title}</div>
-                            <span style="font-size:10px; font-weight:800;">✓ UNLOCKED</span>
-                        </div>
-                        <button class="chip chip-yellow" onclick="openStoryLink('${p.link || '#'}')">ACCESS</button>
-                    </div>
-                `).join('');
+                renderUnlockedList();
             } catch(e) { console.error(e); }
+        }
+
+        function renderUnlockedList() {
+            document.getElementById('unlockedCount').innerText = userPurchases.length;
+            if (document.getElementById('pUnlocked')) {
+                document.getElementById('pUnlocked').innerText = userPurchases.length;
+            }
+            
+            const box = document.getElementById('unlockedList');
+            if(!box) return;
+
+            if(userPurchases.length === 0) {
+                box.innerHTML = '<p style="font-size:12px; font-weight:700;">No unlocked stories. Claim or buy stories to access here!</p>';
+                return;
+            }
+            
+            box.innerHTML = userPurchases.map(p => `
+                <div class="item-row">
+                    <div>
+                        <div style="font-weight:900; font-size:13px;">${p.story_title || p.title}</div>
+                        <span style="font-size:10px; font-weight:800; color:#10b981;">✓ UNLOCKED</span>
+                    </div>
+                    <button class="chip chip-yellow" onclick="openStoryLink('${p.link || '#'}')">ACCESS</button>
+                </div>
+            `).join('');
         }
 
         function renderGrid(list, target) {
@@ -791,7 +814,7 @@
                         <span class="badge">${s.platform || 'AUDIO'}</span>
                         <h4 class="title">${s.title}</h4>
                         <div class="price-tag">${s.price == 0 ? 'FREE' : '₹' + s.price}</div>
-                        <button class="btn-action">VIEW DETAILS</button>
+                        <button class="btn-action">${s.price == 0 ? 'CLAIM FREE' : 'VIEW DETAILS'}</button>
                     </div>
                 </div>
             `}).join('');
@@ -814,10 +837,17 @@
             document.getElementById('mDesc').innerText = story.description || story.desc || 'Complete audio series package with high quality audio episodes. Instant access after unlocking.';
 
             const buyBtn = document.getElementById('mBuyBtn');
-            buyBtn.innerText = story.price == 0 ? 'CLAIM NOW (FREE)' : 'BUY & UNLOCK';
-            buyBtn.onclick = function() {
-                buyStory(story.title);
-            };
+            if (story.price == 0) {
+                buyBtn.innerText = 'CLAIM NOW (FREE)';
+                buyBtn.onclick = function() {
+                    claimFreeStory(story);
+                };
+            } else {
+                buyBtn.innerText = 'BUY & UNLOCK';
+                buyBtn.onclick = function() {
+                    buyStory(story.title);
+                };
+            }
 
             document.getElementById('storyModal').classList.add('active');
         }
@@ -825,6 +855,29 @@
         function closeModal() {
             triggerHaptic('light');
             document.getElementById('storyModal').classList.remove('active');
+        }
+
+        /* --- DIRECT FREE CLAIM LOGIC (NO PAYMENT/BOT REDIRECT) --- */
+        function claimFreeStory(story) {
+            triggerHaptic('success');
+            
+            const alreadyUnlocked = userPurchases.some(p => (p.story_title === story.title || p.title === story.title));
+            if (!alreadyUnlocked) {
+                userPurchases.push({
+                    story_title: story.title,
+                    link: story.link || story.drive_link || '#'
+                });
+                renderUnlockedList();
+            }
+
+            closeModal();
+            switchTab('orders');
+            
+            if (tg.showAlert) {
+                tg.showAlert(`🎉 "${story.title}" unlocked successfully! You can access it directly now.`);
+            } else {
+                alert(`🎉 "${story.title}" unlocked successfully! You can access it directly now.`);
+            }
         }
 
         function buyStory(title) {
