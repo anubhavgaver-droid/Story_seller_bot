@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>PREMIUM STORE BOT</title>
+    <title>AC PREMIUM STORE</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
         /* ---------------- DEFAULT WHITE + YELLOW THEME ---------------- */
@@ -51,13 +51,13 @@
             transition: background-color 0.3s ease, color 0.3s ease;
         }
 
-        /* ---------------- DIRECT REDIRECT LOADER ---------------- */
+        /* ---------------- DIRECT REDIRECT LOADER (MATCHED TO SCREENSHOT) ---------------- */
         #redirect-loader {
             position: fixed;
             top: 0; left: 0;
             width: 100vw; height: 100vh;
-            background: var(--bg);
-            color: var(--text);
+            background: #000000;
+            color: #ffffff;
             display: flex;
             flex-direction: column;
             align-items: center;
@@ -73,69 +73,54 @@
         }
 
         .loader-anime-img {
-            width: 120px;
-            height: 120px;
-            border-radius: 22px;
-            border: 2.5px solid var(--border);
-            box-shadow: var(--shadow);
+            width: 110px;
+            height: 110px;
+            border-radius: 26px;
             object-fit: cover;
-            margin-bottom: 22px;
-            animation: pulseImg 2s infinite alternate ease-in-out;
+            margin-bottom: 28px;
+            box-shadow: 0 0 25px rgba(244, 114, 182, 0.4);
+            animation: pulseImg 1.8s infinite alternate ease-in-out;
         }
         @keyframes pulseImg {
-            0% { transform: scale(0.95); }
-            100% { transform: scale(1.05); }
+            0% { transform: scale(0.96); box-shadow: 0 0 15px rgba(244, 114, 182, 0.3); }
+            100% { transform: scale(1.04); box-shadow: 0 0 30px rgba(244, 114, 182, 0.6); }
         }
 
         .redirect-title {
-            font-size: 20px;
+            font-size: 19px;
             font-weight: 900;
             letter-spacing: 2px;
-            color: var(--text);
+            color: #ffffff;
             text-transform: uppercase;
-            margin-bottom: 4px;
+            margin-bottom: 6px;
         }
         .redirect-sub {
             font-size: 12px;
-            opacity: 0.7;
-            margin-bottom: 24px;
-            font-weight: 600;
+            color: #a1a1aa;
+            margin-bottom: 26px;
+            font-weight: 500;
         }
 
         .counter-text {
-            font-size: 52px;
+            font-size: 48px;
             font-weight: 900;
-            color: var(--text);
-            margin-bottom: 12px;
+            background: linear-gradient(135deg, #f472b6 0%, #fb923c 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 8px;
             line-height: 1;
-            font-family: monospace;
-        }
-
-        .progress-bar-track {
-            width: 220px;
-            height: 10px;
-            background: var(--item-bg);
-            border-radius: 10px;
-            overflow: hidden;
-            border: 2px solid var(--border);
-            margin-bottom: 14px;
-            box-shadow: var(--shadow);
-        }
-        .progress-bar-fill {
-            width: 0%;
-            height: 100%;
-            background: var(--accent);
-            transition: width 0.05s linear;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
         }
 
         .loading-lbl {
-            font-size: 11px;
+            font-size: 10px;
             font-weight: 800;
-            letter-spacing: 2px;
-            opacity: 0.8;
+            letter-spacing: 2.5px;
+            color: #71717a;
+            text-transform: uppercase;
         }
 
-        /* ---------------- WELCOME SPLASH SCREEN (HD PREMIUM FAN STACK) ---------------- */
+        /* ---------------- WELCOME SPLASH SCREEN ---------------- */
         #splash-screen {
             position: fixed;
             top: 0; left: 0;
@@ -179,7 +164,6 @@
             transform: scale(0.5) translateY(50px);
         }
 
-        /* HD PREMIUM FAN STACK ROTATIONS */
         .cards-stack-wrapper.active .card-left-2 { opacity: 0.65; transform: rotate(-24deg) translateX(-85px) scale(0.8); z-index: 1; }
         .cards-stack-wrapper.active .card-left-1 { opacity: 0.85; transform: rotate(-12deg) translateX(-42px) scale(0.9); z-index: 2; }
         .cards-stack-wrapper.active .card-center { opacity: 1; transform: rotate(0deg) translateY(-12px) scale(1.05); z-index: 4; border-color: var(--border); }
@@ -398,29 +382,26 @@
 </head>
 <body>
 
-    <!-- DIRECT STORY REDIRECT LOADER OVERLAY -->
+    <!-- DIRECT STORY REDIRECT LOADER OVERLAY (UPDATED TO SCREENSHOT STYLE) -->
     <div id="redirect-loader">
         <img src="https://picsum.photos/200" class="loader-anime-img" id="loaderAnimeImg" alt="Story Icon">
         <div class="redirect-title">REDIRECTING...</div>
-        <div class="redirect-sub">Opening requested story page</div>
+        <div class="redirect-sub">Opening story details directly</div>
         <div class="counter-text" id="counterNum">0%</div>
-        <div class="progress-bar-track">
-            <div class="progress-bar-fill" id="progressFill"></div>
-        </div>
-        <div class="loading-lbl">LOADING STORY DATA</div>
+        <div class="loading-lbl">LOADING STORY</div>
     </div>
 
-    <!-- WELCOME SPLASH SCREEN ANIMATION (HD PREMIUM LOOK) -->
+    <!-- WELCOME SPLASH SCREEN ANIMATION -->
     <div id="splash-screen">
         <div class="cards-stack-wrapper" id="cardsWrapper"></div>
-        <div class="splash-title">WELCOME TO ARYA PREMIUM</div>
+        <div class="splash-title">WELCOME TO AC PREMIUM</div>
         <div class="splash-sub">Your automated store inside Telegram for premium audio and video story series — delivered instantly to your chat.</div>
         <div class="loader-spinner"></div>
     </div>
 
     <!-- TOP BAR -->
     <div class="top-bar">
-        <div class="brand-logo">STORE</div>
+        <div class="brand-logo">AC PREMIUM</div>
         <div class="header-chips">
             <span class="chip">🎧 AUDIO</span>
             <span class="chip chip-yellow">🔑 <span id="unlockedCount">0</span> UNLOCKED</span>
@@ -646,14 +627,13 @@
             `}).join('');
         }
 
-        /* --- DIRECT REDIRECT ANIMATION --- */
+        /* --- DIRECT REDIRECT ANIMATION (GRADIENT COUNTER & SMOOTH FLOW) --- */
         function runDirectRedirectAnimation(callback) {
             const splash = document.getElementById('splash-screen');
             if(splash) splash.classList.add('hidden');
 
             const loader = document.getElementById('redirect-loader');
             const counter = document.getElementById('counterNum');
-            const fill = document.getElementById('progressFill');
             
             loader.classList.add('active');
 
@@ -664,7 +644,6 @@
                 if (current >= 100) {
                     current = 100;
                     counter.innerText = '100%';
-                    fill.style.width = '100%';
                     clearInterval(interval);
                     
                     setTimeout(() => {
@@ -673,12 +652,11 @@
                     }, 300);
                 } else {
                     counter.innerText = `${current}%`;
-                    fill.style.width = `${current}%`;
                 }
-            }, 50); 
+            }, 45); 
         }
 
-        /* --- UPDATED PARAMETER CHECK FOR TELEGRAM WEB APP --- */
+        /* --- ROUTING CHECK FOR TELEGRAM APP DEEP LINKS --- */
         function checkUrlParamRouting() {
             let targetParam = null;
 
@@ -711,7 +689,7 @@
             return false;
         }
 
-        /* --- HD SPLASH FAN-STACK SCREEN SETUP --- */
+        /* --- SPLASH FAN STACK SCREEN SETUP --- */
         function setupSplashScreen(list) {
             const wrapper = document.getElementById('cardsWrapper');
             if(!wrapper) return;
