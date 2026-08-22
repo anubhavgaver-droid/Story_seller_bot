@@ -6,46 +6,41 @@
     <title>PREMIUM STORE BOT</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
-        /* DYNAMIC THEMES */
+        /* ORIGINAL NEUMORPHIC LIGHT THEME (DEFAULT) */
         :root {
-            --bg: #0b0f19;
-            --card-bg: #151c2c;
+            --bg: #fafafa;
+            --card-bg: #ffffff;
+            --text: #0f172a;
+            --border: #000000;
+            --accent: #ffcc00;
+            --radius: 18px;
+            --box-bg: #ffffff;
+            --item-bg: #f8fafc;
+            --shadow: 3px 3px 0px #000000;
+        }
+
+        /* DARK THEME */
+        body.theme-dark {
+            --bg: #0f172a;
+            --card-bg: #1e293b;
             --text: #f8fafc;
             --border: #38bdf8;
             --accent: #f59e0b;
             --box-bg: #1e293b;
             --item-bg: #334155;
-            --pink-glow: #ff007f;
+            --shadow: 3px 3px 0px #38bdf8;
         }
 
-        body.theme-neon {
-            --bg: #05050a;
-            --card-bg: #0d0e1b;
-            --text: #00ffcc;
-            --border: #ff007f;
-            --accent: #00ffcc;
-            --box-bg: #121328;
-            --item-bg: #1a1c38;
-        }
-
-        body.theme-midnight {
-            --bg: #0f172a;
-            --card-bg: #1e293b;
-            --text: #e2e8f0;
-            --border: #818cf8;
-            --accent: #38bdf8;
-            --box-bg: #334155;
-            --item-bg: #475569;
-        }
-
-        body.theme-gold {
-            --bg: #1a1600;
-            --card-bg: #2a2400;
-            --text: #fffbeb;
-            --border: #f59e0b;
-            --accent: #fbbf24;
-            --box-bg: #3a3200;
-            --item-bg: #4a4000;
+        /* CYBER THEME */
+        body.theme-cyber {
+            --bg: #050505;
+            --card-bg: #111111;
+            --text: #00ff66;
+            --border: #00ff66;
+            --accent: #ff007f;
+            --box-bg: #111111;
+            --item-bg: #1a1a1a;
+            --shadow: 3px 3px 0px #00ff66;
         }
 
         * {
@@ -55,13 +50,13 @@
 
         body {
             margin: 0;
-            padding: 0 0 85px 0;
+            padding: 0 0 90px 0;
             background-color: var(--bg);
             color: var(--text);
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
             -webkit-tap-highlight-color: transparent;
             overflow-x: hidden;
-            transition: background 0.3s ease, color 0.3s ease;
+            transition: background-color 0.3s ease, color 0.3s ease;
         }
 
         /* ---------------- DIRECT REDIRECT LOADER (0 TO 100 ANIMATION) ---------------- */
@@ -85,19 +80,19 @@
             visibility: visible;
         }
 
-        .anime-icon-box {
+        .loader-anime-img {
             width: 110px;
             height: 110px;
-            border-radius: 24px;
-            border: 3.5px solid var(--pink-glow);
-            box-shadow: 0 0 30px rgba(255, 0, 127, 0.7);
+            border-radius: 20px;
+            border: 3px solid var(--accent);
+            box-shadow: 0 0 25px rgba(255, 204, 0, 0.6);
             object-fit: cover;
             margin-bottom: 20px;
             animation: pulseImg 1.5s infinite alternate ease-in-out;
         }
         @keyframes pulseImg {
-            0% { transform: scale(0.96); box-shadow: 0 0 15px rgba(255, 0, 127, 0.4); }
-            100% { transform: scale(1.06); box-shadow: 0 0 40px rgba(255, 0, 127, 0.9); }
+            0% { transform: scale(0.95); }
+            100% { transform: scale(1.05); }
         }
 
         .redirect-title {
@@ -116,11 +111,9 @@
         }
 
         .counter-text {
-            font-size: 48px;
+            font-size: 46px;
             font-weight: 900;
-            background: linear-gradient(90deg, #38bdf8, #a855f7, #ec4899);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
+            color: var(--accent);
             margin-bottom: 8px;
             line-height: 1;
             font-family: monospace;
@@ -132,13 +125,13 @@
             background: #1e293b;
             border-radius: 10px;
             overflow: hidden;
-            border: 1px solid rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
             margin-bottom: 12px;
         }
         .progress-bar-fill {
             width: 0%;
             height: 100%;
-            background: linear-gradient(90deg, #38bdf8, #ec4899);
+            background: var(--accent);
             transition: width 0.05s linear;
         }
 
@@ -154,14 +147,14 @@
             position: fixed;
             top: 0; left: 0;
             width: 100vw; height: 100vh;
-            background: #09090d;
+            background: #111111;
             color: #ffffff;
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
             z-index: 9999;
-            transition: opacity 0.4s ease, visibility 0.4s ease;
+            transition: opacity 0.5s ease, visibility 0.5s ease;
         }
         #splash-screen.hidden {
             opacity: 0;
@@ -195,39 +188,50 @@
 
         .cards-stack-wrapper.active .card-left-2 { opacity: 0.6; transform: rotate(-24deg) translateX(-70px) scale(0.8); }
         .cards-stack-wrapper.active .card-left-1 { opacity: 0.85; transform: rotate(-12deg) translateX(-35px) scale(0.9); z-index: 2; }
-        .cards-stack-wrapper.active .card-center { opacity: 1; transform: rotate(0deg) translateY(-10px) scale(1.05); z-index: 3; border-color: var(--accent); box-shadow: 0 0 20px rgba(245, 158, 11, 0.5); }
+        .cards-stack-wrapper.active .card-center { opacity: 1; transform: rotate(0deg) translateY(-10px) scale(1.05); z-index: 3; border-color: var(--accent); box-shadow: 0 0 20px rgba(255, 204, 0, 0.4); }
         .cards-stack-wrapper.active .card-right-1 { opacity: 0.85; transform: rotate(12deg) translateX(35px) scale(0.9); z-index: 2; }
         .cards-stack-wrapper.active .card-right-2 { opacity: 0.6; transform: rotate(24deg) translateX(70px) scale(0.8); }
 
         .splash-title { font-size: 20px; font-weight: 900; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 6px; text-align: center; }
         .splash-sub { font-size: 11px; color: #888888; max-width: 260px; text-align: center; line-height: 1.4; margin-bottom: 20px; }
+        .loader-spinner {
+            width: 22px; height: 22px;
+            border: 3px solid rgba(255,255,255,0.1);
+            border-top: 3px solid var(--accent);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 
-        /* ---------------- LAYOUT & UI ---------------- */
+        /* ---------------- MAIN APP STYLES ---------------- */
         .top-bar {
             display: flex;
             align-items: center;
             justify-content: space-between;
-            padding: 14px 16px;
+            padding: 12px 16px;
             background: var(--box-bg);
-            border-bottom: 2px solid var(--border);
+            border-bottom: 2.5px solid var(--border);
             position: sticky;
             top: 0;
             z-index: 100;
         }
-        .brand-logo { font-size: 18px; font-weight: 900; letter-spacing: -0.5px; }
+        .brand-logo { font-size: 20px; font-weight: 900; letter-spacing: -0.5px; }
         .header-chips { display: flex; gap: 6px; align-items: center; }
         .chip {
-            padding: 4px 8px;
+            padding: 5px 10px;
             border-radius: 20px;
-            border: 1.5px solid var(--border);
-            font-size: 10px;
+            border: 2px solid var(--border);
+            font-size: 11px;
             font-weight: 800;
             background: var(--box-bg);
             color: var(--text);
+            box-shadow: 2px 2px 0px var(--border);
         }
-        .chip-yellow { background: var(--accent); color: #000; border-color: var(--accent); }
+        .chip-yellow { background: var(--accent); color: #000; }
 
         .container { padding: 16px; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
 
         .search-wrapper { position: relative; margin-bottom: 16px; }
         .search-input {
@@ -239,6 +243,8 @@
             color: var(--text);
             font-weight: 600;
             font-size: 13px;
+            box-sizing: border-box;
+            box-shadow: var(--shadow);
             outline: none;
         }
         .search-icon { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); font-size: 14px; }
@@ -250,31 +256,34 @@
         }
         .card {
             background: var(--card-bg);
-            border: 2px solid var(--border);
-            border-radius: 16px;
+            border: 2.5px solid var(--border);
+            border-radius: var(--radius);
             overflow: hidden;
+            box-shadow: var(--shadow);
             display: flex;
             flex-direction: column;
             cursor: pointer;
             position: relative;
             transition: transform 0.1s ease;
         }
-        .card:active { transform: scale(0.97); }
+        .card:active { transform: scale(0.98); }
         .card-img { width: 100%; height: 140px; object-fit: cover; border-bottom: 2px solid var(--border); }
-
-        .wishlist-btn {
+        
+        .card-fav-btn {
             position: absolute;
             top: 8px; right: 8px;
-            background: rgba(0,0,0,0.6);
-            border: 1px solid var(--border);
+            width: 32px; height: 32px;
+            background: rgba(255, 255, 255, 0.9);
+            border: 2px solid var(--border);
             border-radius: 50%;
-            width: 30px; height: 30px;
-            display: flex; align-items: center; justify-content: center;
+            display: flex; justify-content: center; align-items: center;
             font-size: 14px;
+            cursor: pointer;
             z-index: 10;
+            box-shadow: 1.5px 1.5px 0px var(--border);
         }
 
-        .card-body { padding: 12px; display: flex; flex-direction: column; flex-grow: 1; }
+        .card-body { padding: 10px; display: flex; flex-direction: column; flex-grow: 1; }
         .badge {
             align-self: flex-start;
             background: #2563eb;
@@ -283,52 +292,28 @@
             font-weight: 800;
             padding: 3px 8px;
             border-radius: 6px;
+            border: 1.5px solid var(--border);
             text-transform: uppercase;
             margin-bottom: 6px;
         }
         .title { font-size: 13px; font-weight: 800; margin: 0 0 4px 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .price-tag { font-size: 15px; font-weight: 900; color: var(--accent); margin: 6px 0; }
-
+        .price-tag { font-size: 15px; font-weight: 900; margin: 6px 0; }
+        
         .btn-action {
             width: 100%;
-            padding: 9px 0;
+            padding: 8px 0;
             background: var(--accent);
             color: #000;
-            border: none;
+            border: 2px solid var(--border);
             border-radius: 10px;
             font-weight: 800;
             font-size: 12px;
             cursor: pointer;
+            box-shadow: 2px 2px 0px var(--border);
         }
+        .btn-action:active { transform: translate(2px, 2px); box-shadow: 0px 0px 0px var(--border); }
 
-        /* ---------------- BOTTOM NAVIGATION ---------------- */
-        .bottom-nav {
-            position: fixed;
-            bottom: 0; left: 0; right: 0;
-            height: 65px;
-            background: var(--box-bg);
-            border-top: 2px solid var(--border);
-            display: flex;
-            justify-content: space-around;
-            align-items: center;
-            z-index: 500;
-        }
-        .nav-item {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 4px;
-            color: #94a3b8;
-            font-size: 10px;
-            font-weight: 800;
-            cursor: pointer;
-            width: 25%;
-            padding: 8px 0;
-        }
-        .nav-item.active { color: var(--border); }
-        .nav-icon { font-size: 18px; }
-
-        /* ---------------- MODAL ---------------- */
+        /* ---------------- FULL SCREEN STORY DETAIL MODAL ---------------- */
         .modal-overlay {
             position: fixed;
             top: 0; left: 0; width: 100vw; height: 100vh;
@@ -341,43 +326,74 @@
             transition: opacity 0.3s ease, visibility 0.3s ease;
         }
         .modal-overlay.active { opacity: 1; visibility: visible; }
-        .modal-content { width: 100%; height: 100%; display: flex; flex-direction: column; position: relative; background: var(--bg); }
-        .modal-hero { position: relative; width: 100%; height: 40vh; background: #000; flex-shrink: 0; }
-        .modal-bg-img { width: 100%; height: 100%; object-fit: cover; opacity: 0.6; filter: blur(5px); transform: scale(1.1); }
+        .modal-content { width: 100%; height: 100%; display: flex; flex-direction: column; position: relative; background: var(--bg); overflow: hidden; }
+        .modal-hero { position: relative; width: 100%; height: 42vh; background: #000; overflow: hidden; flex-shrink: 0; }
+        .modal-bg-img { width: 100%; height: 100%; object-fit: cover; opacity: 0.65; filter: blur(4px); transform: scale(1.1); }
         .modal-close-btn {
             position: absolute; top: 16px; right: 16px; width: 36px; height: 36px;
-            background: rgba(0, 0, 0, 0.7); color: #fff; border: 2px solid var(--border);
+            background: var(--box-bg); color: var(--text); border: 2px solid var(--border);
             border-radius: 50%; font-weight: 900; font-size: 16px; display: flex;
-            justify-content: center; align-items: center; cursor: pointer; z-index: 10;
+            justify-content: center; align-items: center; cursor: pointer;
+            box-shadow: 2px 2px 0px var(--border); z-index: 10;
         }
-        .modal-poster-wrapper { position: absolute; bottom: -20px; left: 16px; z-index: 5; }
-        .modal-poster-img { width: 105px; height: 140px; object-fit: cover; border-radius: 12px; border: 2.5px solid var(--border); background: var(--box-bg); }
-        .modal-body { flex-grow: 1; padding: 30px 16px 90px 16px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; }
-        .modal-desc-box { background: var(--item-bg); border: 1.5px solid var(--border); border-radius: 14px; padding: 14px; font-size: 13px; line-height: 1.5; color: var(--text); }
-        .modal-bottom-bar { position: absolute; bottom: 0; left: 0; right: 0; background: var(--box-bg); border-top: 2px solid var(--border); padding: 14px 16px; display: flex; align-items: center; justify-content: space-between; gap: 12px; z-index: 20; }
-        
-        .theme-btn {
-            padding: 10px 14px;
-            border-radius: 10px;
-            border: 1.5px solid var(--border);
-            background: var(--item-bg);
-            color: var(--text);
-            font-weight: 800;
-            font-size: 12px;
-            cursor: pointer;
+        .modal-poster-wrapper { position: absolute; bottom: 16px; left: 16px; z-index: 5; }
+        .modal-poster-img { width: 100px; height: 135px; object-fit: cover; border-radius: 12px; border: 2.5px solid var(--border); box-shadow: var(--shadow); background: var(--box-bg); }
+        .modal-body { flex-grow: 1; padding: 20px 16px 90px 16px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; background: var(--bg); }
+        .modal-meta-row { display: flex; justify-content: space-between; align-items: center; }
+        .modal-title { font-size: 20px; font-weight: 900; margin: 0; color: var(--text); line-height: 1.3; }
+        .modal-desc-box { background: var(--item-bg); border: 2px solid var(--border); border-radius: 14px; padding: 12px; font-size: 13px; line-height: 1.5; color: var(--text); font-weight: 600; box-shadow: 2px 2px 0px var(--border); }
+        .modal-bottom-bar { position: absolute; bottom: 0; left: 0; right: 0; background: var(--box-bg); border-top: 2.5px solid var(--border); padding: 14px 16px; display: flex; align-items: center; justify-content: space-between; gap: 12px; z-index: 20; }
+        .modal-price { font-size: 22px; font-weight: 900; color: var(--text); }
+
+        .profile-card {
+            background: var(--box-bg);
+            border: 2.5px solid var(--border);
+            border-radius: 20px;
+            padding: 16px;
+            box-shadow: var(--shadow);
             display: flex;
             align-items: center;
-            justify-content: space-between;
+            gap: 14px;
+            margin-bottom: 16px;
         }
+        .avatar { width: 60px; height: 60px; border-radius: 14px; border: 2px solid var(--border); object-fit: cover; }
+        .id-badge { display: inline-block; background: var(--accent); color: #000; border: 1.5px solid var(--border); padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 800; margin-top: 4px; }
+
+        .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
+        .stat-box { background: var(--box-bg); border: 2.5px solid var(--border); border-radius: 16px; padding: 14px; text-align: center; box-shadow: var(--shadow); }
+        .stat-num { font-size: 22px; font-weight: 900; }
+        .stat-lbl { font-size: 10px; font-weight: 800; opacity: 0.7; text-transform: uppercase; }
+
+        .section-box { background: var(--box-bg); border: 2.5px solid var(--border); border-radius: 16px; padding: 14px; box-shadow: var(--shadow); margin-bottom: 12px; }
+        .section-title { font-size: 12px; font-weight: 900; text-transform: uppercase; margin-bottom: 10px; }
+        .item-row { display: flex; justify-content: space-between; align-items: center; padding: 10px; border: 2px solid var(--border); border-radius: 12px; margin-bottom: 8px; background: var(--item-bg); }
+
+        .theme-grid { display: flex; gap: 8px; margin-top: 8px; }
+        .theme-btn { flex: 1; padding: 8px; border: 2px solid var(--border); border-radius: 10px; font-size: 11px; font-weight: 800; cursor: pointer; box-shadow: 2px 2px 0px var(--border); text-align: center; }
+
+        .bottom-nav {
+            position: fixed;
+            bottom: 0; left: 0; width: 100%;
+            background: var(--box-bg);
+            border-top: 2.5px solid var(--border);
+            display: flex;
+            justify-content: space-around;
+            padding: 8px 0;
+            z-index: 100;
+        }
+        .nav-link { display: flex; flex-direction: column; align-items: center; font-size: 9px; font-weight: 900; color: var(--text); text-decoration: none; opacity: 0.6; cursor: pointer; }
+        .nav-link.active { opacity: 1; }
+        .nav-link.active .nav-icon { background: var(--accent); color: #000; border: 1.5px solid var(--border); border-radius: 10px; padding: 2px 10px; box-shadow: 1.5px 1.5px 0px var(--border); }
+        .nav-icon { font-size: 16px; margin-bottom: 2px; }
     </style>
 </head>
 <body>
 
     <!-- DIRECT STORY REDIRECT LOADER OVERLAY (0 TO 100 ANIMATION) -->
     <div id="redirect-loader">
-        <img src="https://picsum.photos/200" class="anime-icon-box" id="loaderAnimeImg" alt="Story Icon">
+        <img src="https://picsum.photos/200" class="loader-anime-img" id="loaderAnimeImg" alt="Story Icon">
         <div class="redirect-title">REDIRECTING...</div>
-        <div class="redirect-sub">Opening requested story</div>
+        <div class="redirect-sub">Opening requested story page</div>
         <div class="counter-text" id="counterNum">0%</div>
         <div class="progress-bar-track">
             <div class="progress-bar-fill" id="progressFill"></div>
@@ -389,48 +405,102 @@
     <div id="splash-screen">
         <div class="cards-stack-wrapper" id="cardsWrapper"></div>
         <div class="splash-title">WELCOME TO STORE</div>
-        <div class="splash-sub">Your premium hub for unlocked audio series.</div>
+        <div class="splash-sub">Your premium hub for unlocked audio & video series — instant access directly in bot chat.</div>
+        <div class="loader-spinner"></div>
     </div>
 
     <!-- TOP BAR -->
     <div class="top-bar">
-        <div class="brand-logo" id="headerTitle">STORE</div>
+        <div class="brand-logo">STORE</div>
         <div class="header-chips">
             <span class="chip">🎧 AUDIO</span>
-            <span class="chip chip-yellow">🔑 ACTIVE</span>
+            <span class="chip chip-yellow">🔑 <span id="unlockedCount">0</span> UNLOCKED</span>
         </div>
     </div>
 
     <!-- MAIN CONTAINER -->
-    <div class="container" id="mainContainer">
-        <div class="search-wrapper" id="searchBox">
-            <span class="search-icon">🔍</span>
-            <input type="text" class="search-input" id="searchInp" placeholder="Search series..." onkeyup="doSearch()">
+    <div class="container">
+        <!-- TAB 1: HOME/STORE -->
+        <div id="tab-home" class="tab-content active">
+            <div class="search-wrapper">
+                <span class="search-icon">🔍</span>
+                <input type="text" class="search-input" id="searchInp" placeholder="Search romantic, thriller, action..." onkeyup="doSearch()">
+            </div>
+            <div class="story-grid" id="homeGrid"></div>
         </div>
-        <div class="story-grid" id="homeGrid"></div>
+
+        <!-- TAB 2: EXPLORE -->
+        <div id="tab-explore" class="tab-content">
+            <div class="section-box">
+                <div class="section-title">Categories & Platforms</div>
+                <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                    <button class="chip chip-yellow" onclick="loadStories()">All Shows</button>
+                    <button class="chip" onclick="filterCat('pocket')">Pocket FM</button>
+                    <button class="chip" onclick="filterCat('pratilipi')">Pratilipi FM</button>
+                    <button class="chip" onclick="filterCat('kuku')">Kuku FM</button>
+                </div>
+            </div>
+            <div class="story-grid" id="exploreGrid"></div>
+        </div>
+
+        <!-- TAB 3: ORDERS -->
+        <div id="tab-orders" class="tab-content">
+            <div class="section-box">
+                <div class="section-title">Unlocked Library 📚</div>
+                <div id="unlockedList">
+                    <p style="font-size:12px; font-weight:700;">No unlocked stories found!</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 4: PROFILE -->
+        <div id="tab-profile" class="tab-content">
+            <div class="profile-card">
+                <img id="uPhoto" src="https://picsum.photos/100" class="avatar">
+                <div>
+                    <div id="uName" style="font-weight:900; font-size:16px;">Loading...</div>
+                    <div class="id-badge">ID: <span id="uId">Fetching...</span> 📋</div>
+                </div>
+            </div>
+
+            <div class="stat-grid">
+                <div class="stat-box">
+                    <div class="stat-num" id="pUnlocked">0</div>
+                    <div class="stat-lbl">Unlocked Stories</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-num" id="pTotal">0</div>
+                    <div class="stat-lbl">Available Shows</div>
+                </div>
+            </div>
+
+            <div class="section-box">
+                <div class="section-title">My Wishlist ❤️</div>
+                <div id="wishlistContainer">
+                    <p style="font-size:12px; font-weight:700; opacity:0.7;">No saved stories yet!</p>
+                </div>
+            </div>
+
+            <div class="section-box">
+                <div class="section-title">App Theme 🎨</div>
+                <div class="theme-grid">
+                    <button class="theme-btn" style="background: #fafafa; color: #000;" onclick="changeTheme('light')">☀️ Light</button>
+                    <button class="theme-btn" style="background: #0f172a; color: #fff;" onclick="changeTheme('dark')">🌙 Dark</button>
+                    <button class="theme-btn" style="background: #050505; color: #00ff66;" onclick="changeTheme('cyber')">🟢 Cyber</button>
+                </div>
+            </div>
+
+            <div class="section-box">
+                <div class="section-title">Quick Links</div>
+                <div class="item-row" onclick="switchTab('orders')">
+                    <span style="font-weight:800; font-size:12px;">📁 My Purchased Stories</span>
+                    <span>❯</span>
+                </div>
+            </div>
+        </div>
     </div>
 
-    <!-- BOTTOM NAVIGATION BAR -->
-    <div class="bottom-nav">
-        <div class="nav-item active" id="navStore" onclick="switchTab('store')">
-            <span class="nav-icon">🛍️</span>
-            <span>Store</span>
-        </div>
-        <div class="nav-item" id="navExplore" onclick="switchTab('explore')">
-            <span class="nav-icon">🧭</span>
-            <span>Explore</span>
-        </div>
-        <div class="nav-item" id="navWishlist" onclick="switchTab('wishlist')">
-            <span class="nav-icon">❤️</span>
-            <span>Wishlist</span>
-        </div>
-        <div class="nav-item" id="navProfile" onclick="switchTab('profile')">
-            <span class="nav-icon">👤</span>
-            <span>Profile</span>
-        </div>
-    </div>
-
-    <!-- FULL SCREEN STORY MODAL -->
+    <!-- FULL SCREEN STORY DETAIL MODAL -->
     <div class="modal-overlay" id="storyModal">
         <div class="modal-content">
             <div class="modal-hero">
@@ -442,38 +512,129 @@
             </div>
 
             <div class="modal-body">
-                <div style="display:flex; justify-content:space-between; align-items:center;">
+                <div class="modal-meta-row">
                     <span class="badge" id="mPlatform">PLATFORM</span>
-                    <span class="chip" id="mAccessType">PAID SHOW</span>
+                    <span class="chip" id="mAccessType" style="font-size:10px;">PAID SHOW</span>
                 </div>
-                <h3 style="font-size:20px; font-weight:900; margin:8px 0 0 0;" id="mTitle">Story Title</h3>
-                <div style="font-size:11px; font-weight:800; color:#a1a1aa;">DESCRIPTION</div>
-                <div class="modal-desc-box" id="mDesc"></div>
+
+                <h3 class="modal-title" id="mTitle">Story Title</h3>
+
+                <div class="section-title" style="margin-top: 6px; margin-bottom: 2px;">Description</div>
+                <div class="modal-desc-box" id="mDesc">
+                    Full details and synopsis of the show will appear here.
+                </div>
             </div>
 
             <div class="modal-bottom-bar">
                 <div>
-                    <div style="font-size:10px; font-weight:800; color:#a1a1aa;">PRICE</div>
-                    <div style="font-size:22px; font-weight:900; color:var(--accent);" id="mPrice">₹0</div>
+                    <div style="font-size:10px; font-weight:800; opacity:0.6;">TOTAL PRICE</div>
+                    <div class="modal-price" id="mPrice">₹0</div>
                 </div>
                 <button class="btn-action" id="mBuyBtn" style="width: auto; padding: 12px 28px;">BUY & UNLOCK</button>
             </div>
         </div>
     </div>
 
+    <!-- BOTTOM NAVIGATION -->
+    <div class="bottom-nav">
+        <div class="nav-link active" onclick="switchTab('home')">
+            <span class="nav-icon">🏠</span>HOME
+        </div>
+        <div class="nav-link" onclick="switchTab('explore')">
+            <span class="nav-icon">🧩</span>EXPLORE
+        </div>
+        <div class="nav-link" onclick="switchTab('orders')">
+            <span class="nav-icon">🔒</span>ORDERS
+        </div>
+        <div class="nav-link" onclick="switchTab('profile')">
+            <span class="nav-icon">👤</span>PROFILE
+        </div>
+    </div>
+
     <script>
         const tg = window.Telegram.WebApp;
-        const BOT_USERNAME = "storysellerbyACbot";
+        const BOT_USERNAME = "storysellerbyACbot"; 
 
         let stories = [];
-        let wishlist = JSON.parse(localStorage.getItem('user_wishlist') || '[]');
-        let currentTheme = localStorage.getItem('user_theme') || 'default';
+        let userPurchases = [];
 
-        if(currentTheme !== 'default') {
-            document.body.className = `theme-${currentTheme}`;
+        function triggerHaptic(type = 'light') {
+            try {
+                if (tg.HapticFeedback) {
+                    if (type === 'light' || type === 'medium' || type === 'heavy') {
+                        tg.HapticFeedback.impactOccurred(type);
+                    } else if (type === 'success' || type === 'warning' || type === 'error') {
+                        tg.HapticFeedback.notificationOccurred(type);
+                    }
+                }
+            } catch(e) { console.error("Haptic error:", e); }
         }
 
-        /* --- SMOOTH & REALISTIC 0% TO 100% COUNTER REDIRECT --- */
+        /* --- THEME SYSTEM --- */
+        function applySavedTheme() {
+            const savedTheme = localStorage.getItem('user_theme') || 'light';
+            document.body.className = '';
+            if (savedTheme !== 'light') {
+                document.body.classList.add(`theme-${savedTheme}`);
+            }
+        }
+
+        function changeTheme(themeName) {
+            triggerHaptic('medium');
+            localStorage.setItem('user_theme', themeName);
+            applySavedTheme();
+        }
+
+        /* --- WISHLIST SYSTEM --- */
+        function getWishlist() {
+            return JSON.parse(localStorage.getItem('user_wishlist') || '[]');
+        }
+
+        function toggleWishlist(e, storyId) {
+            e.stopPropagation();
+            triggerHaptic('medium');
+
+            let wishlist = getWishlist();
+            const index = wishlist.indexOf(String(storyId));
+
+            if (index > -1) {
+                wishlist.splice(index, 1);
+            } else {
+                wishlist.push(String(storyId));
+            }
+
+            localStorage.setItem('user_wishlist', JSON.stringify(wishlist));
+            renderGrid(stories, 'homeGrid');
+            renderGrid(stories, 'exploreGrid');
+            renderWishlist();
+        }
+
+        function renderWishlist() {
+            const container = document.getElementById('wishlistContainer');
+            if (!container) return;
+
+            const wishlistIds = getWishlist();
+            const favStories = stories.filter(s => wishlistIds.includes(String(s.id)) || wishlistIds.includes(String(s.title)));
+
+            if (favStories.length === 0) {
+                container.innerHTML = '<p style="font-size:12px; font-weight:700; opacity:0.7;">No saved stories yet!</p>';
+                return;
+            }
+
+            container.innerHTML = favStories.map(s => {
+                const sKey = s.id || s.title;
+                return `
+                <div class="item-row">
+                    <div>
+                        <div style="font-weight:900; font-size:13px;">${s.title}</div>
+                        <span style="font-size:10px; opacity:0.7;">${s.platform || 'AUDIO'}</span>
+                    </div>
+                    <button class="chip chip-yellow" onclick="openStoryModal('${sKey}')">VIEW</button>
+                </div>
+            `}).join('');
+        }
+
+        /* --- REDIRECT & DEEP LINK ANIMATION --- */
         function runDirectRedirectAnimation(callback) {
             const splash = document.getElementById('splash-screen');
             if(splash) splash.classList.add('hidden');
@@ -486,7 +647,7 @@
 
             let current = 0;
             const interval = setInterval(() => {
-                current += Math.floor(Math.random() * 4) + 2; 
+                current += Math.floor(Math.random() * 5) + 3; 
                 
                 if (current >= 100) {
                     current = 100;
@@ -497,35 +658,12 @@
                     setTimeout(() => {
                         loader.classList.remove('active');
                         if (callback) callback();
-                    }, 300);
+                    }, 250);
                 } else {
                     counter.innerText = `${current}%`;
                     fill.style.width = `${current}%`;
                 }
-            }, 45);
-        }
-
-        function setupSplashScreen(list) {
-            const wrapper = document.getElementById('cardsWrapper');
-            if(!wrapper) return;
-            wrapper.innerHTML = '';
-            
-            const shuffled = [...list].sort(() => 0.5 - Math.random());
-            const picked = shuffled.slice(0, 5);
-            const posClasses = ['card-left-2', 'card-left-1', 'card-center', 'card-right-1', 'card-right-2'];
-            
-            picked.forEach((story, idx) => {
-                const img = document.createElement('img');
-                img.src = story.photo || 'https://picsum.photos/200';
-                img.className = `fan-card ${posClasses[idx] || 'card-center'}`;
-                wrapper.appendChild(img);
-            });
-
-            setTimeout(() => { wrapper.classList.add('active'); }, 100);
-            setTimeout(() => {
-                const splash = document.getElementById('splash-screen');
-                if(splash) splash.classList.add('hidden');
-            }, 2200);
+            }, 35);
         }
 
         function checkUrlParamRouting() {
@@ -559,12 +697,38 @@
             return false;
         }
 
+        function setupSplashScreen(list) {
+            const wrapper = document.getElementById('cardsWrapper');
+            if(!wrapper) return;
+            wrapper.innerHTML = '';
+            
+            const shuffled = [...list].sort(() => 0.5 - Math.random());
+            const picked = shuffled.slice(0, 5);
+            const posClasses = ['card-left-2', 'card-left-1', 'card-center', 'card-right-1', 'card-right-2'];
+            
+            picked.forEach((story, idx) => {
+                const img = document.createElement('img');
+                img.src = story.photo || 'https://picsum.photos/200';
+                img.className = `fan-card ${posClasses[idx] || 'card-center'}`;
+                wrapper.appendChild(img);
+            });
+
+            setTimeout(() => { wrapper.classList.add('active'); }, 100);
+            setTimeout(() => {
+                const splash = document.getElementById('splash-screen');
+                if(splash) splash.classList.add('hidden');
+            }, 2200);
+        }
+
         async function loadStories() {
             try {
                 const res = await fetch('/api/stories');
                 stories = await res.json();
                 
                 renderGrid(stories, 'homeGrid');
+                renderGrid(stories, 'exploreGrid');
+                renderWishlist();
+                document.getElementById('pTotal').innerText = stories.length;
 
                 const isDeepLinked = checkUrlParamRouting();
                 if (!isDeepLinked) {
@@ -581,34 +745,50 @@
             }
         }
 
-        function toggleWishlist(e, key) {
-            e.stopPropagation();
-            const idx = wishlist.indexOf(key);
-            if(idx > -1) wishlist.splice(idx, 1);
-            else wishlist.push(key);
-            
-            localStorage.setItem('user_wishlist', JSON.stringify(wishlist));
-            
-            const activeNav = document.querySelector('.nav-item.active').id;
-            if(activeNav === 'navWishlist') switchTab('wishlist');
-            else if(activeNav === 'navStore') renderGrid(stories, 'homeGrid');
+        async function loadUserPurchases(userId) {
+            try {
+                const res = await fetch(`/api/user_purchases?user_id=${userId}`);
+                userPurchases = await res.json();
+                
+                document.getElementById('unlockedCount').innerText = userPurchases.length;
+                document.getElementById('pUnlocked').innerText = userPurchases.length;
+                
+                const box = document.getElementById('unlockedList');
+                if(userPurchases.length === 0) {
+                    box.innerHTML = '<p style="font-size:12px; font-weight:700;">No unlocked stories. Buy stories to access here!</p>';
+                    return;
+                }
+                
+                box.innerHTML = userPurchases.map(p => `
+                    <div class="item-row">
+                        <div>
+                            <div style="font-weight:900; font-size:13px;">${p.story_title}</div>
+                            <span style="font-size:10px; color:#16a34a; font-weight:800;">✓ UNLOCKED</span>
+                        </div>
+                        <button class="chip chip-yellow" onclick="openStoryLink('${p.link || '#'}')">ACCESS</button>
+                    </div>
+                `).join('');
+            } catch(e) { console.error(e); }
         }
 
         function renderGrid(list, target) {
             const el = document.getElementById(target);
             if(!el) return;
-
             if(list.length === 0) {
-                el.innerHTML = `<div style="grid-column: 1/-1; text-align: center; color: #a1a1aa; padding: 40px 0; font-weight:700;">No items found!</div>`;
+                el.innerHTML = '<p style="font-size:12px; font-weight:800; grid-column:1/-1; text-align:center;">No audio packs found.</p>';
                 return;
             }
 
+            const wishlist = getWishlist();
+
             el.innerHTML = list.map((s) => {
                 const sKey = s.id || s.title;
-                const isFav = wishlist.includes(sKey);
+                const isFav = wishlist.includes(String(sKey));
                 return `
                 <div class="card" onclick="openStoryModal('${sKey}')">
-                    <div class="wishlist-btn" onclick="toggleWishlist(event, '${sKey}')">${isFav ? '❤️' : '🤍'}</div>
+                    <div class="card-fav-btn" onclick="toggleWishlist(event, '${sKey}')">
+                        ${isFav ? '❤️' : '🤍'}
+                    </div>
                     <img src="${s.photo || 'https://picsum.photos/200'}" class="card-img">
                     <div class="card-body">
                         <span class="badge">${s.platform || 'AUDIO'}</span>
@@ -620,99 +800,8 @@
             `}).join('');
         }
 
-        /* --- ALL FEATURES & NAVIGATION TAB SWITCHING --- */
-        function switchTab(tab) {
-            document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
-            
-            const container = document.getElementById('mainContainer');
-            const searchBox = document.getElementById('searchBox');
-            const headerTitle = document.getElementById('headerTitle');
-
-            if(tab === 'store') {
-                document.getElementById('navStore').classList.add('active');
-                headerTitle.innerText = "STORE";
-                container.innerHTML = `
-                    <div class="search-wrapper" id="searchBox">
-                        <span class="search-icon">🔍</span>
-                        <input type="text" class="search-input" id="searchInp" placeholder="Search series..." onkeyup="doSearch()">
-                    </div>
-                    <div class="story-grid" id="homeGrid"></div>
-                `;
-                renderGrid(stories, 'homeGrid');
-            } else if(tab === 'explore') {
-                document.getElementById('navExplore').classList.add('active');
-                headerTitle.innerText = "EXPLORE";
-                
-                container.innerHTML = `
-                    <div style="margin-bottom: 12px; font-weight:800; font-size:15px;">🔥 TOP PLATFORMS</div>
-                    <div style="display:flex; flex-direction:column; gap:10px; margin-bottom:20px;">
-                        <div class="card" style="padding:14px; font-weight:800; display:flex; justify-content:space-between;" onclick="filterByPlatform('PRATILIPI')"><span>📚 PRATILIPI FM</span> <span>➔</span></div>
-                        <div class="card" style="padding:14px; font-weight:800; display:flex; justify-content:space-between;" onclick="filterByPlatform('POCKET')"><span>🎧 POCKET FM</span> <span>➔</span></div>
-                        <div class="card" style="padding:14px; font-weight:800; display:flex; justify-content:space-between;" onclick="filterByPlatform('KUKU')"><span>📻 KUKU FM</span> <span>➔</span></div>
-                    </div>
-                    <div style="margin-bottom: 12px; font-weight:800; font-size:15px;">ALL EXPLORE SHOWS</div>
-                    <div class="story-grid" id="exploreGrid"></div>
-                `;
-                renderGrid(stories, 'exploreGrid');
-            } else if(tab === 'wishlist') {
-                document.getElementById('navWishlist').classList.add('active');
-                headerTitle.innerText = "MY WISHLIST";
-                
-                const favStories = stories.filter(s => wishlist.includes(s.id || s.title));
-                container.innerHTML = `<div class="story-grid" id="wishlistGrid"></div>`;
-                renderGrid(favStories, 'wishlistGrid');
-            } else if(tab === 'profile') {
-                document.getElementById('navProfile').classList.add('active');
-                headerTitle.innerText = "MY PROFILE";
-                
-                const user = (tg.initDataUnsafe && tg.initDataUnsafe.user) ? tg.initDataUnsafe.user : { first_name: 'User', id: '12345678' };
-                
-                container.innerHTML = `
-                    <div class="card" style="padding: 20px; text-align: center; margin-bottom: 16px;">
-                        <div style="font-size: 40px; margin-bottom: 6px;">👤</div>
-                        <div style="font-size: 18px; font-weight: 900;">${user.first_name}</div>
-                        <div style="font-size: 11px; color: #a1a1aa; margin-bottom:12px;">ID: ${user.id}</div>
-                        <div class="chip chip-yellow" style="display:inline-block;">💎 PREMIUM STORE MEMBER</div>
-                    </div>
-
-                    <div style="font-size:13px; font-weight:800; margin-bottom:10px; color:#a1a1aa;">🎨 SELECT APP THEME</div>
-                    <div style="display:flex; flex-direction:column; gap:8px; margin-bottom:20px;">
-                        <div class="theme-btn" onclick="changeTheme('default')"><span>🌌 Default Dark</span> <span>${currentTheme==='default'?'✓':''}</span></div>
-                        <div class="theme-btn" onclick="changeTheme('neon')"><span>⚡ Cyber Neon</span> <span>${currentTheme==='neon'?'✓':''}</span></div>
-                        <div class="theme-btn" onclick="changeTheme('midnight')"><span>🌃 Midnight Blue</span> <span>${currentTheme==='midnight'?'✓':''}</span></div>
-                        <div class="theme-btn" onclick="changeTheme('gold')"><span>👑 Sunset Gold</span> <span>${currentTheme==='gold'?'✓':''}</span></div>
-                    </div>
-
-                    <div style="font-size:13px; font-weight:800; margin-bottom:10px; color:#a1a1aa;">📦 QUICK LINKS</div>
-                    <div class="card" style="padding: 14px; font-weight:800; margin-bottom:8px; cursor:pointer;" onclick="switchTab('wishlist')">❤️ Saved Wishlist (${wishlist.length})</div>
-                    <div class="card" style="padding: 14px; font-weight:800; cursor:pointer;" onclick="tg.close()">🚪 Exit Mini App</div>
-                `;
-            }
-        }
-
-        function changeTheme(themeName) {
-            currentTheme = themeName;
-            localStorage.setItem('user_theme', themeName);
-            if(themeName === 'default') document.body.className = '';
-            else document.body.className = `theme-${themeName}`;
-            switchTab('profile');
-        }
-
-        function filterByPlatform(platName) {
-            const filtered = stories.filter(s => s.platform && s.platform.toUpperCase().includes(platName));
-            renderGrid(filtered, 'exploreGrid');
-        }
-
-        function doSearch() {
-            const q = document.getElementById('searchInp').value.toLowerCase().trim();
-            const filtered = stories.filter(s => 
-                s.title.toLowerCase().includes(q) || 
-                (s.platform && s.platform.toLowerCase().includes(q))
-            );
-            renderGrid(filtered, 'homeGrid');
-        }
-
         function openStoryModal(storyKey) {
+            triggerHaptic('light');
             let story = stories.find(s => String(s.id) === String(storyKey) || String(s.title) === String(storyKey));
             if (!story) return;
 
@@ -725,20 +814,24 @@
             const priceText = story.price == 0 ? 'FREE' : `₹${story.price}`;
             document.getElementById('mPrice').innerText = priceText;
             document.getElementById('mAccessType').innerText = story.price == 0 ? '🎁 FREE ACCESS' : '💎 PAID SHOW';
-            document.getElementById('mDesc').innerText = story.description || story.desc || 'Complete audio series package.';
+            document.getElementById('mDesc').innerText = story.description || story.desc || 'Complete audio series package with high quality audio episodes. Instant access after unlocking.';
 
             const buyBtn = document.getElementById('mBuyBtn');
             buyBtn.innerText = story.price == 0 ? 'CLAIM NOW (FREE)' : 'BUY & UNLOCK';
-            buyBtn.onclick = function() { buyStory(story.title); };
+            buyBtn.onclick = function() {
+                buyStory(story.title);
+            };
 
             document.getElementById('storyModal').classList.add('active');
         }
 
         function closeModal() {
+            triggerHaptic('light');
             document.getElementById('storyModal').classList.remove('active');
         }
 
         function buyStory(title) {
+            triggerHaptic('success');
             const cleanTitle = encodeURIComponent(title.replace(/ /g, "_"));
             const deepLink = `https://t.me/${BOT_USERNAME}?start=story_${cleanTitle}`;
 
@@ -750,9 +843,64 @@
             }
         }
 
+        function openStoryLink(url) {
+            triggerHaptic('light');
+            if(url && url !== '#') tg.openTelegramLink(url);
+            else tg.showAlert("Access link will be provided in bot chat.");
+        }
+
+        function doSearch() {
+            const q = document.getElementById('searchInp').value.toLowerCase();
+            const f = stories.filter(s => s.title.toLowerCase().includes(q));
+            renderGrid(f, 'homeGrid');
+        }
+
+        function filterCat(cat) {
+            triggerHaptic('light');
+            const f = stories.filter(s => (s.platform && s.platform.toLowerCase().includes(cat)));
+            renderGrid(f, 'exploreGrid');
+        }
+
+        function switchTab(name) {
+            triggerHaptic('light');
+            document.querySelectorAll('.tab-content').forEach(e => e.classList.remove('active'));
+            document.querySelectorAll('.nav-link').forEach(e => e.classList.remove('active'));
+            
+            document.getElementById(`tab-${name}`).classList.add('active');
+            
+            const tabs = ['home', 'explore', 'orders', 'profile'];
+            const idx = tabs.indexOf(name);
+            if(idx !== -1) document.querySelectorAll('.nav-link')[idx].classList.add('active');
+        }
+
+        function initUserInfo() {
+            try {
+                tg.ready();
+                tg.expand();
+
+                let user = tg.initDataUnsafe ? tg.initDataUnsafe.user : null;
+
+                if (user && user.id) {
+                    const fullName = ((user.first_name || "") + " " + (user.last_name || "")).trim();
+                    document.getElementById('uName').innerText = fullName || user.username || "Telegram User";
+                    document.getElementById('uId').innerText = user.id;
+                    
+                    if (user.photo_url) {
+                        document.getElementById('uPhoto').src = user.photo_url;
+                    }
+                    loadUserPurchases(user.id);
+                } else {
+                    document.getElementById('uName').innerText = "Guest User";
+                    document.getElementById('uId').innerText = "Not Connected";
+                }
+            } catch (err) {
+                console.error("Error fetching user info:", err);
+            }
+        }
+
         document.addEventListener('DOMContentLoaded', () => {
-            tg.ready();
-            tg.expand();
+            applySavedTheme();
+            initUserInfo();
             loadStories();
         });
     </script>
