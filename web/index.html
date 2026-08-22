@@ -6,17 +6,20 @@
     <title>PREMIUM STORE BOT</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
-        /* ORIGINAL NEUMORPHIC LIGHT THEME (DEFAULT) */
+        /* COLORFUL RED-PINK GRADIENT THEME (DEFAULT) */
         :root {
-            --bg: #fafafa;
-            --card-bg: #ffffff;
-            --text: #0f172a;
-            --border: #000000;
-            --accent: #ffcc00;
+            --bg: #0d0614;
+            --card-bg: #180d26;
+            --text: #ffffff;
+            --border: #ff2a75;
+            --accent: linear-gradient(135deg, #ff0055, #ff5050);
+            --accent-solid: #ff0055;
+            --accent-pink: #ff2a75;
             --radius: 18px;
-            --box-bg: #ffffff;
-            --item-bg: #f8fafc;
-            --shadow: 3px 3px 0px #000000;
+            --box-bg: #150a21;
+            --item-bg: #221236;
+            --shadow: 0px 4px 15px rgba(255, 0, 85, 0.4);
+            --glow: 0 0 15px rgba(255, 42, 117, 0.6);
         }
 
         /* DARK THEME */
@@ -25,10 +28,13 @@
             --card-bg: #1e293b;
             --text: #f8fafc;
             --border: #38bdf8;
-            --accent: #f59e0b;
+            --accent: linear-gradient(135deg, #0284c7, #38bdf8);
+            --accent-solid: #38bdf8;
+            --accent-pink: #38bdf8;
             --box-bg: #1e293b;
             --item-bg: #334155;
-            --shadow: 3px 3px 0px #38bdf8;
+            --shadow: 0px 4px 15px rgba(56, 189, 248, 0.3);
+            --glow: 0 0 15px rgba(56, 189, 248, 0.5);
         }
 
         /* CYBER THEME */
@@ -37,10 +43,13 @@
             --card-bg: #111111;
             --text: #00ff66;
             --border: #00ff66;
-            --accent: #ff007f;
+            --accent: linear-gradient(135deg, #00ff66, #ff007f);
+            --accent-solid: #00ff66;
+            --accent-pink: #ff007f;
             --box-bg: #111111;
             --item-bg: #1a1a1a;
-            --shadow: 3px 3px 0px #00ff66;
+            --shadow: 0px 4px 15px rgba(0, 255, 102, 0.3);
+            --glow: 0 0 15px rgba(0, 255, 102, 0.5);
         }
 
         * {
@@ -59,12 +68,12 @@
             transition: background-color 0.3s ease, color 0.3s ease;
         }
 
-        /* ---------------- DIRECT REDIRECT LOADER (0 TO 100 ANIMATION) ---------------- */
+        /* ---------------- DIRECT REDIRECT LOADER (EXACT 5-6 SECONDS) ---------------- */
         #redirect-loader {
             position: fixed;
             top: 0; left: 0;
             width: 100vw; height: 100vh;
-            background: #09090d;
+            background: radial-gradient(circle at center, #240b2e 0%, #09030c 100%);
             color: #ffffff;
             display: flex;
             flex-direction: column;
@@ -73,7 +82,7 @@
             z-index: 99999;
             opacity: 0;
             visibility: hidden;
-            transition: opacity 0.3s ease, visibility 0.3s ease;
+            transition: opacity 0.4s ease, visibility 0.4s ease;
         }
         #redirect-loader.active {
             opacity: 1;
@@ -81,64 +90,69 @@
         }
 
         .loader-anime-img {
-            width: 110px;
-            height: 110px;
-            border-radius: 20px;
-            border: 3px solid var(--accent);
-            box-shadow: 0 0 25px rgba(255, 204, 0, 0.6);
+            width: 120px;
+            height: 120px;
+            border-radius: 22px;
+            border: 3px solid var(--accent-pink);
+            box-shadow: 0 0 30px rgba(255, 0, 85, 0.8);
             object-fit: cover;
-            margin-bottom: 20px;
-            animation: pulseImg 1.5s infinite alternate ease-in-out;
+            margin-bottom: 22px;
+            animation: pulseImg 2s infinite alternate ease-in-out;
         }
         @keyframes pulseImg {
-            0% { transform: scale(0.95); }
-            100% { transform: scale(1.05); }
+            0% { transform: scale(0.95); box-shadow: 0 0 20px rgba(255, 0, 85, 0.5); }
+            100% { transform: scale(1.05); box-shadow: 0 0 40px rgba(255, 42, 117, 0.9); }
         }
 
         .redirect-title {
-            font-size: 18px;
+            font-size: 20px;
             font-weight: 900;
-            letter-spacing: 2px;
-            color: #ffffff;
+            letter-spacing: 3px;
+            background: linear-gradient(90deg, #ff0055, #ff758c);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
             text-transform: uppercase;
             margin-bottom: 4px;
         }
         .redirect-sub {
-            font-size: 11px;
-            color: #a1a1aa;
-            margin-bottom: 20px;
+            font-size: 12px;
+            color: #d1d5db;
+            margin-bottom: 24px;
             font-weight: 600;
         }
 
         .counter-text {
-            font-size: 46px;
+            font-size: 52px;
             font-weight: 900;
-            color: var(--accent);
-            margin-bottom: 8px;
+            color: #ffffff;
+            text-shadow: var(--glow);
+            margin-bottom: 12px;
             line-height: 1;
             font-family: monospace;
         }
 
         .progress-bar-track {
-            width: 180px;
-            height: 6px;
-            background: #1e293b;
+            width: 220px;
+            height: 8px;
+            background: #1e112a;
             border-radius: 10px;
             overflow: hidden;
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            margin-bottom: 12px;
+            border: 1.5px solid rgba(255, 42, 117, 0.4);
+            margin-bottom: 14px;
+            box-shadow: inset 0 0 5px #000;
         }
         .progress-bar-fill {
             width: 0%;
             height: 100%;
             background: var(--accent);
+            box-shadow: 0 0 10px var(--accent-pink);
             transition: width 0.05s linear;
         }
 
         .loading-lbl {
-            font-size: 10px;
+            font-size: 11px;
             font-weight: 800;
-            color: #71717a;
+            color: var(--accent-pink);
             letter-spacing: 2px;
         }
 
@@ -147,7 +161,7 @@
             position: fixed;
             top: 0; left: 0;
             width: 100vw; height: 100vh;
-            background: #111111;
+            background: #0d0614;
             color: #ffffff;
             display: flex;
             flex-direction: column;
@@ -178,7 +192,7 @@
             width: 130px;
             height: 180px;
             border-radius: 14px;
-            border: 2px solid rgba(255, 255, 255, 0.2);
+            border: 2px solid var(--accent-pink);
             object-fit: cover;
             box-shadow: 0 10px 25px rgba(0,0,0,0.8);
             transition: transform 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.5s ease;
@@ -188,16 +202,16 @@
 
         .cards-stack-wrapper.active .card-left-2 { opacity: 0.6; transform: rotate(-24deg) translateX(-70px) scale(0.8); }
         .cards-stack-wrapper.active .card-left-1 { opacity: 0.85; transform: rotate(-12deg) translateX(-35px) scale(0.9); z-index: 2; }
-        .cards-stack-wrapper.active .card-center { opacity: 1; transform: rotate(0deg) translateY(-10px) scale(1.05); z-index: 3; border-color: var(--accent); box-shadow: 0 0 20px rgba(255, 204, 0, 0.4); }
+        .cards-stack-wrapper.active .card-center { opacity: 1; transform: rotate(0deg) translateY(-10px) scale(1.05); z-index: 3; border-color: #ff0055; box-shadow: 0 0 25px rgba(255, 0, 85, 0.7); }
         .cards-stack-wrapper.active .card-right-1 { opacity: 0.85; transform: rotate(12deg) translateX(35px) scale(0.9); z-index: 2; }
         .cards-stack-wrapper.active .card-right-2 { opacity: 0.6; transform: rotate(24deg) translateX(70px) scale(0.8); }
 
-        .splash-title { font-size: 20px; font-weight: 900; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 6px; text-align: center; }
-        .splash-sub { font-size: 11px; color: #888888; max-width: 260px; text-align: center; line-height: 1.4; margin-bottom: 20px; }
+        .splash-title { font-size: 22px; font-weight: 900; letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 6px; text-align: center; background: linear-gradient(90deg, #ff0055, #ff758c); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .splash-sub { font-size: 11px; color: #a1a1aa; max-width: 260px; text-align: center; line-height: 1.4; margin-bottom: 20px; }
         .loader-spinner {
-            width: 22px; height: 22px;
-            border: 3px solid rgba(255,255,255,0.1);
-            border-top: 3px solid var(--accent);
+            width: 24px; height: 24px;
+            border: 3px solid rgba(255, 0, 85, 0.2);
+            border-top: 3px solid var(--accent-pink);
             border-radius: 50%;
             animation: spin 0.8s linear infinite;
         }
@@ -210,24 +224,28 @@
             justify-content: space-between;
             padding: 12px 16px;
             background: var(--box-bg);
-            border-bottom: 2.5px solid var(--border);
+            border-bottom: 2px solid var(--border);
             position: sticky;
             top: 0;
             z-index: 100;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
         }
-        .brand-logo { font-size: 20px; font-weight: 900; letter-spacing: -0.5px; }
+        .brand-logo { font-size: 20px; font-weight: 900; letter-spacing: -0.5px; background: linear-gradient(90deg, #ff0055, #ff758c); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
         .header-chips { display: flex; gap: 6px; align-items: center; }
         .chip {
-            padding: 5px 10px;
+            padding: 6px 12px;
             border-radius: 20px;
-            border: 2px solid var(--border);
+            border: 1.5px solid var(--border);
             font-size: 11px;
             font-weight: 800;
             background: var(--box-bg);
             color: var(--text);
-            box-shadow: 2px 2px 0px var(--border);
+            box-shadow: 0 2px 8px rgba(255, 0, 85, 0.2);
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
         }
-        .chip-yellow { background: var(--accent); color: #000; }
+        .chip-pink { background: var(--accent); color: #fff; border: none; }
 
         .container { padding: 16px; }
         .tab-content { display: none; }
@@ -256,7 +274,7 @@
         }
         .card {
             background: var(--card-bg);
-            border: 2.5px solid var(--border);
+            border: 2px solid var(--border);
             border-radius: var(--radius);
             overflow: hidden;
             box-shadow: var(--shadow);
@@ -264,54 +282,56 @@
             flex-direction: column;
             cursor: pointer;
             position: relative;
-            transition: transform 0.1s ease;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
         }
-        .card:active { transform: scale(0.98); }
-        .card-img { width: 100%; height: 140px; object-fit: cover; border-bottom: 2px solid var(--border); }
+        .card:active { transform: scale(0.97); }
+        .card-img { width: 100%; height: 145px; object-fit: cover; border-bottom: 2px solid var(--border); }
         
         .card-fav-btn {
             position: absolute;
             top: 8px; right: 8px;
             width: 32px; height: 32px;
-            background: rgba(255, 255, 255, 0.9);
-            border: 2px solid var(--border);
+            background: rgba(13, 6, 20, 0.85);
+            border: 1.5px solid var(--border);
             border-radius: 50%;
             display: flex; justify-content: center; align-items: center;
             font-size: 14px;
             cursor: pointer;
             z-index: 10;
-            box-shadow: 1.5px 1.5px 0px var(--border);
+            backdrop-filter: blur(4px);
         }
 
         .card-body { padding: 10px; display: flex; flex-direction: column; flex-grow: 1; }
         .badge {
             align-self: flex-start;
-            background: #2563eb;
+            background: linear-gradient(135deg, #2563eb, #1d4ed8);
             color: #fff;
             font-size: 9px;
             font-weight: 800;
             padding: 3px 8px;
             border-radius: 6px;
-            border: 1.5px solid var(--border);
+            border: 1px solid rgba(255,255,255,0.2);
             text-transform: uppercase;
             margin-bottom: 6px;
         }
-        .title { font-size: 13px; font-weight: 800; margin: 0 0 4px 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .price-tag { font-size: 15px; font-weight: 900; margin: 6px 0; }
+        .title { font-size: 13px; font-weight: 800; margin: 0 0 4px 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text); }
+        .price-tag { font-size: 15px; font-weight: 900; margin: 6px 0; color: #ff2a75; }
         
         .btn-action {
             width: 100%;
-            padding: 8px 0;
+            padding: 9px 0;
             background: var(--accent);
-            color: #000;
-            border: 2px solid var(--border);
+            color: #fff;
+            border: none;
             border-radius: 10px;
             font-weight: 800;
             font-size: 12px;
             cursor: pointer;
-            box-shadow: 2px 2px 0px var(--border);
+            box-shadow: 0 4px 12px rgba(255, 0, 85, 0.5);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
         }
-        .btn-action:active { transform: translate(2px, 2px); box-shadow: 0px 0px 0px var(--border); }
+        .btn-action:active { transform: scale(0.98); }
 
         /* ---------------- FULL SCREEN STORY DETAIL MODAL ---------------- */
         .modal-overlay {
@@ -331,23 +351,23 @@
         .modal-bg-img { width: 100%; height: 100%; object-fit: cover; opacity: 0.65; filter: blur(4px); transform: scale(1.1); }
         .modal-close-btn {
             position: absolute; top: 16px; right: 16px; width: 36px; height: 36px;
-            background: var(--box-bg); color: var(--text); border: 2px solid var(--border);
+            background: rgba(13, 6, 20, 0.8); color: var(--text); border: 2px solid var(--border);
             border-radius: 50%; font-weight: 900; font-size: 16px; display: flex;
             justify-content: center; align-items: center; cursor: pointer;
-            box-shadow: 2px 2px 0px var(--border); z-index: 10;
+            box-shadow: 0 0 10px rgba(255, 0, 85, 0.5); z-index: 10; backdrop-filter: blur(4px);
         }
         .modal-poster-wrapper { position: absolute; bottom: 16px; left: 16px; z-index: 5; }
-        .modal-poster-img { width: 100px; height: 135px; object-fit: cover; border-radius: 12px; border: 2.5px solid var(--border); box-shadow: var(--shadow); background: var(--box-bg); }
+        .modal-poster-img { width: 105px; height: 140px; object-fit: cover; border-radius: 14px; border: 2.5px solid var(--border); box-shadow: var(--shadow); background: var(--box-bg); }
         .modal-body { flex-grow: 1; padding: 20px 16px 90px 16px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; background: var(--bg); }
         .modal-meta-row { display: flex; justify-content: space-between; align-items: center; }
         .modal-title { font-size: 20px; font-weight: 900; margin: 0; color: var(--text); line-height: 1.3; }
-        .modal-desc-box { background: var(--item-bg); border: 2px solid var(--border); border-radius: 14px; padding: 12px; font-size: 13px; line-height: 1.5; color: var(--text); font-weight: 600; box-shadow: 2px 2px 0px var(--border); }
-        .modal-bottom-bar { position: absolute; bottom: 0; left: 0; right: 0; background: var(--box-bg); border-top: 2.5px solid var(--border); padding: 14px 16px; display: flex; align-items: center; justify-content: space-between; gap: 12px; z-index: 20; }
-        .modal-price { font-size: 22px; font-weight: 900; color: var(--text); }
+        .modal-desc-box { background: var(--item-bg); border: 1.5px solid var(--border); border-radius: 14px; padding: 12px; font-size: 13px; line-height: 1.5; color: var(--text); font-weight: 600; box-shadow: 0 4px 12px rgba(0,0,0,0.4); }
+        .modal-bottom-bar { position: absolute; bottom: 0; left: 0; right: 0; background: var(--box-bg); border-top: 2px solid var(--border); padding: 14px 16px; display: flex; align-items: center; justify-content: space-between; gap: 12px; z-index: 20; }
+        .modal-price { font-size: 22px; font-weight: 900; color: var(--accent-pink); }
 
         .profile-card {
             background: var(--box-bg);
-            border: 2.5px solid var(--border);
+            border: 2px solid var(--border);
             border-radius: 20px;
             padding: 16px;
             box-shadow: var(--shadow);
@@ -356,40 +376,51 @@
             gap: 14px;
             margin-bottom: 16px;
         }
-        .avatar { width: 60px; height: 60px; border-radius: 14px; border: 2px solid var(--border); object-fit: cover; }
-        .id-badge { display: inline-block; background: var(--accent); color: #000; border: 1.5px solid var(--border); padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 800; margin-top: 4px; }
+        .avatar { width: 62px; height: 62px; border-radius: 16px; border: 2px solid var(--border); object-fit: cover; }
+        .id-badge { display: inline-block; background: var(--accent); color: #fff; border: 1px solid rgba(255,255,255,0.3); padding: 3px 10px; border-radius: 10px; font-size: 11px; font-weight: 800; margin-top: 4px; }
 
         .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
-        .stat-box { background: var(--box-bg); border: 2.5px solid var(--border); border-radius: 16px; padding: 14px; text-align: center; box-shadow: var(--shadow); }
-        .stat-num { font-size: 22px; font-weight: 900; }
-        .stat-lbl { font-size: 10px; font-weight: 800; opacity: 0.7; text-transform: uppercase; }
+        .stat-box { background: var(--box-bg); border: 2px solid var(--border); border-radius: 16px; padding: 14px; text-align: center; box-shadow: var(--shadow); }
+        .stat-num { font-size: 22px; font-weight: 900; color: var(--accent-pink); }
+        .stat-lbl { font-size: 10px; font-weight: 800; opacity: 0.8; text-transform: uppercase; }
 
-        .section-box { background: var(--box-bg); border: 2.5px solid var(--border); border-radius: 16px; padding: 14px; box-shadow: var(--shadow); margin-bottom: 12px; }
-        .section-title { font-size: 12px; font-weight: 900; text-transform: uppercase; margin-bottom: 10px; }
-        .item-row { display: flex; justify-content: space-between; align-items: center; padding: 10px; border: 2px solid var(--border); border-radius: 12px; margin-bottom: 8px; background: var(--item-bg); }
+        .section-box { background: var(--box-bg); border: 2px solid var(--border); border-radius: 16px; padding: 14px; box-shadow: var(--shadow); margin-bottom: 14px; }
+        .section-title { font-size: 12px; font-weight: 900; text-transform: uppercase; margin-bottom: 10px; color: var(--accent-pink); }
+        .item-row { display: flex; justify-content: space-between; align-items: center; padding: 12px; border: 1.5px solid var(--border); border-radius: 12px; margin-bottom: 8px; background: var(--item-bg); cursor: pointer; }
+        .item-row:active { transform: scale(0.98); }
+
+        /* CUSTOM PROFILE BUTTONS */
+        .btn-support {
+            background: linear-gradient(135deg, #00c6ff, #0072ff) !important;
+            box-shadow: 0 4px 12px rgba(0, 198, 255, 0.4) !important;
+        }
+        .btn-join {
+            background: linear-gradient(135deg, #ff0055, #ff5050) !important;
+            box-shadow: 0 4px 12px rgba(255, 0, 85, 0.4) !important;
+        }
 
         .theme-grid { display: flex; gap: 8px; margin-top: 8px; }
-        .theme-btn { flex: 1; padding: 8px; border: 2px solid var(--border); border-radius: 10px; font-size: 11px; font-weight: 800; cursor: pointer; box-shadow: 2px 2px 0px var(--border); text-align: center; }
+        .theme-btn { flex: 1; padding: 10px; border: 1.5px solid var(--border); border-radius: 10px; font-size: 11px; font-weight: 800; cursor: pointer; text-align: center; color: #fff; }
 
         .bottom-nav {
             position: fixed;
             bottom: 0; left: 0; width: 100%;
             background: var(--box-bg);
-            border-top: 2.5px solid var(--border);
+            border-top: 2px solid var(--border);
             display: flex;
             justify-content: space-around;
             padding: 8px 0;
             z-index: 100;
         }
         .nav-link { display: flex; flex-direction: column; align-items: center; font-size: 9px; font-weight: 900; color: var(--text); text-decoration: none; opacity: 0.6; cursor: pointer; }
-        .nav-link.active { opacity: 1; }
-        .nav-link.active .nav-icon { background: var(--accent); color: #000; border: 1.5px solid var(--border); border-radius: 10px; padding: 2px 10px; box-shadow: 1.5px 1.5px 0px var(--border); }
+        .nav-link.active { opacity: 1; color: var(--accent-pink); }
+        .nav-link.active .nav-icon { background: var(--accent); color: #fff; border-radius: 10px; padding: 2px 10px; box-shadow: 0 0 10px rgba(255, 0, 85, 0.6); }
         .nav-icon { font-size: 16px; margin-bottom: 2px; }
     </style>
 </head>
 <body>
 
-    <!-- DIRECT STORY REDIRECT LOADER OVERLAY (0 TO 100 ANIMATION) -->
+    <!-- DIRECT STORY REDIRECT LOADER OVERLAY (5 TO 6 SECONDS COUNTER ANIMATION) -->
     <div id="redirect-loader">
         <img src="https://picsum.photos/200" class="loader-anime-img" id="loaderAnimeImg" alt="Story Icon">
         <div class="redirect-title">REDIRECTING...</div>
@@ -414,7 +445,7 @@
         <div class="brand-logo">STORE</div>
         <div class="header-chips">
             <span class="chip">🎧 AUDIO</span>
-            <span class="chip chip-yellow">🔑 <span id="unlockedCount">0</span> UNLOCKED</span>
+            <span class="chip chip-pink">🔑 <span id="unlockedCount">0</span> UNLOCKED</span>
         </div>
     </div>
 
@@ -434,7 +465,7 @@
             <div class="section-box">
                 <div class="section-title">Categories & Platforms</div>
                 <div style="display:flex; gap:8px; flex-wrap:wrap;">
-                    <button class="chip chip-yellow" onclick="loadStories()">All Shows</button>
+                    <button class="chip chip-pink" onclick="loadStories()">All Shows</button>
                     <button class="chip" onclick="filterCat('pocket')">Pocket FM</button>
                     <button class="chip" onclick="filterCat('pratilipi')">Pratilipi FM</button>
                     <button class="chip" onclick="filterCat('kuku')">Kuku FM</button>
@@ -474,6 +505,19 @@
                 </div>
             </div>
 
+            <!-- COMMUNITY & SUPPORT SECTION -->
+            <div class="section-box">
+                <div class="section-title">Help & Updates 🚀</div>
+                <div class="item-row btn-join" onclick="openChannel('https://t.me/pratilipifm090')">
+                    <span style="font-weight:900; font-size:13px; color:#fff;">📢 JOIN TELEGRAM CHANNEL</span>
+                    <span style="color:#fff; font-weight:900;">➔</span>
+                </div>
+                <div class="item-row btn-support" onclick="openSupport('https://t.me/kaluu_help_bot')">
+                    <span style="font-weight:900; font-size:13px; color:#fff;">💬 NEED SUPPORT?</span>
+                    <span style="color:#fff; font-weight:900;">➔</span>
+                </div>
+            </div>
+
             <div class="section-box">
                 <div class="section-title">My Wishlist ❤️</div>
                 <div id="wishlistContainer">
@@ -484,17 +528,9 @@
             <div class="section-box">
                 <div class="section-title">App Theme 🎨</div>
                 <div class="theme-grid">
-                    <button class="theme-btn" style="background: #fafafa; color: #000;" onclick="changeTheme('light')">☀️ Light</button>
-                    <button class="theme-btn" style="background: #0f172a; color: #fff;" onclick="changeTheme('dark')">🌙 Dark</button>
-                    <button class="theme-btn" style="background: #050505; color: #00ff66;" onclick="changeTheme('cyber')">🟢 Cyber</button>
-                </div>
-            </div>
-
-            <div class="section-box">
-                <div class="section-title">Quick Links</div>
-                <div class="item-row" onclick="switchTab('orders')">
-                    <span style="font-weight:800; font-size:12px;">📁 My Purchased Stories</span>
-                    <span>❯</span>
+                    <button class="theme-btn" style="background: linear-gradient(135deg, #ff0055, #ff5050);" onclick="changeTheme('pink')">💖 Neon Pink</button>
+                    <button class="theme-btn" style="background: #0f172a; border-color:#38bdf8;" onclick="changeTheme('dark')">🌙 Dark</button>
+                    <button class="theme-btn" style="background: #050505; border-color:#00ff66; color:#00ff66;" onclick="changeTheme('cyber')">🟢 Cyber</button>
                 </div>
             </div>
         </div>
@@ -572,9 +608,9 @@
 
         /* --- THEME SYSTEM --- */
         function applySavedTheme() {
-            const savedTheme = localStorage.getItem('user_theme') || 'light';
+            const savedTheme = localStorage.getItem('user_theme') || 'pink';
             document.body.className = '';
-            if (savedTheme !== 'light') {
+            if (savedTheme !== 'pink') {
                 document.body.classList.add(`theme-${savedTheme}`);
             }
         }
@@ -629,12 +665,12 @@
                         <div style="font-weight:900; font-size:13px;">${s.title}</div>
                         <span style="font-size:10px; opacity:0.7;">${s.platform || 'AUDIO'}</span>
                     </div>
-                    <button class="chip chip-yellow" onclick="openStoryModal('${sKey}')">VIEW</button>
+                    <button class="chip chip-pink" onclick="openStoryModal('${sKey}')">VIEW</button>
                 </div>
             `}).join('');
         }
 
-        /* --- REDIRECT & DEEP LINK ANIMATION --- */
+        /* --- REDIRECT & DEEP LINK ANIMATION (EXACTLY 5 TO 6 SECONDS) --- */
         function runDirectRedirectAnimation(callback) {
             const splash = document.getElementById('splash-screen');
             if(splash) splash.classList.add('hidden');
@@ -646,8 +682,9 @@
             loader.classList.add('active');
 
             let current = 0;
+            // Complete duration set to ~5.5 seconds (5500ms / 100 steps = 55ms interval)
             const interval = setInterval(() => {
-                current += Math.floor(Math.random() * 5) + 3; 
+                current += 1;
                 
                 if (current >= 100) {
                     current = 100;
@@ -658,12 +695,12 @@
                     setTimeout(() => {
                         loader.classList.remove('active');
                         if (callback) callback();
-                    }, 250);
+                    }, 300);
                 } else {
                     counter.innerText = `${current}%`;
                     fill.style.width = `${current}%`;
                 }
-            }, 35);
+            }, 55); 
         }
 
         function checkUrlParamRouting() {
@@ -763,9 +800,9 @@
                     <div class="item-row">
                         <div>
                             <div style="font-weight:900; font-size:13px;">${p.story_title}</div>
-                            <span style="font-size:10px; color:#16a34a; font-weight:800;">✓ UNLOCKED</span>
+                            <span style="font-size:10px; color:#ff2a75; font-weight:800;">✓ UNLOCKED</span>
                         </div>
-                        <button class="chip chip-yellow" onclick="openStoryLink('${p.link || '#'}')">ACCESS</button>
+                        <button class="chip chip-pink" onclick="openStoryLink('${p.link || '#'}')">ACCESS</button>
                     </div>
                 `).join('');
             } catch(e) { console.error(e); }
@@ -841,6 +878,18 @@
             } else {
                 window.location.href = deepLink;
             }
+        }
+
+        function openChannel(url) {
+            triggerHaptic('light');
+            if (tg && tg.openTelegramLink) tg.openTelegramLink(url);
+            else window.open(url, '_blank');
+        }
+
+        function openSupport(url) {
+            triggerHaptic('light');
+            if (tg && tg.openTelegramLink) tg.openTelegramLink(url);
+            else window.open(url, '_blank');
         }
 
         function openStoryLink(url) {
