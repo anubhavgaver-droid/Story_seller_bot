@@ -1,23 +1,23 @@
 import json
 from pyrogram import Client, filters, enums
-from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo, CallbackQuery
-from database.db import get_story_by_title, send_log, is_user_registered, register_user, get_user_purchases
+from pyrogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo, ForceReply
+from database.db import get_story_by_title, send_log, is_user_registered, get_user_purchases, get_stories_by_cat, search_stories_db
 from config import BOT_USERNAME, WEB_APP_URL
 
-# 1. Main Menu Keyboard Layout (Changed to Inline Keyboard)
-MAIN_MENU = InlineKeyboardMarkup([
-    [InlineKeyboardButton("🚀 ᴏᴘᴇɴ ᴍɪɴɪ ᴀᴘᴘ", callback_data="open_miniapp_info")],
-    [InlineKeyboardButton("📢 ᴜᴘᴅᴀᴛᴇs ᴄʜᴀɴɴᴇʟ", url="https://t.me/freestoryhubMR")],
+# Search State Dictionary
+SEARCH_WAITING = {}
+
+# 1. Main Menu Keyboard Layout (Original Reply Keyboard)
+MAIN_MENU = ReplyKeyboardMarkup(
     [
-        InlineKeyboardButton("🔎 sᴇᴀʀᴄʜ sᴛᴏʀʏ", callback_data="search_story"),
-        InlineKeyboardButton("📻 ᴘᴏᴄᴋᴇᴛ ғᴍ", callback_data="pocket_fm")
+        [KeyboardButton("🚀 ᴏᴘᴇɴ ᴍɪɴɪ ᴀᴘᴘ")],
+        [KeyboardButton("📢 ᴜᴘᴅᴀᴛᴇs ᴄʜᴀɴɴᴇʟ", style=enums.ButtonStyle.PRIMARY)],
+        [KeyboardButton("🔎 sᴇᴀʀᴄʜ sᴛᴏʀʏ", style=enums.ButtonStyle.SUCCESS), KeyboardButton("📻 ᴘᴏᴄᴋᴇᴛ ғᴍ", style=enums.ButtonStyle.DANGER)],
+        [KeyboardButton("📚 ᴘʀᴀᴛɪʟɪᴘɪ ғᴍ", style=enums.ButtonStyle.DANGER), KeyboardButton("👤 ᴍʏ ᴀᴄᴄᴏᴜɴᴛ", style=enums.ButtonStyle.PRIMARY)],
+        [KeyboardButton("📞 sᴜᴘᴘᴏʀᴛ", style=enums.ButtonStyle.SUCCESS)]
     ],
-    [
-        InlineKeyboardButton("📚 ᴘʀᴀᴛɪʟɪᴘɪ ғᴍ", callback_data="pratilipi_fm"),
-        InlineKeyboardButton("👤 ᴍʏ ᴀᴄᴄᴏᴜɴᴛ", callback_data="my_account")
-    ],
-    [InlineKeyboardButton("📞 sᴜᴘᴘᴏʀᴛ", callback_data="support_info")]
-])
+    resize_keyboard=True
+)
 
 # Custom Filter for WebApp Data
 async def web_app_filter(_, __, message):
@@ -123,81 +123,67 @@ async def start_handler(client, message):
     )
     await message.reply_text(welcome_text, reply_markup=MAIN_MENU)
 
-# ------------------ Callback Queries (Buttons Click Handlers) ------------------
-@Client.on_callback_query()
-async def callback_handler(client, query: CallbackQuery):
-    data = query.data
-    user = query.from_user
+# ------------------ Dynamic Button Handlers ------------------
 
-    # A. 🚀 MINI APP BUTTON CLICK
-    if data == "open_miniapp_info":
-        await query.answer()
-        
-        miniapp_text = (
-            "🚀 <b>ᴍɪɴɪ sᴛᴏʀᴇ ᴀᴘᴘ</b>\n\n"
-            "ᴄʟɪᴄᴋ ᴛʜᴇ ʙᴜᴛᴛᴏɴ ʙᴇʟᴏᴡ ᴛᴏ ᴏᴘᴇɴ ᴏᴜʀ ᴏғғɪᴄɪᴀʟ ᴍɪɴɪ ᴀᴘᴘ ᴀɴᴅ ᴇxᴘʟᴏʀᴇ ᴀʟʟ ᴀᴜᴅɪᴏ sᴇʀɪᴇs!"
-        )
-        
-        miniapp_kb = InlineKeyboardMarkup([
-            [InlineKeyboardButton("🌐 ʟᴀᴜɴᴄʜ ᴍɪɴɪ ᴀᴘᴘ", web_app=WebAppInfo(url=WEB_APP_URL))],
-            [InlineKeyboardButton("🔙 ʙᴀᴄᴋ ᴛᴏ ᴍᴇɴᴜ", callback_data="back_to_main")]
-        ])
-        
-        await query.message.edit_text(miniapp_text, reply_markup=miniapp_kb)
+# 🚀 OPEN MINI APP CLICK (Inner Launch Button Format)
+@Client.on_message(filters.regex("^(🚀 ᴏᴘᴇɴ ᴍɪɴɪ ᴀᴘᴘ|🚀 Open Mini App)$") & filters.private)
+async def open_miniapp_handler(client, message):
+    text = (
+        "🚀 <b>ᴍɪɴɪ sᴛᴏʀᴇ ᴀᴘᴘ</b>\n\n"
+        "ᴄʟɪᴄᴋ ᴛʜᴇ ʙᴜᴛᴛᴏɴ ʙᴇʟᴏᴡ ᴛᴏ ᴏᴘᴇɴ ᴏᴜʀ ᴏғғɪᴄɪᴀʟ ᴍɪɴɪ ᴀᴘᴘ ᴀɴᴅ ᴇxᴘʟᴏʀᴇ ᴀʟʟ sᴛᴏʀɪᴇs!"
+    )
+    
+    # Inner WebApp Launch Button
+    btn = InlineKeyboardMarkup([
+        [InlineKeyboardButton("🚀 ʟᴀᴜɴᴄʜ ᴍɪɴɪ ᴀᴘᴘ", web_app=WebAppInfo(url=WEB_APP_URL))]
+    ])
+    
+    await message.reply_text(text, reply_markup=btn)
 
-    # B. 📞 SUPPORT BUTTON CLICK
-    elif data == "support_info":
-        await query.answer()
-        
-        support_text = (
-            "<b>📞 ᴄᴜsᴛᴏᴍᴇʀ sᴜᴘᴘᴏʀᴛ:</b>\n\n"
-            "ɪғ ʏᴏᴜ ғᴀᴄᴇ ᴀɴʏ ɪssᴜᴇs, ғᴇᴇʟ ғʀᴇᴇ ᴛᴏ ᴄᴏɴᴛᴀᴄᴛ sᴜᴘᴘᴏʀᴛ."
-        )
-        
-        support_kb = InlineKeyboardMarkup([
-            [InlineKeyboardButton("💬 ᴄᴏɴᴛᴀᴄᴛ sᴜᴘᴘᴏʀᴛ", url="https://t.me/pratilipifm0900")],
-            [InlineKeyboardButton("🔙 ʙᴀᴄᴋ ᴛᴏ ᴍᴇɴᴜ", callback_data="back_to_main")]
-        ])
-        
-        await query.message.edit_text(support_text, reply_markup=support_kb)
+# 📢 UPDATES CHANNEL CLICK
+@Client.on_message(filters.regex("^(📢 ᴜᴘᴅᴀᴛᴇs ᴄʜᴀɴɴᴇʟ|📢 Updates Channel)$") & filters.private)
+async def updates_handler(client, message):
+    kb = InlineKeyboardMarkup([
+        [InlineKeyboardButton("📢 ᴊᴏɪɴ ᴄʜᴀɴɴᴇʟ", url="https://t.me/freestoryhubMR")]
+    ])
+    await message.reply_text("<b>📢 ᴜᴘᴅᴀᴛᴇs ᴄʜᴀɴɴᴇʟ:</b>\n\nᴊᴏɪɴ ᴏᴜʀ ᴄʜᴀɴɴᴇʟ ғᴏʀ ᴛʜᴇ ʟᴀᴛᴇsᴛ ᴜᴘᴅᴀᴛᴇs ᴀɴᴅ ɴᴇᴡ sᴛᴏʀɪᴇs!", reply_markup=kb)
 
-    # C. 👤 MY ACCOUNT CLICK
-    elif data == "my_account":
-        await query.answer()
-        purchases = await get_user_purchases(user.id)
-        
-        acc_text = (
-            f"<b>👤 ᴀᴄᴄᴏᴜɴᴛ ᴅᴇᴛᴀɪʟs:</b>\n"
-            f"━━━━━━━━━━━━━━━━━━━\n"
-            f"<b>ɴᴀᴍᴇ:</b> {user.first_name}\n"
-            f"<b>ᴜsᴇʀ ɪᴅ:</b> <code>{user.id}</code>\n"
-            f"<b>ᴜsᴇʀɴᴀᴍᴇ:</b> @{user.username if user.username else 'N/A'}\n"
-            f"<b>sᴛᴀᴛᴜs:</b> ᴀᴄᴛɪᴠᴇ ᴜsᴇʀ ⚡\n"
-            f"━━━━━━━━━━━━━━━━━━━\n\n"
-        )
-        
-        buttons = []
-        if not purchases:
-            acc_text += "❌ <b>ʏᴏᴜ ʜᴀᴠᴇɴ'ᴛ ᴘᴜʀᴄʜᴀsᴇᴅ ᴀɴʏ sᴛᴏʀɪᴇs ʏᴇᴛ.</b>"
-        else:
-            acc_text += "📖 <b>ʏᴏᴜʀ ᴘᴜʀᴄʜᴀsᴇᴅ sᴛᴏʀɪᴇs:</b>\n\n"
-            for item in purchases:
-                story = await get_story_by_title(item['story_title'])
-                if story:
-                    acc_text += f"• <b>{story['title']}</b>\n"
-                    buttons.append([InlineKeyboardButton(f"🚀 ᴀᴄᴄᴇss {story['title']}", url=story['link'])])
-        
-        buttons.append([InlineKeyboardButton("🔙 ʙᴀᴄᴋ ᴛᴏ ᴍᴇɴᴜ", callback_data="back_to_main")])
-        await query.message.edit_text(acc_text, reply_markup=InlineKeyboardMarkup(buttons))
+# 👤 MY ACCOUNT CLICK
+@Client.on_message(filters.regex("^(👤 ᴍʏ ᴀᴄᴄᴏᴜɴᴛ|👤 My Account)$") & filters.private)
+async def account_handler(client, message):
+    user = message.from_user
+    purchases = await get_user_purchases(user.id)
+    
+    acc_text = (
+        f"<b>👤 ᴀᴄᴄᴏᴜɴᴛ ᴅᴇᴛᴀɪʟs:</b>\n"
+        f"━━━━━━━━━━━━━━━━━━━\n"
+        f"<b>ɴᴀᴍᴇ:</b> {user.first_name}\n"
+        f"<b>ᴜsᴇʀ ɪᴅ:</b> <code>{user.id}</code>\n"
+        f"<b>ᴜsᴇʀɴᴀᴍᴇ:</b> @{user.username if user.username else 'N/A'}\n"
+        f"<b>sᴛᴀᴛᴜs:</b> ᴀᴄᴛɪᴠᴇ ᴜsᴇʀ ⚡\n"
+        f"━━━━━━━━━━━━━━━━━━━\n\n"
+    )
+    
+    if not purchases:
+        acc_text += "❌ <b>ʏᴏᴜ ʜᴀᴠᴇɴ'ᴛ ᴘᴜʀᴄʜᴀsᴇᴅ ᴀɴʏ sᴛᴏʀɪᴇs ʏᴇᴛ.</b>"
+        return await message.reply_text(acc_text)
+    
+    acc_text += "📖 <b>ʏᴏᴜʀ ᴘᴜʀᴄʜᴀsᴇᴅ sᴛᴏʀɪᴇs:</b>\n\n"
+    buttons = []
+    
+    for item in purchases:
+        story = await get_story_by_title(item['story_title'])
+        if story:
+            acc_text += f"• <b>{story['title']}</b>\n"
+            buttons.append([InlineKeyboardButton(f"🚀 ᴀᴄᴄᴇss {story['title']}", url=story['link'])])
+            
+    reply_markup = InlineKeyboardMarkup(buttons) if buttons else None
+    await message.reply_text(acc_text, reply_markup=reply_markup)
 
-    # D. 🔙 BACK TO MAIN MENU CLICK
-    elif data == "back_to_main":
-        await query.answer()
-        
-        welcome_text = (
-            f"<b>━━━━━━━ 🌟 sᴛᴏʀʏ sᴇʟʟᴇʀ ʙᴏᴛ 🌟 ━━━━━━━</b>\n\n"
-            f"ʜᴇʟʟᴏ {user.first_name}! 👋\n\n"
-            "ᴜsᴇ ᴛʜᴇ ʙᴜᴛᴛᴏɴs ʙᴇʟᴏᴡ ᴛᴏ sᴇᴀʀᴄʜ ᴏʀ ᴘᴜʀᴄʜᴀsᴇ ʏᴏᴜʀ ғᴀᴠᴏʀɪᴛᴇ sᴛᴏʀɪᴇs."
-        )
-        
-        await query.message.edit_text(welcome_text, reply_markup=MAIN_MENU)
+# 📞 SUPPORT CLICK
+@Client.on_message(filters.regex("^(📞 sᴜᴘᴘᴏʀᴛ|📞 Support)$") & filters.private)
+async def support_handler(client, message):
+    kb = InlineKeyboardMarkup([
+        [InlineKeyboardButton("💬 ᴄᴏɴᴛᴀᴄᴛ sᴜᴘᴘᴏʀᴛ", url="https://t.me/pratilipifm0900")]
+    ])
+    await message.reply_text("<b>📞 ᴄᴜsᴛᴏᴍᴇʀ sᴜᴘᴘᴏʀᴛ:</b>\n\nɪғ ʏᴏᴜ ғᴀᴄᴇ ᴀɴʏ ɪssᴜᴇs, ғᴇᴇʟ ғʀᴇᴇ ᴛᴏ ᴄᴏɴᴛᴀᴄᴛ support.", reply_markup=kb)
