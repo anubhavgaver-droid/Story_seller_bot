@@ -1,13 +1,28 @@
 import json
 from pyrogram import Client, filters, enums
-from pyrogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo, ForceReply
-from database.db import get_story_by_title, send_log, is_user_registered, get_user_purchases, get_stories_by_cat, search_stories_db
+from pyrogram.types import (
+    ReplyKeyboardMarkup, 
+    KeyboardButton, 
+    InlineKeyboardMarkup, 
+    InlineKeyboardButton, 
+    WebAppInfo, 
+    ForceReply
+)
+from database.db import (
+    get_story_by_title, 
+    send_log, 
+    is_user_registered, 
+    register_user, 
+    get_user_purchases, 
+    get_stories_by_cat, 
+    search_stories_db
+)
 from config import BOT_USERNAME, WEB_APP_URL
 
 # Search State Dictionary
 SEARCH_WAITING = {}
 
-# 1. Main Menu Keyboard Layout (Original Reply Keyboard)
+# 1. Main Menu Keyboard Layout
 MAIN_MENU = ReplyKeyboardMarkup(
     [
         [KeyboardButton("🚀 ᴏᴘᴇɴ ᴍɪɴɪ ᴀᴘᴘ")],
@@ -67,7 +82,7 @@ async def web_app_data_handler(client, message):
     except Exception as e:
         print(f"WebApp Data Error: {e}")
 
-# ------------------ Start Handler ------------------
+# ------------------ Start Handler (Dual Deep Linking Support) ------------------
 @Client.on_message(filters.command("start") & filters.private, group=-1)
 async def start_handler(client, message):
     user = message.from_user
@@ -88,19 +103,41 @@ async def start_handler(client, message):
 
     args = message.text.split(maxsplit=1)
     
+    # Check if Deep Link Parameter Exists (e.g. story_XYZ)
     if len(args) > 1 and args[1].startswith("story_"):
-        story_title = args[1].replace("story_", "").replace("_", " ")
+        raw_param = args[1]
+        story_title = raw_param.replace("story_", "").replace("_", " ")
         story = await get_story_by_title(story_title)
         
         if story:
             clean_title = story['title'].replace(" ", "_")
-            btn = InlineKeyboardMarkup([
-                [InlineKeyboardButton("💳 ʙᴜʏ ɴᴏᴡ", callback_data=f"buy_{clean_title}_{story['price']}")]
-            ])
             photo_url = story.get('photo', 'https://picsum.photos/400/200')
             desc = story.get('desc', 'ɴᴏ ᴅᴇsᴄʀɪᴘᴛɪᴏɴ ᴀᴠᴀɪʟᴀʙʟᴇ.')
             
-            caption_text = f"📖 <b>ᴛɪᴛʟᴇ:</b> {story['title']}\n💰 <b>ᴘʀɪᴄᴇ:</b> ₹{story['price']}\n📝 <b>ᴅᴇsᴄ:</b> {desc}"
+            # Mini App Deep Link URL Param
+            miniapp_direct_url = f"{WEB_APP_URL}?tgWebAppStartParam={raw_param}"
+            
+            btn = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton(
+                        "🚀 ᴏᴘᴇɴ ᴅɪʀᴇᴄᴛ sᴛᴏʀʏ ᴍɪɴɪ ᴀᴘᴘ", 
+                        web_app=WebAppInfo(url=miniapp_direct_url)
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        f"💳 ʙᴜʏ ɴᴏᴡ (₹{story['price']})", 
+                        callback_data=f"buy_{clean_title}_{story['price']}"
+                    )
+                ]
+            ])
+            
+            caption_text = (
+                f"📖 <b>ᴛɪᴛʟᴇ:</b> {story['title']}\n"
+                f"💰 <b>ᴘʀɪᴄᴇ:</b> ₹{story['price']}\n"
+                f"📝 <b>ᴅᴇsᴄ:</b> {desc}\n\n"
+                f"<i>👇 Choose an option below to view or purchase:</i>"
+            )
             
             try:
                 return await message.reply_photo(
@@ -116,6 +153,7 @@ async def start_handler(client, message):
         else:
             return await message.reply_text("❌ <b>ᴛʜɪs sᴛᴏʀʏ ɪs ɴᴏᴛ ᴀᴠᴀɪʟᴀʙʟᴇ.</b>", reply_markup=MAIN_MENU)
 
+    # Normal Welcome Message
     welcome_text = (
         f"<b>━━━━━━━ 🌟 sᴛᴏʀʏ sᴇʟʟᴇʀ ʙᴏᴛ 🌟 ━━━━━━━</b>\n\n"
         f"ʜᴇʟʟᴏ {user.first_name}! 👋\n\n"
@@ -125,7 +163,6 @@ async def start_handler(client, message):
 
 # ------------------ Dynamic Button Handlers ------------------
 
-# 🚀 OPEN MINI APP CLICK (Inner Launch Button Format)
 @Client.on_message(filters.regex("^(🚀 ᴏᴘᴇɴ ᴍɪɴɪ ᴀᴘᴘ|🚀 Open Mini App)$") & filters.private)
 async def open_miniapp_handler(client, message):
     text = (
@@ -133,14 +170,12 @@ async def open_miniapp_handler(client, message):
         "ᴄʟɪᴄᴋ ᴛʜᴇ ʙᴜᴛᴛᴏɴ ʙᴇʟᴏᴡ ᴛᴏ ᴏᴘᴇɴ ᴏᴜʀ ᴏғғɪᴄɪᴀʟ ᴍɪɴɪ ᴀᴘᴘ ᴀɴᴅ ᴇxᴘʟᴏʀᴇ ᴀʟʟ sᴛᴏʀɪᴇs!"
     )
     
-    # Inner WebApp Launch Button
     btn = InlineKeyboardMarkup([
         [InlineKeyboardButton("🚀 ʟᴀᴜɴᴄʜ ᴍɪɴɪ ᴀᴘᴘ", web_app=WebAppInfo(url=WEB_APP_URL))]
     ])
     
     await message.reply_text(text, reply_markup=btn)
 
-# 📢 UPDATES CHANNEL CLICK
 @Client.on_message(filters.regex("^(📢 ᴜᴘᴅᴀᴛᴇs ᴄʜᴀɴɴᴇʟ|📢 Updates Channel)$") & filters.private)
 async def updates_handler(client, message):
     kb = InlineKeyboardMarkup([
@@ -148,7 +183,6 @@ async def updates_handler(client, message):
     ])
     await message.reply_text("<b>📢 ᴜᴘᴅᴀᴛᴇs ᴄʜᴀɴɴᴇʟ:</b>\n\nᴊᴏɪɴ ᴏᴜʀ ᴄʜᴀɴɴᴇʟ ғᴏʀ ᴛʜᴇ ʟᴀᴛᴇsᴛ ᴜᴘᴅᴀᴛᴇs ᴀɴᴅ ɴᴇᴡ sᴛᴏʀɪᴇs!", reply_markup=kb)
 
-# 👤 MY ACCOUNT CLICK
 @Client.on_message(filters.regex("^(👤 ᴍʏ ᴀᴄᴄᴏᴜɴᴛ|👤 My Account)$") & filters.private)
 async def account_handler(client, message):
     user = message.from_user
@@ -180,7 +214,6 @@ async def account_handler(client, message):
     reply_markup = InlineKeyboardMarkup(buttons) if buttons else None
     await message.reply_text(acc_text, reply_markup=reply_markup)
 
-# 📞 SUPPORT CLICK
 @Client.on_message(filters.regex("^(📞 sᴜᴘᴘᴏʀᴛ|📞 Support)$") & filters.private)
 async def support_handler(client, message):
     kb = InlineKeyboardMarkup([
