@@ -58,9 +58,19 @@ async def add_story_db(data):
     await stories_col.insert_one(data)
 
 async def delete_story_db(title: str) -> bool:
-    """स्टोरी डिलीट करने के लिए फ़ंक्शन"""
+    """स्टोरी डिलीट करने का फ़ंक्शन - Main List और Purchase List दोनों से डिलीट करता है"""
     res = await stories_col.delete_one({"title": title})
-    return res.deleted_count > 0
+    
+    # अगर मेन डेटाबेस से स्टोरी डिलीट हो गई है, तो इसे सभी यूज़र्स की Purchases से भी हटा दें
+    if res.deleted_count > 0:
+        await purchases_col.delete_many({
+            "$or": [
+                {"story_title": title},
+                {"title": title}
+            ]
+        })
+        return True
+    return False
 
 async def get_all_stories():
     """सभी स्टोरीज़ की लिस्ट निकालने के लिए फ़ंक्शन"""
