@@ -641,6 +641,9 @@
     <script>
         const tg = window.Telegram.WebApp;
 
+        // ⚠️ BOT_USERNAME YAHAN APNE BOT KA USERNAME RAKHEIN (Bina @ ke)
+        const BOT_USERNAME = "Story_seller_bot"; 
+
         // ⚡ HAPTIC FEEDBACK HELPER FUNCTION
         function triggerHaptic(type = 'light') {
             try {
@@ -880,12 +883,18 @@
 
         function buyStory(title, price) {
             triggerHaptic('success');
-            tg.sendData(JSON.stringify({
-                action: "buy_story",
-                title: title,
-                price: price
-            }));
-            closeModal();
+            
+            // Title se space ko underscore (_) se replace kiya start param ke liye
+            const cleanTitle = encodeURIComponent(title.replace(/ /g, "_"));
+            const deepLink = `https://t.me/${BOT_USERNAME}?start=story_${cleanTitle}`;
+
+            // Mini App close karke Direct Bot Chat par Redirect karein
+            if (tg && tg.openTelegramLink) {
+                tg.openTelegramLink(deepLink);
+                tg.close();
+            } else {
+                window.location.href = deepLink;
+            }
         }
 
         function openStoryLink(url) {
