@@ -51,7 +51,7 @@
             transition: background-color 0.3s ease, color 0.3s ease;
         }
 
-        /* ---------------- DIRECT REDIRECT LOADER (MATCHED TO SCREENSHOT) ---------------- */
+        /* ---------------- DIRECT REDIRECT LOADER ---------------- */
         #redirect-loader {
             position: fixed;
             top: 0; left: 0;
@@ -370,7 +370,7 @@
             background: var(--box-bg);
             border-top: 2.5px solid var(--border);
             display: flex;
-            justify-content: space-around;
+            justify-around: space-around;
             padding: 8px 0;
             z-index: 100;
         }
@@ -382,7 +382,7 @@
 </head>
 <body>
 
-    <!-- DIRECT STORY REDIRECT LOADER OVERLAY (UPDATED TO SCREENSHOT STYLE) -->
+    <!-- DIRECT STORY REDIRECT LOADER OVERLAY -->
     <div id="redirect-loader">
         <img src="https://picsum.photos/200" class="loader-anime-img" id="loaderAnimeImg" alt="Story Icon">
         <div class="redirect-title">REDIRECTING...</div>
@@ -446,7 +446,7 @@
         <!-- TAB 4: PROFILE -->
         <div id="tab-profile" class="tab-content">
             <div class="profile-card">
-                <img id="uPhoto" src="https://picsum.photos/100" class="avatar">
+                <img id="uPhoto" src="https://picsum.photos/100" class="avatar" alt="Avatar">
                 <div>
                     <div id="uName" style="font-weight:900; font-size:16px;">Loading...</div>
                     <div class="id-badge">ID: <span id="uId">Fetching...</span> 📋</div>
@@ -498,9 +498,9 @@
         <div class="modal-content">
             <div class="modal-hero">
                 <div class="modal-close-btn" onclick="closeModal()">✕</div>
-                <img id="mBgImg" src="" class="modal-bg-img">
+                <img id="mBgImg" src="" class="modal-bg-img" alt="Background Cover">
                 <div class="modal-poster-wrapper">
-                    <img id="mPosterImg" src="" class="modal-poster-img">
+                    <img id="mPosterImg" src="" class="modal-poster-img" alt="Poster Image">
                 </div>
             </div>
 
@@ -703,6 +703,7 @@
                 const img = document.createElement('img');
                 img.src = story.photo || 'https://picsum.photos/200';
                 img.className = `fan-card ${posClasses[idx] || 'card-center'}`;
+                img.alt = "Splash Card Image";
                 wrapper.appendChild(img);
             });
 
@@ -785,7 +786,7 @@
                     <div class="card-fav-btn" onclick="toggleWishlist(event, '${sKey}')">
                         ${isFav ? '❤️' : '🤍'}
                     </div>
-                    <img src="${s.photo || 'https://picsum.photos/200'}" class="card-img">
+                    <img src="${s.photo || 'https://picsum.photos/200'}" class="card-img" alt="${s.title}">
                     <div class="card-body">
                         <span class="badge">${s.platform || 'AUDIO'}</span>
                         <h4 class="title">${s.title}</h4>
