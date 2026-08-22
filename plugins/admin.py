@@ -1,12 +1,12 @@
 from pyrogram import Client, filters
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ForceReply
-from config import ADMIN_ID, BOT_USERNAME
+from config import ADMIN_ID, BOT_USERNAME, WEB_APP_URL
 from database.db import add_story_db, delete_story_db, get_all_stories, send_log
 
 ADD_STATE = {}
 DELETE_STATE = {}
 
-# 1. Cancel Command (Cancel both Add & Delete operations)
+# 1. Cancel Command
 @Client.on_message(filters.command("cancel") & filters.user(ADMIN_ID) & filters.private, group=1)
 async def cancel_action(client, message):
     user_id = message.from_user.id
@@ -17,7 +17,7 @@ async def cancel_action(client, message):
     else:
         await message.reply_text("❓ ʏᴏᴜ ʜᴀᴠᴇ ɴᴏ ᴀᴄᴛɪᴠᴇ ᴘʀᴏᴄᴇss.")
 
-# 2. View All Stories List
+# 2. View All Stories List (Shows Both Links to Admin)
 @Client.on_message(filters.command("allstories") & filters.user(ADMIN_ID) & filters.private, group=1)
 async def list_stories(client, message):
     stories = await get_all_stories()
@@ -26,9 +26,15 @@ async def list_stories(client, message):
         
     text = "<b>📚 sᴀᴠᴇᴅ sᴛᴏʀɪᴇs ʟɪsᴛ:</b>\n\n"
     for idx, s in enumerate(stories, start=1):
-        text += f"{idx}. <b>{s['title']}</b> | ₹{s['price']} | <i>{s['category']}</i>\n"
+        clean_title = s['title'].replace(" ", "_")
+        bot_link = f"https://t.me/{BOT_USERNAME}?start=story_{clean_title}"
+        
+        text += (
+            f"{idx}. <b>{s['title']}</b> | ₹{s['price']} | <i>{s['category']}</i>\n"
+            f"   🔗 <b>sʜᴀʀᴇ ʟɪɴᴋ:</b> <code>{bot_link}</code>\n\n"
+        )
     
-    await message.reply_text(text)
+    await message.reply_text(text, disable_web_page_preview=True)
 
 # 3. Delete Story Command
 @Client.on_message(filters.command("deletestory") & filters.user(ADMIN_ID) & filters.private, group=1)
@@ -60,12 +66,12 @@ async def cat_selected(client, callback):
     await callback.message.reply_text("<b>[sᴛᴇᴘ 2/6]</b> ᴇɴᴛᴇʀ ᴛʜᴇ sᴛᴏʀʏ ᴛɪᴛʟᴇ:", reply_markup=ForceReply(True))
     await callback.answer()
 
-# 6. Admin Input Wizard (Handles Photos, Text inputs & Deletions)
+# 6. Admin Input Wizard
 @Client.on_message(filters.private & filters.user(ADMIN_ID) & ~filters.command(["start", "addstory", "deletestory", "allstories", "cancel"]), group=1)
 async def wizard_inputs(client, message):
     user_id = message.from_user.id
     
-    # --- Delete Story Process ---
+    # --- Delete Process ---
     if user_id in DELETE_STATE:
         title_to_delete = message.text.strip()
         deleted = await delete_story_db(title_to_delete)
@@ -76,7 +82,7 @@ async def wizard_inputs(client, message):
         else:
             return await message.reply_text(f"❌ ɴᴏ sᴛᴏʀʏ ғᴏᴜɴᴅ ᴡɪᴛʜ ᴛʜᴇ ᴛɪᴛʟᴇ <b>'{title_to_delete}'</b>.")
 
-    # --- Add Story Process ---
+    # --- Add Process ---
     if user_id not in ADD_STATE or 'step' not in ADD_STATE[user_id]:
         message.continue_propagation()
         return
@@ -84,7 +90,6 @@ async def wizard_inputs(client, message):
     step = ADD_STATE[user_id]['step']
     
     if step == 'TITLE':
-        # Save only the first line as the title
         ADD_STATE[user_id]['title'] = message.text.strip().split("\n")[0]
         ADD_STATE[user_id]['step'] = 'PHOTO'
         await message.reply_text("<b>[sᴛᴇᴘ 3/6]</b> sᴇɴᴅ ᴛʜᴇ sᴛᴏʀʏ ᴘᴏsᴛᴇʀ ᴘʜᴏᴛᴏ (ᴏʀ ᴇɴᴛᴇʀ ᴀɴ ɪᴍᴀɢᴇ ᴜʀʟ):", reply_markup=ForceReply(True))
@@ -116,32 +121,34 @@ async def wizard_inputs(client, message):
         data = ADD_STATE[user_id]
         data['link'] = message.text.strip()
         
-        # Save to database
+        # Save to DB
         await add_story_db(data)
         
         clean_title = data['title'].replace(" ", "_")
-        share_link = f"https://t.me/{BOT_USERNAME}?start=story_{clean_title}"
         
-        # Send log notification
+        # 1. Main Share Link (Opens bot chat first)
+        bot_share_link = f"https://t.me/{BOT_USERNAME}?start=story_{clean_title}"
+        
+        # Log notification
         log_msg = (
             f"<b>➕ ɴᴇᴡ sᴛᴏʀʏ ᴀᴅᴅᴇᴅ!</b>\n\n"
             f"<b>📌 ᴛɪᴛʟᴇ:</b> {data['title']}\n"
             f"<b>📂 ᴄᴀᴛᴇɢᴏʀʏ:</b> {data['category']}\n"
             f"<b>💰 ᴘʀɪᴄᴇ:</b> ₹{data['price']}\n"
-            f"<b>🔗 ᴅᴇsᴛɪɴᴀᴛɪᴏɴ ʟɪɴᴋ:</b> {data['link']}\n"
-            f"<b>🔗 sʜᴀʀᴇᴀʙʟᴇ ʟɪɴᴋ:</b> {share_link}"
+            f"<b>🔗 ᴅᴇsᴛɪɴᴀᴛɪᴏɴ ʟɪɴᴋ:</b> {data['link']}\n\n"
+            f"🔗 <b>sʜᴀʀᴇᴀʙʟᴇ ʟɪɴᴋ:</b>\n<code>{bot_share_link}</code>"
         )
         try:
             await send_log(client, log_msg)
         except Exception:
             pass
         
-        # Send confirmation to admin
+        # Confirmation to admin
         await message.reply_text(
             f"✅ <b>sᴛᴏʀʏ ᴀᴅᴅᴇᴅ sᴜᴄᴄᴇssғᴜʟʟʏ!</b>\n\n"
             f"<b>ᴛɪᴛʟᴇ:</b> {data['title']}\n"
-            f"<b>ᴘʀɪᴄᴇ:</b> ₹{data['price']}\n"
-            f"<b>ʟɪɴᴋ:</b> {data['link']}\n\n"
-            f"🔗 <b>sʜᴀʀᴇᴀʙʟᴇ ʟɪɴᴋ:</b>\n<code>{share_link}</code>"
+            f"<b>ᴘʀɪᴄᴇ:</b> ₹{data['price']}\n\n"
+            f"🔗 <b>sʜᴀʀᴇᴀʙʟᴇ ʟɪɴᴋ:</b>\n<code>{bot_share_link}</code>",
+            disable_web_page_preview=True
         )
         del ADD_STATE[user_id]
