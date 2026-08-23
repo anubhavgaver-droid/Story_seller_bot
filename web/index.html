@@ -119,7 +119,7 @@
             text-transform: uppercase;
         }
 
-        /* ---------------- WELCOME SPLASH SCREEN (IMAGE SWEEP ANIMATION) ---------------- */
+        /* ---------------- WELCOME SPLASH SCREEN (CIRCLE BREAK ANIMATION) ---------------- */
         #splash-screen {
             position: fixed;
             top: 0; left: 0;
@@ -139,53 +139,104 @@
             pointer-events: none;
         }
 
-        .circle-animation-wrapper {
+        .circle-container {
             position: relative;
-            width: 100%;
-            max-width: 320px;
-            height: 120px;
+            width: 220px;
+            height: 220px;
             display: flex;
+            justify-content: center;
             align-items: center;
             margin-bottom: 20px;
-            overflow: hidden;
         }
 
-        /* SWEEPING IMAGE STYLES */
-        .sweep-image {
+        /* Outer Expanding Pulse Ring */
+        .glow-ring {
             position: absolute;
-            width: 75px;
-            height: 75px;
-            border-radius: 20px;
-            object-fit: cover;
-            border: 2px solid #ffcc00;
-            box-shadow: 0 0 25px rgba(255, 204, 0, 0.8);
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            border: 3px solid #ffcc00;
+            box-shadow: 0 0 20px #ffcc00, inset 0 0 20px #ffcc00;
             opacity: 0;
         }
-
-        .circle-animation-wrapper.active .sweep-image {
-            animation: moveAndFade 2.5s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+        .circle-container.active .glow-ring {
+            animation: ringPulse 0.9s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+        }
+        @keyframes ringPulse {
+            0% { transform: scale(0.2); opacity: 0; }
+            50% { opacity: 1; }
+            100% { transform: scale(1.6); opacity: 0; }
         }
 
-        /* Left side se aana, scale hona aur right side jaakar gaayab (fade out) hona */
-        @keyframes moveAndFade {
-            0% {
-                left: -90px;
-                opacity: 0;
-                transform: scale(0.5) rotate(-10deg);
-            }
-            25% {
-                opacity: 1;
-                transform: scale(1.1) rotate(0deg);
-            }
-            75% {
-                opacity: 0.9;
-                transform: scale(1) rotate(0deg);
-            }
-            100% {
-                left: 100%;
-                opacity: 0;
-                transform: scale(0.4) rotate(10deg);
-            }
+        /* Splitting Circle Halves */
+        .circle-half {
+            position: absolute;
+            width: 110px;
+            height: 110px;
+            background: linear-gradient(135deg, #ffcc00, #eab308);
+            box-shadow: 0 0 25px rgba(255, 204, 0, 0.8);
+            transition: transform 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.27);
+        }
+        .circle-left {
+            border-top-left-radius: 110px;
+            border-bottom-left-radius: 110px;
+            left: 0;
+            transform-origin: center right;
+        }
+        .circle-right {
+            border-top-right-radius: 110px;
+            border-bottom-right-radius: 110px;
+            right: 0;
+            transform-origin: center left;
+        }
+
+        .circle-container.active .circle-left {
+            animation: breakLeft 2.5s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+        }
+        .circle-container.active .circle-right {
+            animation: breakRight 2.5s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+        }
+
+        @keyframes breakLeft {
+            0% { transform: scale(0.2) translateX(55px); opacity: 0; }
+            30% { transform: scale(1) translateX(0); opacity: 1; }
+            50% { transform: scale(1.1) translateX(0); opacity: 1; filter: drop-shadow(0 0 15px #ffffff); }
+            75% { transform: translateX(-140px) rotate(-20deg) scale(0.8); opacity: 0.8; }
+            100% { transform: translateX(-220px) rotate(-45deg) scale(0.2); opacity: 0; }
+        }
+
+        @keyframes breakRight {
+            0% { transform: scale(0.2) translateX(-55px); opacity: 0; }
+            30% { transform: scale(1) translateX(0); opacity: 1; }
+            50% { transform: scale(1.1) translateX(0); opacity: 1; filter: drop-shadow(0 0 15px #ffffff); }
+            75% { transform: translateX(140px) rotate(20deg) scale(0.8); opacity: 0.8; }
+            100% { transform: translateX(220px) rotate(45deg) scale(0.2); opacity: 0; }
+        }
+
+        /* Emerging AC PREMIUM Text */
+        .brand-text-reveal {
+            position: absolute;
+            font-size: 26px;
+            font-weight: 900;
+            letter-spacing: 2.5px;
+            color: #ffffff;
+            text-shadow: 0 0 15px #ffcc00, 0 0 30px #ffcc00;
+            white-space: nowrap;
+            opacity: 0;
+            transform: scale(0.2);
+            z-index: 10;
+        }
+
+        .circle-container.active .brand-text-reveal {
+            animation: revealText 2.5s cubic-bezier(0.175, 0.885, 0.32, 1.27) forwards;
+        }
+
+        @keyframes revealText {
+            0% { opacity: 0; transform: scale(0.2); }
+            45% { opacity: 0; transform: scale(0.4); }
+            65% { opacity: 1; transform: scale(1.25); text-shadow: 0 0 25px #ffcc00, 0 0 45px #ffffff; }
+            85% { opacity: 1; transform: scale(1); text-shadow: 0 0 15px #ffcc00; }
+            100% { opacity: 1; transform: scale(1.05); }
         }
 
         .splash-title { font-size: 20px; font-weight: 900; letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 8px; text-align: center; color: #ffffff; }
@@ -410,11 +461,13 @@
         <div class="loading-lbl">LOADING STORY</div>
     </div>
 
-    <!-- WELCOME SPLASH SCREEN ANIMATION WITH SWEEPING IMAGE -->
+    <!-- WELCOME SPLASH SCREEN ANIMATION (CIRCLE SPLIT TO REVEAL AC PREMIUM) -->
     <div id="splash-screen">
-        <div class="circle-animation-wrapper" id="circleWrapper">
-            <!-- Replace 'https://picsum.photos/200' with your custom Image URL -->
-            <img src="https://picsum.photos/200" class="sweep-image" alt="Splash Icon">
+        <div class="circle-container" id="circleWrapper">
+            <div class="glow-ring"></div>
+            <div class="circle-half circle-left"></div>
+            <div class="circle-half circle-right"></div>
+            <div class="brand-text-reveal">AC PREMIUM</div>
         </div>
         <div class="splash-title">WELCOME TO AC PREMIUM</div>
         <div class="splash-sub">Your automated store inside Telegram for premium audio and video story series — delivered instantly to your chat.</div>
@@ -711,14 +764,14 @@
             return false;
         }
 
-        /* --- MOVING IMAGE SPLASH SCREEN ANIMATION --- */
+        /* --- SPLASH CIRCLE SPLIT REVEAL ANIMATION --- */
         function setupSplashScreen() {
             const wrapper = document.getElementById('circleWrapper');
             if(!wrapper) return;
             
             setTimeout(() => { wrapper.classList.add('active'); }, 50);
             
-            /* Closes splash screen after image finishes sweeping */
+            /* Closes splash screen after circle splits & text reaches scale */
             setTimeout(() => {
                 const splash = document.getElementById('splash-screen');
                 if(splash) splash.classList.add('hidden');
