@@ -119,20 +119,19 @@
             text-transform: uppercase;
         }
 
-        /* ---------------- OTT STYLE FULLSCREEN SPLASH SCREEN ---------------- */
+        /* ---------------- WELCOME SPLASH SCREEN ---------------- */
         #splash-screen {
             position: fixed;
             top: 0; left: 0;
             width: 100vw; height: 100vh;
             background: #000000;
-            z-index: 9999;
+            color: #ffffff;
             display: flex;
             flex-direction: column;
-            justify-content: space-between;
             align-items: center;
-            opacity: 1;
-            visibility: visible;
-            transition: opacity 0.6s ease, visibility 0.6s ease;
+            justify-content: center;
+            z-index: 9999;
+            transition: opacity 0.5s ease, visibility 0.5s ease;
         }
         #splash-screen.hidden {
             opacity: 0;
@@ -140,126 +139,60 @@
             pointer-events: none;
         }
 
-        .splash-poster-container {
-            position: absolute;
-            top: 0; left: 0;
-            width: 100%; height: 100%;
-            z-index: 1;
-            overflow: hidden;
-            background: #000000;
+        .cards-stack-wrapper {
+            position: relative;
+            width: 280px;
+            height: 220px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin-bottom: 25px;
+            perspective: 1000px;
         }
-        .splash-poster-img {
-            width: 100%;
-            height: 100%;
+
+        .fan-card {
+            position: absolute;
+            width: 125px;
+            height: 175px;
+            border-radius: 14px;
+            border: 2px solid rgba(255, 255, 255, 0.25);
             object-fit: cover;
-            filter: brightness(0.9);
-            transform: scale(1.05);
-            animation: slowZoom 3.5s ease-out forwards;
-        }
-        @keyframes slowZoom {
-            0% { transform: scale(1.10); }
-            100% { transform: scale(1.0); }
+            box-shadow: 0 12px 30px rgba(0, 0, 0, 0.8);
+            transform-origin: bottom center;
+            opacity: 0;
+            transform: scale(0.6) translateY(40px);
+            will-change: transform, opacity;
         }
 
-        .splash-overlay {
-            position: absolute;
-            top: 0; left: 0;
-            width: 100%; height: 100%;
-            background: linear-gradient(to bottom, rgba(0,0,0,0.2) 0%, rgba(0,0,0,0.3) 50%, rgba(0,0,0,0.92) 82%, #000000 100%);
-            z-index: 2;
+        @keyframes rotateShuffleSmooth {
+            0% { opacity: 0; transform: rotate(-25deg) translate(-80px, -10px) scale(0.8); z-index: 1; }
+            20% { opacity: 1; transform: rotate(-15deg) translate(-45px, -5px) scale(0.88); z-index: 2; }
+            50% { opacity: 1; transform: rotate(0deg) translate(0px, -15px) scale(1.05); z-index: 5; }
+            80% { opacity: 1; transform: rotate(15deg) translate(45px, -5px) scale(0.88); z-index: 2; }
+            100% { opacity: 1; transform: rotate(0deg) translate(0px, 0px) scale(1); z-index: 4; }
         }
 
-        .splash-top-bar {
-            position: relative;
-            z-index: 3;
-            width: 100%;
-            padding: 16px;
-            display: flex;
-            justify-content: flex-end;
-        }
-        .skip-btn {
-            background: rgba(0, 0, 0, 0.6);
-            color: #ffffff;
-            border: 1px solid rgba(255, 255, 255, 0.3);
-            backdrop-filter: blur(8px);
-            padding: 6px 14px;
-            border-radius: 20px;
-            font-size: 11px;
-            font-weight: 700;
-            letter-spacing: 0.5px;
-            cursor: pointer;
+        .cards-stack-wrapper.active .fan-card {
+            animation: rotateShuffleSmooth 2.8s cubic-bezier(0.25, 1, 0.5, 1) forwards;
         }
 
-        .splash-bottom-branding {
-            position: relative;
-            z-index: 3;
-            width: 100%;
-            padding-bottom: 35px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            text-align: center;
-        }
+        .cards-stack-wrapper.active .card-pos-0 { animation-delay: 0.0s; }
+        .cards-stack-wrapper.active .card-pos-1 { animation-delay: 0.2s; }
+        .cards-stack-wrapper.active .card-pos-2 { animation-delay: 0.4s; }
+        .cards-stack-wrapper.active .card-pos-3 { animation-delay: 0.6s; }
+        .cards-stack-wrapper.active .card-pos-4 { animation-delay: 0.8s; }
 
-        .brand-icon-box {
-            width: 50px;
-            height: 50px;
-            background: linear-gradient(135deg, #38bdf8, #0284c7);
+        .splash-title { font-size: 20px; font-weight: 900; letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 8px; text-align: center; color: #ffffff; }
+        .splash-sub { font-size: 12px; opacity: 0.7; max-width: 270px; text-align: center; line-height: 1.4; margin-bottom: 20px; font-weight: 500; color: #d1d5db; }
+        
+        .loader-spinner {
+            width: 26px; height: 26px;
+            border: 3px solid #333333;
+            border-top: 3px solid #ffcc00;
             border-radius: 50%;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            box-shadow: 0 0 20px rgba(56, 189, 248, 0.6);
-            margin-bottom: 8px;
-            animation: pulseIcon 2s infinite ease-in-out;
-        }
-        @keyframes pulseIcon {
-            0%, 100% { transform: scale(1); box-shadow: 0 0 15px rgba(56, 189, 248, 0.4); }
-            50% { transform: scale(1.06); box-shadow: 0 0 25px rgba(56, 189, 248, 0.8); }
-        }
-
-        .brand-title {
-            font-size: 24px;
-            font-weight: 900;
-            letter-spacing: 2px;
-            color: #ffffff;
-            text-transform: uppercase;
-            text-shadow: 0 2px 10px rgba(0,0,0,0.9);
-            margin: 0;
-        }
-
-        .brand-subtitle {
-            font-size: 11px;
-            font-weight: 700;
-            color: #94a3b8;
-            letter-spacing: 3px;
-            text-transform: uppercase;
-            margin-top: 2px;
-            margin-bottom: 14px;
-        }
-
-        .splash-loader-row {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            opacity: 0.85;
-        }
-        .mini-spinner {
-            width: 14px;
-            height: 14px;
-            border: 2px solid rgba(255, 255, 255, 0.2);
-            border-top: 2px solid #ffffff;
-            border-radius: 50%;
-            animation: spin 0.7s linear infinite;
+            animation: spin 0.8s linear infinite;
         }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        .loading-text {
-            font-size: 12px;
-            font-weight: 600;
-            color: #cbd5e1;
-            letter-spacing: 0.5px;
-        }
 
         /* ---------------- MAIN UI STYLES ---------------- */
         .top-bar {
@@ -462,7 +395,7 @@
 </head>
 <body>
 
-    <!-- DIRECT REDIRECT LOADER (UNTOUCHED) -->
+    <!-- DIRECT STORY REDIRECT LOADER OVERLAY -->
     <div id="redirect-loader">
         <img src="https://picsum.photos/200" class="loader-anime-img" id="loaderAnimeImg" alt="Story Icon">
         <div class="redirect-title">REDIRECTING...</div>
@@ -471,33 +404,15 @@
         <div class="loading-lbl">LOADING STORY</div>
     </div>
 
-    <!-- OTT STYLE FULLSCREEN SPLASH SCREEN -->
+    <!-- WELCOME SPLASH SCREEN ANIMATION -->
     <div id="splash-screen">
-        <div class="splash-poster-container">
-            <img id="splashCoverImg" src="" class="splash-poster-img" alt="Story Poster">
-        </div>
-        <div class="splash-overlay"></div>
-
-        <div class="splash-top-bar">
-            <div class="skip-btn" onclick="closeSplash()">3s skip</div>
-        </div>
-
-        <div class="splash-bottom-branding">
-            <div class="brand-icon-box">
-                <svg width="26" height="26" viewBox="0 0 24 24" fill="#ffffff">
-                    <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
-                </svg>
-            </div>
-            <h1 class="brand-title">AC PREMIUM</h1>
-            <div class="brand-subtitle">MOVIES & AUDIO STREAM</div>
-
-            <div class="splash-loader-row">
-                <div class="mini-spinner"></div>
-                <span class="loading-text">loading...</span>
-            </div>
-        </div>
+        <div class="cards-stack-wrapper" id="cardsWrapper"></div>
+        <div class="splash-title">WELCOME TO AC PREMIUM</div>
+        <div class="splash-sub">Your automated store inside Telegram for premium audio and video story series — delivered instantly to your chat.</div>
+        <div class="loader-spinner"></div>
     </div>
 
+    <!-- TOP BAR -->
     <div class="top-bar">
         <div class="brand-logo">AC PREMIUM</div>
         <div class="header-chips">
@@ -506,7 +421,9 @@
         </div>
     </div>
 
+    <!-- MAIN CONTAINER -->
     <div class="container">
+        <!-- TAB 1: HOME/STORE -->
         <div id="tab-home" class="tab-content active">
             <div class="search-wrapper">
                 <span class="search-icon">🔍</span>
@@ -515,6 +432,7 @@
             <div class="story-grid" id="homeGrid"></div>
         </div>
 
+        <!-- TAB 2: EXPLORE -->
         <div id="tab-explore" class="tab-content">
             <div class="section-box">
                 <div class="section-title">Categories & Platforms</div>
@@ -528,6 +446,7 @@
             <div class="story-grid" id="exploreGrid"></div>
         </div>
 
+        <!-- TAB 3: ORDERS -->
         <div id="tab-orders" class="tab-content">
             <div class="section-box">
                 <div class="section-title">Unlocked Library 📚</div>
@@ -537,6 +456,7 @@
             </div>
         </div>
 
+        <!-- TAB 4: PROFILE -->
         <div id="tab-profile" class="tab-content">
             <div class="profile-card">
                 <img id="uPhoto" src="https://picsum.photos/100" class="avatar" alt="Avatar">
@@ -586,6 +506,7 @@
         </div>
     </div>
 
+    <!-- FULL SCREEN STORY DETAIL MODAL -->
     <div class="modal-overlay" id="storyModal">
         <div class="modal-content">
             <div class="modal-hero">
@@ -620,6 +541,7 @@
         </div>
     </div>
 
+    <!-- BOTTOM NAVIGATION -->
     <div class="bottom-nav">
         <div class="nav-link active" onclick="switchTab('home')">
             <span class="nav-icon">🏠</span>HOME
@@ -718,35 +640,10 @@
             `}).join('');
         }
 
-        /* --- DYNAMIC POSTER SPLASH SCREEN SYSTEM --- */
-        function setupSplashScreen(storiesList) {
-            const splashImg = document.getElementById('splashCoverImg');
-            
-            if (storiesList && storiesList.length > 0) {
-                const randomIndex = Math.floor(Math.random() * storiesList.length);
-                const randomStory = storiesList[randomIndex];
-                if (randomStory && (randomStory.photo || randomStory.img)) {
-                    splashImg.src = randomStory.photo || randomStory.img;
-                } else {
-                    splashImg.src = "https://picsum.photos/600/1000";
-                }
-            } else {
-                splashImg.src = "https://picsum.photos/600/1000";
-            }
-
-            setTimeout(() => {
-                closeSplash();
-            }, 3000);
-        }
-
-        function closeSplash() {
+        /* --- DIRECT REDIRECT ANIMATION (UNTOUCHED LOGIC) --- */
+        function runDirectRedirectAnimation(callback) {
             const splash = document.getElementById('splash-screen');
             if(splash) splash.classList.add('hidden');
-        }
-
-        /* --- DIRECT REDIRECT ANIMATION (EXACT ORIGINAL LOGIC) --- */
-        function runDirectRedirectAnimation(callback) {
-            closeSplash();
 
             const loader = document.getElementById('redirect-loader');
             const counter = document.getElementById('counterNum');
@@ -772,7 +669,7 @@
             }, 45); 
         }
 
-        /* --- ROUTING CHECK FOR TELEGRAM APP DEEP LINKS (EXACT ORIGINAL LOGIC) --- */
+        /* --- ROUTING CHECK FOR TELEGRAM APP DEEP LINKS (UNTOUCHED LOGIC) --- */
         function checkUrlParamRouting() {
             let targetParam = null;
 
@@ -805,6 +702,31 @@
             return false;
         }
 
+        /* --- ROTATING SPLASH FAN STACK SCREEN --- */
+        function setupSplashScreen(list) {
+            const wrapper = document.getElementById('cardsWrapper');
+            if(!wrapper) return;
+            wrapper.innerHTML = '';
+            
+            const shuffled = [...list].sort(() => 0.5 - Math.random());
+            const picked = shuffled.slice(0, 5);
+            
+            picked.forEach((story, idx) => {
+                const img = document.createElement('img');
+                img.src = story.photo || 'https://picsum.photos/200';
+                img.className = `fan-card card-pos-${idx}`;
+                img.alt = "Splash Card Image";
+                wrapper.appendChild(img);
+            });
+
+            setTimeout(() => { wrapper.classList.add('active'); }, 50);
+            
+            setTimeout(() => {
+                const splash = document.getElementById('splash-screen');
+                if(splash) splash.classList.add('hidden');
+            }, 3400);
+        }
+
         async function loadStories() {
             try {
                 const res = await fetch('/api/stories');
@@ -820,11 +742,16 @@
 
                 const isDeepLinked = checkUrlParamRouting();
                 if (!isDeepLinked) {
-                    setupSplashScreen(stories);
+                    if (stories.length > 0) setupSplashScreen(stories);
+                    else {
+                        const splash = document.getElementById('splash-screen');
+                        if(splash) splash.classList.add('hidden');
+                    }
                 }
             } catch(e) {
                 console.error("Failed to fetch stories:", e);
-                closeSplash();
+                const splash = document.getElementById('splash-screen');
+                if(splash) splash.classList.add('hidden');
             }
         }
 
