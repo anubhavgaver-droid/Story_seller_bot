@@ -119,7 +119,7 @@
             text-transform: uppercase;
         }
 
-        /* ---------------- WELCOME SPLASH SCREEN (CIRCLE ANIMATION) ---------------- */
+        /* ---------------- WELCOME SPLASH SCREEN (IMAGE SWEEP ANIMATION) ---------------- */
         #splash-screen {
             position: fixed;
             top: 0; left: 0;
@@ -150,39 +150,41 @@
             overflow: hidden;
         }
 
-        .sweep-circle {
+        /* SWEEPING IMAGE STYLES */
+        .sweep-image {
             position: absolute;
-            width: 65px;
-            height: 65px;
-            border-radius: 50%;
-            background: linear-gradient(135deg, #ffcc00, #eab308);
+            width: 75px;
+            height: 75px;
+            border-radius: 20px;
+            object-fit: cover;
+            border: 2px solid #ffcc00;
             box-shadow: 0 0 25px rgba(255, 204, 0, 0.8);
             opacity: 0;
         }
 
-        .circle-animation-wrapper.active .sweep-circle {
+        .circle-animation-wrapper.active .sweep-image {
             animation: moveAndFade 2.5s cubic-bezier(0.4, 0, 0.2, 1) forwards;
         }
 
-        /* Left side se aana, right side jaakar gaayab (fade out) hona */
+        /* Left side se aana, scale hona aur right side jaakar gaayab (fade out) hona */
         @keyframes moveAndFade {
             0% {
-                left: -80px;
+                left: -90px;
                 opacity: 0;
-                transform: scale(0.5);
+                transform: scale(0.5) rotate(-10deg);
             }
             25% {
                 opacity: 1;
-                transform: scale(1.1);
+                transform: scale(1.1) rotate(0deg);
             }
             75% {
                 opacity: 0.9;
-                transform: scale(1);
+                transform: scale(1) rotate(0deg);
             }
             100% {
                 left: 100%;
                 opacity: 0;
-                transform: scale(0.4);
+                transform: scale(0.4) rotate(10deg);
             }
         }
 
@@ -408,10 +410,11 @@
         <div class="loading-lbl">LOADING STORY</div>
     </div>
 
-    <!-- WELCOME SPLASH SCREEN ANIMATION WITH MOVING CIRCLE -->
+    <!-- WELCOME SPLASH SCREEN ANIMATION WITH SWEEPING IMAGE -->
     <div id="splash-screen">
         <div class="circle-animation-wrapper" id="circleWrapper">
-            <div class="sweep-circle"></div>
+            <!-- Replace 'https://picsum.photos/200' with your custom Image URL -->
+            <img src="https://picsum.photos/200" class="sweep-image" alt="Splash Icon">
         </div>
         <div class="splash-title">WELCOME TO AC PREMIUM</div>
         <div class="splash-sub">Your automated store inside Telegram for premium audio and video story series — delivered instantly to your chat.</div>
@@ -708,14 +711,14 @@
             return false;
         }
 
-        /* --- MOVING CIRCLE SPLASH SCREEN ANIMATION --- */
+        /* --- MOVING IMAGE SPLASH SCREEN ANIMATION --- */
         function setupSplashScreen() {
             const wrapper = document.getElementById('circleWrapper');
             if(!wrapper) return;
             
             setTimeout(() => { wrapper.classList.add('active'); }, 50);
             
-            /* Closes splash screen after circle finishes its left-to-right sweep */
+            /* Closes splash screen after image finishes sweeping */
             setTimeout(() => {
                 const splash = document.getElementById('splash-screen');
                 if(splash) splash.classList.add('hidden');
