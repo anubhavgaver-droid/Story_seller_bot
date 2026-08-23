@@ -119,12 +119,12 @@
             text-transform: uppercase;
         }
 
-        /* ---------------- WELCOME SPLASH SCREEN (ALWAYS BLACK AT START) ---------------- */
+        /* ---------------- WELCOME SPLASH SCREEN ---------------- */
         #splash-screen {
             position: fixed;
             top: 0; left: 0;
             width: 100vw; height: 100vh;
-            background: #000000; /* Always Black initially like your video */
+            background: #000000;
             color: #ffffff;
             display: flex;
             flex-direction: column;
@@ -141,52 +141,51 @@
 
         .cards-stack-wrapper {
             position: relative;
-            width: 300px;
-            height: 250px;
+            width: 280px;
+            height: 220px;
             display: flex;
             justify-content: center;
             align-items: center;
-            margin-bottom: 30px;
+            margin-bottom: 25px;
             perspective: 1000px;
         }
 
         .fan-card {
             position: absolute;
-            width: 135px;
-            height: 190px;
-            border-radius: 16px;
-            border: 2px solid rgba(255, 255, 255, 0.2);
+            width: 125px;
+            height: 175px;
+            border-radius: 14px;
+            border: 2px solid rgba(255, 255, 255, 0.25);
             object-fit: cover;
-            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.7);
-            transition: all 0.8s ease-in-out;
+            box-shadow: 0 12px 30px rgba(0, 0, 0, 0.8);
+            transform-origin: bottom center;
             opacity: 0;
-            transform: scale(0.5) translateY(50px);
+            transform: scale(0.6) translateY(40px);
+            will-change: transform, opacity;
         }
 
-        /* 5 CARD FAN ROTATION SHUFFLE ANIMATION */
-        @keyframes rotateShuffle {
-            0% { transform: rotate(0deg) translate(0px) scale(1); z-index: 5; }
-            20% { transform: rotate(18deg) translate(70px, -10px) scale(0.9); z-index: 4; }
-            40% { transform: rotate(8deg) translate(35px, 10px) scale(0.85); z-index: 3; }
-            60% { transform: rotate(-8deg) translate(-35px, 10px) scale(0.85); z-index: 2; }
-            80% { transform: rotate(-18deg) translate(-70px, -10px) scale(0.9); z-index: 1; }
-            100% { transform: rotate(0deg) translate(0px) scale(1); z-index: 5; }
+        /* 5 CARD ULTRA SMOOTH SINGLE-CYCLE SHUFFLE */
+        @keyframes rotateShuffleSmooth {
+            0% { opacity: 0; transform: rotate(-25deg) translate(-80px, -10px) scale(0.8); z-index: 1; }
+            20% { opacity: 1; transform: rotate(-15deg) translate(-45px, -5px) scale(0.88); z-index: 2; }
+            50% { opacity: 1; transform: rotate(0deg) translate(0px, -15px) scale(1.05); z-index: 5; }
+            80% { opacity: 1; transform: rotate(15deg) translate(45px, -5px) scale(0.88); z-index: 2; }
+            100% { opacity: 1; transform: rotate(0deg) translate(0px, 0px) scale(1); z-index: 4; }
         }
 
         .cards-stack-wrapper.active .fan-card {
-            opacity: 1;
-            animation: rotateShuffle 4s infinite ease-in-out;
+            animation: rotateShuffleSmooth 2.8s cubic-bezier(0.25, 1, 0.5, 1) forwards;
         }
 
-        /* 5 Cards staggered animation timing */
-        .cards-stack-wrapper.active .card-pos-0 { animation-delay: 0s; }
-        .cards-stack-wrapper.active .card-pos-1 { animation-delay: 0.8s; }
-        .cards-stack-wrapper.active .card-pos-2 { animation-delay: 1.6s; }
-        .cards-stack-wrapper.active .card-pos-3 { animation-delay: 2.4s; }
-        .cards-stack-wrapper.active .card-pos-4 { animation-delay: 3.2s; }
+        /* 5 Cards Staggered Delays */
+        .cards-stack-wrapper.active .card-pos-0 { animation-delay: 0.0s; }
+        .cards-stack-wrapper.active .card-pos-1 { animation-delay: 0.2s; }
+        .cards-stack-wrapper.active .card-pos-2 { animation-delay: 0.4s; }
+        .cards-stack-wrapper.active .card-pos-3 { animation-delay: 0.6s; }
+        .cards-stack-wrapper.active .card-pos-4 { animation-delay: 0.8s; }
 
-        .splash-title { font-size: 22px; font-weight: 900; letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 8px; text-align: center; color: #ffffff; }
-        .splash-sub { font-size: 12px; opacity: 0.7; max-width: 280px; text-align: center; line-height: 1.4; margin-bottom: 24px; font-weight: 600; color: #d1d5db; }
+        .splash-title { font-size: 20px; font-weight: 900; letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 8px; text-align: center; color: #ffffff; }
+        .splash-sub { font-size: 12px; opacity: 0.7; max-width: 270px; text-align: center; line-height: 1.4; margin-bottom: 20px; font-weight: 500; color: #d1d5db; }
         
         .loader-spinner {
             width: 26px; height: 26px;
@@ -705,15 +704,13 @@
             return false;
         }
 
-        /* --- ROTATING SPLASH FAN STACK SCREEN (5 CARDS SHUFFLE - 4.5 SEC TIMING) --- */
+        /* --- ROTATING SPLASH FAN STACK SCREEN (PERFECT 3.4s TIMING) --- */
         function setupSplashScreen(list) {
             const wrapper = document.getElementById('cardsWrapper');
             if(!wrapper) return;
             wrapper.innerHTML = '';
             
             const shuffled = [...list].sort(() => 0.5 - Math.random());
-            
-            // Exactly 5 cards picked for shuffle animation
             const picked = shuffled.slice(0, 5);
             
             picked.forEach((story, idx) => {
@@ -724,13 +721,13 @@
                 wrapper.appendChild(img);
             });
 
-            setTimeout(() => { wrapper.classList.add('active'); }, 100);
+            setTimeout(() => { wrapper.classList.add('active'); }, 50);
             
-            /* Extended splash screen duration to 4.5 seconds for full shuffle */
+            /* Closes splash screen seamlessly right after 1 full smooth cycle */
             setTimeout(() => {
                 const splash = document.getElementById('splash-screen');
                 if(splash) splash.classList.add('hidden');
-            }, 4500);
+            }, 3400);
         }
 
         async function loadStories() {
