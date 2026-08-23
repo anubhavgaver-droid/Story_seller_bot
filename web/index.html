@@ -220,6 +220,7 @@
             display: inline-flex;
             align-items: center;
             gap: 4px;
+            cursor: pointer;
         }
         .chip-yellow { background: var(--accent); color: #000000; }
 
@@ -245,7 +246,7 @@
 
         .story-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
             gap: 14px;
         }
         .card {
@@ -417,7 +418,7 @@
         <div class="brand-logo">AC PREMIUM</div>
         <div class="header-chips">
             <span class="chip">🎧 AUDIO</span>
-            <span class="chip chip-yellow">🔑 <span id="unlockedCount">0</span> UNLOCKED</span>
+            <span class="chip chip-yellow" onclick="switchTab('orders')">🔑 <span id="unlockedCount">0</span> UNLOCKED</span>
         </div>
     </div>
 
@@ -427,7 +428,7 @@
         <div id="tab-home" class="tab-content active">
             <div class="search-wrapper">
                 <span class="search-icon">🔍</span>
-                <input type="text" class="search-input" id="searchInp" placeholder="Search romantic, thriller, action..." onkeyup="doSearch()">
+                <input type="text" class="search-input" id="searchInp" placeholder="Search romantic, thriller, action..." oninput="doSearch()">
             </div>
             <div class="story-grid" id="homeGrid"></div>
         </div>
@@ -437,7 +438,7 @@
             <div class="section-box">
                 <div class="section-title">Categories & Platforms</div>
                 <div style="display:flex; gap:8px; flex-wrap:wrap;">
-                    <button class="chip chip-yellow" onclick="loadStories()">All Shows</button>
+                    <button class="chip chip-yellow" onclick="renderGrid(stories, 'exploreGrid')">All Shows</button>
                     <button class="chip" onclick="filterCat('pocket')">Pocket FM</button>
                     <button class="chip" onclick="filterCat('pratilipi')">Pratilipi FM</button>
                     <button class="chip" onclick="filterCat('kuku')">Kuku FM</button>
@@ -566,10 +567,10 @@
 
         function triggerHaptic(type = 'light') {
             try {
-                if (tg.HapticFeedback) {
-                    if (type === 'light' || type === 'medium' || type === 'heavy') {
+                if (tg && tg.HapticFeedback) {
+                    if (['light', 'medium', 'heavy'].includes(type)) {
                         tg.HapticFeedback.impactOccurred(type);
-                    } else if (type === 'success' || type === 'warning' || type === 'error') {
+                    } else if (['success', 'warning', 'error'].includes(type)) {
                         tg.HapticFeedback.notificationOccurred(type);
                     }
                 }
@@ -593,20 +594,23 @@
 
         /* --- WISHLIST SYSTEM --- */
         function getWishlist() {
-            return JSON.parse(localStorage.getItem('user_wishlist') || '[]');
+            try {
+                return JSON.parse(localStorage.getItem('user_wishlist')) || [];
+            } catch(e) { return []; }
         }
 
         function toggleWishlist(e, storyId) {
-            e.stopPropagation();
+            if(e) e.stopPropagation();
             triggerHaptic('medium');
 
             let wishlist = getWishlist();
-            const index = wishlist.indexOf(String(storyId));
+            const strId = String(storyId);
+            const index = wishlist.indexOf(strId);
 
             if (index > -1) {
                 wishlist.splice(index, 1);
             } else {
-                wishlist.push(String(storyId));
+                wishlist.push(strId);
             }
 
             localStorage.setItem('user_wishlist', JSON.stringify(wishlist));
@@ -628,19 +632,19 @@
             }
 
             container.innerHTML = favStories.map(s => {
-                const sKey = s.id || s.title;
+                const sKey = s.id !== undefined ? s.id : s.title;
                 return `
                 <div class="item-row">
                     <div>
                         <div style="font-weight:900; font-size:13px;">${s.title}</div>
                         <span style="font-size:10px; opacity:0.7;">${s.platform || 'AUDIO'}</span>
                     </div>
-                    <button class="chip chip-yellow" onclick="openStoryModal('${sKey}')">VIEW</button>
+                    <button class="chip chip-yellow" onclick="openStoryModal('${encodeURIComponent(sKey)}')">VIEW</button>
                 </div>
             `}).join('');
         }
 
-        /* --- DIRECT REDIRECT ANIMATION (UNTOUCHED LOGIC) --- */
+        /* --- DIRECT REDIRECT ANIMATION --- */
         function runDirectRedirectAnimation(callback) {
             const splash = document.getElementById('splash-screen');
             if(splash) splash.classList.add('hidden');
@@ -652,7 +656,7 @@
 
             let current = 0;
             const interval = setInterval(() => {
-                current += 1;
+                current += 2;
                 
                 if (current >= 100) {
                     current = 100;
@@ -662,14 +666,14 @@
                     setTimeout(() => {
                         loader.classList.remove('active');
                         if (callback) callback();
-                    }, 300);
+                    }, 200);
                 } else {
                     counter.innerText = `${current}%`;
                 }
-            }, 45); 
+            }, 25); 
         }
 
-        /* --- ROUTING CHECK FOR TELEGRAM APP DEEP LINKS (UNTOUCHED LOGIC) --- */
+        /* --- ROUTING CHECK FOR TELEGRAM DEEP LINKS --- */
         function checkUrlParamRouting() {
             let targetParam = null;
 
@@ -694,7 +698,7 @@
                         document.getElementById('loaderAnimeImg').src = foundStory.photo;
                     }
                     runDirectRedirectAnimation(() => {
-                        openStoryModal(foundStory.id || foundStory.title);
+                        openStoryModal(foundStory.id !== undefined ? foundStory.id : foundStory.title);
                     });
                     return true;
                 }
@@ -724,7 +728,7 @@
             setTimeout(() => {
                 const splash = document.getElementById('splash-screen');
                 if(splash) splash.classList.add('hidden');
-            }, 3400);
+            }, 3000);
         }
 
         async function loadStories() {
@@ -759,7 +763,6 @@
             try {
                 const res = await fetch(`/api/user_purchases?user_id=${userId}`);
                 userPurchases = await res.json();
-                
                 renderUnlockedList();
             } catch(e) { console.error(e); }
         }
@@ -793,18 +796,18 @@
             const el = document.getElementById(target);
             if(!el) return;
             if(list.length === 0) {
-                el.innerHTML = '<p style="font-size:12px; font-weight:800; grid-column:1/-1; text-align:center;">No audio packs found.</p>';
+                el.innerHTML = '<p style="font-size:12px; font-weight:800; grid-column:1/-1; text-align:center; padding: 20px 0;">No audio packs found.</p>';
                 return;
             }
 
             const wishlist = getWishlist();
 
             el.innerHTML = list.map((s) => {
-                const sKey = s.id || s.title;
+                const sKey = s.id !== undefined ? s.id : s.title;
                 const isFav = wishlist.includes(String(sKey));
                 return `
-                <div class="card" onclick="openStoryModal('${sKey}')">
-                    <div class="card-fav-btn" onclick="toggleWishlist(event, '${sKey}')">
+                <div class="card" onclick="openStoryModal('${encodeURIComponent(sKey)}')">
+                    <div class="card-fav-btn" onclick="toggleWishlist(event, '${encodeURIComponent(sKey)}')">
                         ${isFav ? '❤️' : '🤍'}
                     </div>
                     <img src="${s.photo || 'https://picsum.photos/200'}" class="card-img" alt="${s.title}">
@@ -818,8 +821,9 @@
             `}).join('');
         }
 
-        function openStoryModal(storyKey) {
+        function openStoryModal(storyKeyRaw) {
             triggerHaptic('light');
+            const storyKey = decodeURIComponent(storyKeyRaw);
             let story = stories.find(s => String(s.id) === String(storyKey) || String(s.title) === String(storyKey));
             if (!story) return;
 
@@ -837,14 +841,10 @@
             const buyBtn = document.getElementById('mBuyBtn');
             if (story.price == 0) {
                 buyBtn.innerText = 'CLAIM NOW (FREE)';
-                buyBtn.onclick = function() {
-                    claimFreeStory(story);
-                };
+                buyBtn.onclick = function() { claimFreeStory(story); };
             } else {
                 buyBtn.innerText = 'BUY & UNLOCK';
-                buyBtn.onclick = function() {
-                    buyStory(story.title);
-                };
+                buyBtn.onclick = function() { buyStory(story.title); };
             }
 
             document.getElementById('storyModal').classList.add('active');
@@ -905,18 +905,19 @@
         function openStoryLink(url) {
             triggerHaptic('light');
             if(url && url !== '#') tg.openTelegramLink(url);
-            else tg.showAlert("Access link will be provided in bot chat.");
+            else if (tg.showAlert) tg.showAlert("Access link will be provided in bot chat.");
+            else alert("Access link will be provided in bot chat.");
         }
 
         function doSearch() {
-            const q = document.getElementById('searchInp').value.toLowerCase();
-            const f = stories.filter(s => s.title.toLowerCase().includes(q));
+            const q = document.getElementById('searchInp').value.toLowerCase().trim();
+            const f = stories.filter(s => (s.title && s.title.toLowerCase().includes(q)) || (s.platform && s.platform.toLowerCase().includes(q)));
             renderGrid(f, 'homeGrid');
         }
 
         function filterCat(cat) {
             triggerHaptic('light');
-            const f = stories.filter(s => (s.platform && s.platform.toLowerCase().includes(cat)));
+            const f = stories.filter(s => (s.platform && s.platform.toLowerCase().includes(cat.toLowerCase())));
             renderGrid(f, 'exploreGrid');
         }
 
@@ -925,19 +926,24 @@
             document.querySelectorAll('.tab-content').forEach(e => e.classList.remove('active'));
             document.querySelectorAll('.nav-link').forEach(e => e.classList.remove('active'));
             
-            document.getElementById(`tab-${name}`).classList.add('active');
+            const selectedTab = document.getElementById(`tab-${name}`);
+            if(selectedTab) selectedTab.classList.add('active');
             
             const tabs = ['home', 'explore', 'orders', 'profile'];
             const idx = tabs.indexOf(name);
-            if(idx !== -1) document.querySelectorAll('.nav-link')[idx].classList.add('active');
+            if(idx !== -1 && document.querySelectorAll('.nav-link')[idx]) {
+                document.querySelectorAll('.nav-link')[idx].classList.add('active');
+            }
         }
 
         function initUserInfo() {
             try {
-                tg.ready();
-                tg.expand();
+                if (tg) {
+                    tg.ready();
+                    tg.expand();
+                }
 
-                let user = tg.initDataUnsafe ? tg.initDataUnsafe.user : null;
+                let user = (tg && tg.initDataUnsafe) ? tg.initDataUnsafe.user : null;
 
                 if (user && user.id) {
                     const fullName = ((user.first_name || "") + " " + (user.last_name || "")).trim();
