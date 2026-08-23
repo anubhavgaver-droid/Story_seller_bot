@@ -119,19 +119,20 @@
             text-transform: uppercase;
         }
 
-        /* ---------------- WELCOME SPLASH SCREEN (CIRCLE BREAK ANIMATION) ---------------- */
+        /* ---------------- OTT STYLE FULLSCREEN SPLASH SCREEN ---------------- */
         #splash-screen {
             position: fixed;
             top: 0; left: 0;
             width: 100vw; height: 100vh;
             background: #000000;
-            color: #ffffff;
+            z-index: 9999;
             display: flex;
             flex-direction: column;
+            justify-content: space-between;
             align-items: center;
-            justify-content: center;
-            z-index: 9999;
-            transition: opacity 0.5s ease, visibility 0.5s ease;
+            opacity: 1;
+            visibility: visible;
+            transition: opacity 0.6s ease, visibility 0.6s ease;
         }
         #splash-screen.hidden {
             opacity: 0;
@@ -139,117 +140,131 @@
             pointer-events: none;
         }
 
-        .circle-container {
+        /* Dynamic Story Poster Canvas */
+        .splash-poster-container {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            z-index: 1;
+            overflow: hidden;
+            background: #000000;
+        }
+        .splash-poster-img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            filter: brightness(0.9);
+            transform: scale(1.05);
+            animation: slowZoom 3.5s ease-out forwards;
+        }
+        @keyframes slowZoom {
+            0% { transform: scale(1.10); }
+            100% { transform: scale(1.0); }
+        }
+
+        /* Dark Gradient Overlay */
+        .splash-overlay {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: linear-gradient(to bottom, rgba(0,0,0,0.2) 0%, rgba(0,0,0,0.3) 50%, rgba(0,0,0,0.92) 82%, #000000 100%);
+            z-index: 2;
+        }
+
+        /* Top Skip Button */
+        .splash-top-bar {
             position: relative;
-            width: 220px;
-            height: 220px;
+            z-index: 3;
+            width: 100%;
+            padding: 16px;
+            display: flex;
+            justify-content: flex-end;
+        }
+        .skip-btn {
+            background: rgba(0, 0, 0, 0.6);
+            color: #ffffff;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            backdrop-filter: blur(8px);
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            cursor: pointer;
+        }
+
+        /* Bottom AC PREMIUM Branding */
+        .splash-bottom-branding {
+            position: relative;
+            z-index: 3;
+            width: 100%;
+            padding-bottom: 35px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+        }
+
+        .brand-icon-box {
+            width: 50px;
+            height: 50px;
+            background: linear-gradient(135deg, #38bdf8, #0284c7);
+            border-radius: 50%;
             display: flex;
             justify-content: center;
             align-items: center;
-            margin-bottom: 20px;
+            box-shadow: 0 0 20px rgba(56, 189, 248, 0.6);
+            margin-bottom: 8px;
+            animation: pulseIcon 2s infinite ease-in-out;
+        }
+        @keyframes pulseIcon {
+            0%, 100% { transform: scale(1); box-shadow: 0 0 15px rgba(56, 189, 248, 0.4); }
+            50% { transform: scale(1.06); box-shadow: 0 0 25px rgba(56, 189, 248, 0.8); }
         }
 
-        /* Outer Expanding Pulse Ring */
-        .glow-ring {
-            position: absolute;
-            width: 120px;
-            height: 120px;
-            border-radius: 50%;
-            border: 3px solid #ffcc00;
-            box-shadow: 0 0 20px #ffcc00, inset 0 0 20px #ffcc00;
-            opacity: 0;
-        }
-        .circle-container.active .glow-ring {
-            animation: ringPulse 0.9s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
-        }
-        @keyframes ringPulse {
-            0% { transform: scale(0.2); opacity: 0; }
-            50% { opacity: 1; }
-            100% { transform: scale(1.6); opacity: 0; }
-        }
-
-        /* Splitting Circle Halves */
-        .circle-half {
-            position: absolute;
-            width: 110px;
-            height: 110px;
-            background: linear-gradient(135deg, #ffcc00, #eab308);
-            box-shadow: 0 0 25px rgba(255, 204, 0, 0.8);
-            transition: transform 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.27);
-        }
-        .circle-left {
-            border-top-left-radius: 110px;
-            border-bottom-left-radius: 110px;
-            left: 0;
-            transform-origin: center right;
-        }
-        .circle-right {
-            border-top-right-radius: 110px;
-            border-bottom-right-radius: 110px;
-            right: 0;
-            transform-origin: center left;
-        }
-
-        .circle-container.active .circle-left {
-            animation: breakLeft 2.5s cubic-bezier(0.25, 1, 0.5, 1) forwards;
-        }
-        .circle-container.active .circle-right {
-            animation: breakRight 2.5s cubic-bezier(0.25, 1, 0.5, 1) forwards;
-        }
-
-        @keyframes breakLeft {
-            0% { transform: scale(0.2) translateX(55px); opacity: 0; }
-            30% { transform: scale(1) translateX(0); opacity: 1; }
-            50% { transform: scale(1.1) translateX(0); opacity: 1; filter: drop-shadow(0 0 15px #ffffff); }
-            75% { transform: translateX(-140px) rotate(-20deg) scale(0.8); opacity: 0.8; }
-            100% { transform: translateX(-220px) rotate(-45deg) scale(0.2); opacity: 0; }
-        }
-
-        @keyframes breakRight {
-            0% { transform: scale(0.2) translateX(-55px); opacity: 0; }
-            30% { transform: scale(1) translateX(0); opacity: 1; }
-            50% { transform: scale(1.1) translateX(0); opacity: 1; filter: drop-shadow(0 0 15px #ffffff); }
-            75% { transform: translateX(140px) rotate(20deg) scale(0.8); opacity: 0.8; }
-            100% { transform: translateX(220px) rotate(45deg) scale(0.2); opacity: 0; }
-        }
-
-        /* Emerging AC PREMIUM Text */
-        .brand-text-reveal {
-            position: absolute;
-            font-size: 26px;
+        .brand-title {
+            font-size: 24px;
             font-weight: 900;
-            letter-spacing: 2.5px;
+            letter-spacing: 2px;
             color: #ffffff;
-            text-shadow: 0 0 15px #ffcc00, 0 0 30px #ffcc00;
-            white-space: nowrap;
-            opacity: 0;
-            transform: scale(0.2);
-            z-index: 10;
+            text-transform: uppercase;
+            text-shadow: 0 2px 10px rgba(0,0,0,0.9);
+            margin: 0;
         }
 
-        .circle-container.active .brand-text-reveal {
-            animation: revealText 2.5s cubic-bezier(0.175, 0.885, 0.32, 1.27) forwards;
+        .brand-subtitle {
+            font-size: 11px;
+            font-weight: 700;
+            color: #94a3b8;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            margin-top: 2px;
+            margin-bottom: 14px;
         }
 
-        @keyframes revealText {
-            0% { opacity: 0; transform: scale(0.2); }
-            45% { opacity: 0; transform: scale(0.4); }
-            65% { opacity: 1; transform: scale(1.25); text-shadow: 0 0 25px #ffcc00, 0 0 45px #ffffff; }
-            85% { opacity: 1; transform: scale(1); text-shadow: 0 0 15px #ffcc00; }
-            100% { opacity: 1; transform: scale(1.05); }
+        /* Loader */
+        .splash-loader-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            opacity: 0.85;
         }
-
-        .splash-title { font-size: 20px; font-weight: 900; letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 8px; text-align: center; color: #ffffff; }
-        .splash-sub { font-size: 12px; opacity: 0.7; max-width: 270px; text-align: center; line-height: 1.4; margin-bottom: 20px; font-weight: 500; color: #d1d5db; }
-        
-        .loader-spinner {
-            width: 26px; height: 26px;
-            border: 3px solid #333333;
-            border-top: 3px solid #ffcc00;
+        .mini-spinner {
+            width: 14px;
+            height: 14px;
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            border-top: 2px solid #ffffff;
             border-radius: 50%;
-            animation: spin 0.8s linear infinite;
+            animation: spin 0.7s linear infinite;
         }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .loading-text {
+            font-size: 12px;
+            font-weight: 600;
+            color: #cbd5e1;
+            letter-spacing: 0.5px;
+        }
 
         /* ---------------- MAIN UI STYLES ---------------- */
         .top-bar {
@@ -452,6 +467,7 @@
 </head>
 <body>
 
+    <!-- DIRECT REDIRECT LOADER -->
     <div id="redirect-loader">
         <img src="https://picsum.photos/200" class="loader-anime-img" id="loaderAnimeImg" alt="Story Icon">
         <div class="redirect-title">REDIRECTING...</div>
@@ -460,18 +476,34 @@
         <div class="loading-lbl">LOADING STORY</div>
     </div>
 
+    <!-- OTT STYLE FULLSCREEN SPLASH SCREEN -->
     <div id="splash-screen">
-        <div class="circle-container" id="circleWrapper">
-            <div class="glow-ring"></div>
-            <div class="circle-half circle-left"></div>
-            <div class="circle-half circle-right"></div>
-            <div class="brand-text-reveal">AC PREMIUM</div>
+        <div class="splash-poster-container">
+            <img id="splashCoverImg" src="" class="splash-poster-img" alt="Story Poster">
         </div>
-        <div class="splash-title">WELCOME TO AC PREMIUM</div>
-        <div class="splash-sub">Your automated store inside Telegram for premium audio and video story series — delivered instantly to your chat.</div>
-        <div class="loader-spinner"></div>
+        <div class="splash-overlay"></div>
+
+        <div class="splash-top-bar">
+            <div class="skip-btn" onclick="closeSplash()">3s skip</div>
+        </div>
+
+        <div class="splash-bottom-branding">
+            <div class="brand-icon-box">
+                <svg width="26" height="26" viewBox="0 0 24 24" fill="#ffffff">
+                    <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+                </svg>
+            </div>
+            <h1 class="brand-title">AC PREMIUM</h1>
+            <div class="brand-subtitle">MOVIES & AUDIO STREAM</div>
+
+            <div class="splash-loader-row">
+                <div class="mini-spinner"></div>
+                <span class="loading-text">loading...</span>
+            </div>
+        </div>
     </div>
 
+    <!-- MAIN APP HEADER -->
     <div class="top-bar">
         <div class="brand-logo">AC PREMIUM</div>
         <div class="header-chips">
@@ -480,6 +512,7 @@
         </div>
     </div>
 
+    <!-- MAIN CONTAINER -->
     <div class="container">
         <div id="tab-home" class="tab-content active">
             <div class="search-wrapper">
@@ -560,6 +593,7 @@
         </div>
     </div>
 
+    <!-- MODAL POPUP -->
     <div class="modal-overlay" id="storyModal">
         <div class="modal-content">
             <div class="modal-hero">
@@ -594,6 +628,7 @@
         </div>
     </div>
 
+    <!-- BOTTOM NAVIGATION BAR -->
     <div class="bottom-nav">
         <div class="nav-link active" onclick="switchTab('home')">
             <span class="nav-icon">🏠</span>HOME
@@ -692,10 +727,37 @@
             `}).join('');
         }
 
-        /* --- DIRECT REDIRECT ANIMATION --- */
-        function runDirectRedirectAnimation(callback) {
+        /* --- DYNAMIC POSTER SPLASH SCREEN SYSTEM --- */
+        function setupSplashScreen(storiesList) {
+            const splashImg = document.getElementById('splashCoverImg');
+            
+            // Pick photo from uploaded stories list randomly
+            if (storiesList && storiesList.length > 0) {
+                const randomIndex = Math.floor(Math.random() * storiesList.length);
+                const randomStory = storiesList[randomIndex];
+                if (randomStory && (randomStory.photo || randomStory.img)) {
+                    splashImg.src = randomStory.photo || randomStory.img;
+                } else {
+                    splashImg.src = "https://picsum.photos/600/1000";
+                }
+            } else {
+                splashImg.src = "https://picsum.photos/600/1000";
+            }
+
+            // Auto close after 3 seconds
+            setTimeout(() => {
+                closeSplash();
+            }, 3000);
+        }
+
+        function closeSplash() {
             const splash = document.getElementById('splash-screen');
             if(splash) splash.classList.add('hidden');
+        }
+
+        /* --- DIRECT REDIRECT ANIMATION --- */
+        function runDirectRedirectAnimation(callback) {
+            closeSplash();
 
             const loader = document.getElementById('redirect-loader');
             const counter = document.getElementById('counterNum');
@@ -754,20 +816,6 @@
             return false;
         }
 
-        /* --- SPLASH CIRCLE SPLIT REVEAL ANIMATION --- */
-        function setupSplashScreen() {
-            const wrapper = document.getElementById('circleWrapper');
-            if(!wrapper) return;
-            
-            setTimeout(() => { wrapper.classList.add('active'); }, 50);
-            
-            /* Closes splash screen after circle splits & text reaches scale */
-            setTimeout(() => {
-                const splash = document.getElementById('splash-screen');
-                if(splash) splash.classList.add('hidden');
-            }, 2800);
-        }
-
         async function loadStories() {
             try {
                 const res = await fetch('/api/stories');
@@ -783,12 +831,22 @@
 
                 const isDeepLinked = checkUrlParamRouting();
                 if (!isDeepLinked) {
-                    setupSplashScreen();
+                    setupSplashScreen(stories);
                 }
             } catch(e) {
-                console.error("Failed to fetch stories:", e);
-                const splash = document.getElementById('splash-screen');
-                if(splash) splash.classList.add('hidden');
+                console.error("Failed to fetch stories, loading default state:", e);
+                // Fallback demo dataset if API isn't reached immediately
+                stories = [
+                    { id: "1", title: "Awarapan 2", photo: "https://picsum.photos/id/1062/600/1000", price: 0, platform: "POCKET FM" },
+                    { id: "2", title: "Insta Millionaire", photo: "https://picsum.photos/id/1025/600/1000", price: 49, platform: "PRATILIPI" }
+                ];
+                renderGrid(stories, 'homeGrid');
+                renderGrid(stories, 'exploreGrid');
+                
+                const isDeepLinked = checkUrlParamRouting();
+                if (!isDeepLinked) {
+                    setupSplashScreen(stories);
+                }
             }
         }
 
@@ -844,7 +902,7 @@
                     <div class="card-fav-btn" onclick="toggleWishlist(event, '${sKey}')">
                         ${isFav ? '❤️' : '🤍'}
                     </div>
-                    <img src="${s.photo || 'https://picsum.photos/200'}" class="card-img" alt="${s.title}">
+                    <img src="${s.photo || s.img || 'https://picsum.photos/200'}" class="card-img" alt="${s.title}">
                     <div class="card-body">
                         <span class="badge">${s.platform || 'AUDIO'}</span>
                         <h4 class="title">${s.title}</h4>
@@ -860,7 +918,7 @@
             let story = stories.find(s => String(s.id) === String(storyKey) || String(s.title) === String(storyKey));
             if (!story) return;
 
-            const photoUrl = story.photo || 'https://picsum.photos/200';
+            const photoUrl = story.photo || story.img || 'https://picsum.photos/200';
             document.getElementById('mBgImg').src = photoUrl;
             document.getElementById('mPosterImg').src = photoUrl;
             document.getElementById('mTitle').innerText = story.title;
