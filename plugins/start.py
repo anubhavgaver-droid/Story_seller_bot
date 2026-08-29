@@ -8,6 +8,7 @@ from pyrogram.types import (
     WebAppInfo
 )
 
+# Required Database functions (Aapke database.db file mein wallet queries shamil honi chahiye)
 from database.db import (
     get_story_by_title, 
     send_log, 
@@ -20,9 +21,10 @@ from database.db import (
 )
 from config import BOT_USERNAME, WEB_APP_URL
 
+# Search State Dictionary
 SEARCH_WAITING = {}
 
-# 1. Main Menu Keyboard Layout
+# 1. Main Menu Keyboard Layout (Wallet Button Added)
 MAIN_MENU = ReplyKeyboardMarkup(
     [
         [KeyboardButton("🚀 ᴏᴘᴇɴ ᴍɪɴɪ ᴀᴘᴘ")],
@@ -57,8 +59,9 @@ async def web_app_data_handler(client, message):
             clean_title = story_title.replace(" ", "_")
             wallet_bal = await get_user_wallet(message.from_user.id)
             
+            # Payment Option Keyboard
             btn = InlineKeyboardMarkup([
-                [InlineKeyboardButton(f"💳 ᴅɪʀᴇᴄᴛ ᴘᴀʏ (₹{price})", callback_data=f"buy_{clean_title}_{price}")],
+                [InlineKeyboardButton(f"💳 ᴅɪʀᴇᴄᴛ ᴘᴀʏ (₹{price})", callback_data=f"directpay_{clean_title}_{price}")],
                 [InlineKeyboardButton(f"👛 ᴘᴀʏ ᴠɪᴀ ᴡᴀʟʟᴇᴛ (Bal: ₹{wallet_bal})", callback_data=f"walletpay_{clean_title}_{price}")]
             ])
             
@@ -80,6 +83,50 @@ async def web_app_data_handler(client, message):
                 await message.reply_text(caption_text, reply_markup=btn)
     except Exception as e:
         print(f"WebApp Data Error: {e}")
+
+# ------------------ Wallet Payment Callback Handler ------------------
+@Client.on_callback_query(filters.regex(r"^walletpay_"))
+async def process_wallet_payment(client, callback_query):
+    user_id = callback_query.from_user.id
+    data_parts = callback_query.data.split("_")
+    
+    clean_title = data_parts[1]
+    price = float(data_parts[2])
+    story_title = clean_title.replace("_", " ")
+
+    story = await get_story_by_title(story_title)
+    if not story:
+        return await callback_query.answer("❌ Story not found!", show_alert=True)
+
+    current_balance = await get_user_wallet(user_id)
+
+    # 1. Balance Check
+    if current_balance < price:
+        return await callback_query.answer(
+            f"❌ Insufficient Balance!\nRequired: ₹{price}\nAvailable: ₹{current_balance}\n\nPlease top-up your wallet.",
+            show_alert=True
+        )
+
+    # 2. Deduct Balance & Add Purchase
+    new_balance = current_balance - price
+    await update_user_wallet(user_id, new_balance)
+    await add_user_purchase(user_id, story['title'], story.get('link', '#'))
+
+    await callback_query.answer("🎉 Purchase successful! Story unlocked.", show_alert=True)
+    
+    success_text = (
+        f"✅ <b>ᴘᴜʀᴄʜᴀsᴇ sᴜᴄᴄᴇssғᴜʟ!</b>\n\n"
+        f"📖 <b>sᴛᴏʀʏ:</b> {story['title']}\n"
+        f"💸 <b>ᴅᴇᴅᴜᴄᴛᴇᴅ:</b> ₹{price}\n"
+        f"👛 <b>ʀᴇᴍᴀɪɴɪɴɢ ʙᴀʟᴀɴᴄᴇ:</b> ₹{new_balance}\n\n"
+        f"👇 Click below to access your story:"
+    )
+    
+    access_btn = InlineKeyboardMarkup([
+        [InlineKeyboardButton(f"🚀 ᴀᴄᴄᴇss {story['title']}", url=story.get('link', 'https://t.me'))]
+    ])
+    
+    await callback_query.message.edit_text(success_text, reply_markup=access_btn)
 
 # ------------------ Start Handler ------------------
 @Client.on_message(filters.command("start") & filters.private, group=-1)
@@ -125,7 +172,7 @@ async def start_handler(client, message):
                 [
                     InlineKeyboardButton(
                         f"💳 ᴅɪʀᴇᴄᴛ ʙᴜʏ (₹{story['price']})", 
-                        callback_data=f"buy_{clean_title}_{story['price']}"
+                        callback_data=f"directpay_{clean_title}_{story['price']}"
                     )
                 ],
                 [
@@ -159,6 +206,7 @@ async def start_handler(client, message):
     await message.reply_text(welcome_text, reply_markup=MAIN_MENU)
 
 # ------------------ Wallet System Handlers ------------------
+
 @Client.on_message(filters.regex("^(💼 ᴍʏ ᴡᴀʟʟᴇᴛ|💼 My Wallet)$") & filters.private)
 async def wallet_handler(client, message):
     user_id = message.from_user.id
@@ -173,12 +221,25 @@ async def wallet_handler(client, message):
     )
     
     kb = InlineKeyboardMarkup([
-        [InlineKeyboardButton("➕ ᴀᴅᴅ ᴍᴏɴᴇʏ / ᴛᴏᴘ-ᴜᴘ", callback_data="add_wallet_funds")]
+        [InlineKeyboardButton("➕ ᴀᴅᴅ ᴍᴏɴᴇʏ / ᴛᴏᴘ-ᴜᴘ", callback_data="add_wallet_funds")],
+        [InlineKeyboardButton("📜 ᴛʀᴀɴsᴀᴄᴛɪᴏɴ ʜɪsᴛᴏʀʏ", callback_data="wallet_history")]
     ])
     
     await message.reply_text(text, reply_markup=kb)
 
+@Client.on_callback_query(filters.regex("^add_wallet_funds$"))
+async def add_funds_callback(client, callback_query):
+    text = (
+        "<b>➕ ᴀᴅᴅ ᴍᴏɴᴇʏ ᴛᴏ ᴡᴀʟʟᴇᴛ</b>\n\n"
+        "Contact admin or send payment screenshot to top-up your wallet balance automatically."
+    )
+    kb = InlineKeyboardMarkup([
+        [InlineKeyboardButton("💬 ᴄᴏɴᴛᴀᴄᴛ ᴀᴅᴍɪɴ ғᴏʀ ᴛᴏᴘᴜᴘ", url="https://t.me/kaluu_help_bot")]
+    ])
+    await callback_query.message.edit_text(text, reply_markup=kb)
+
 # ------------------ Dynamic Button Handlers ------------------
+
 @Client.on_message(filters.regex("^(🚀 ᴏᴘᴇɴ ᴍɪɴɪ ᴀᴘᴘ|🚀 Open Mini App)$") & filters.private)
 async def open_miniapp_handler(client, message):
     text = (
