@@ -67,18 +67,6 @@ async def wallet_handler(client, message):
     
     await message.reply_text(text, reply_markup=kb)
 
-# Callback for Add Money
-@Client.on_callback_query(filters.regex("^add_wallet_funds$"))
-async def add_funds_callback(client, callback_query):
-    text = (
-        "<b>➕ ᴀᴅᴅ ᴍᴏɴᴇʏ ᴛᴏ ᴡᴀʟʟᴇᴛ</b>\n\n"
-        "Contact admin or send payment screenshot to top-up your wallet balance."
-    )
-    kb = InlineKeyboardMarkup([
-        [InlineKeyboardButton("💬 ᴄᴏɴᴛᴀᴄᴛ ᴀᴅᴍɪɴ ғᴏʀ ᴛᴏᴘᴜᴘ", url="https://t.me/kaluu_help_bot")]
-    ])
-    await callback_query.message.edit_text(text, reply_markup=kb)
-
 # 4. Pocket FM / Pratilipi FM Category Handler
 @Client.on_message(filters.regex("^(📻 ᴘᴏᴄᴋᴇᴛ ғᴍ|📚 ᴘʀᴀᴛɪʟɪᴘɪ ғᴍ|📻 Pocket FM|📚 Pratilipi FM)$") & filters.private)
 async def category_handler(client, message):
@@ -141,49 +129,54 @@ async def story_selected_handler(client, message):
     except Exception:
         await message.reply_text(caption_text, reply_markup=btn)
 
-# 7. Wallet Deduction Payment Callback Handler
+# 7. Fixed Wallet Deduction Payment Callback Handler
 @Client.on_callback_query(filters.regex(r"^walletpay_"))
 async def process_wallet_payment(client, callback_query):
-    user_id = callback_query.from_user.id
-    data_parts = callback_query.data.split("_")
-    
-    clean_title = data_parts[1]
-    price = float(data_parts[2])
-    story_title = clean_title.replace("_", " ")
+    try:
+        data_parts = callback_query.data.split("_")
+        
+        # Split from last element for reliable float conversion
+        price = float(data_parts[-1])
+        story_title = " ".join(data_parts[1:-1])
 
-    story = await get_story_by_title(story_title)
-    if not story:
-        return await callback_query.answer("❌ Story not found!", show_alert=True)
+        story = await get_story_by_title(story_title)
+        if not story:
+            return await callback_query.answer("❌ Story not found!", show_alert=True)
 
-    current_balance = await get_user_wallet(user_id)
+        user_id = callback_query.from_user.id
+        current_balance = await get_user_wallet(user_id)
 
-    # Balance Check
-    if current_balance < price:
-        return await callback_query.answer(
-            f"❌ Insufficient Balance!\nRequired: ₹{price}\nAvailable: ₹{current_balance}\n\nPlease top-up your wallet.",
-            show_alert=True
+        # Balance Check
+        if current_balance < price:
+            return await callback_query.answer(
+                f"❌ Insufficient Balance!\nRequired: ₹{price}\nAvailable: ₹{current_balance}\n\nPlease top-up your wallet.",
+                show_alert=True
+            )
+
+        # Deduct Balance & Save Purchase
+        new_balance = current_balance - price
+        await update_user_wallet(user_id, new_balance)
+        await add_user_purchase(user_id, story['title'], story.get('link', '#'))
+
+        await callback_query.answer("🎉 Purchase successful!", show_alert=True)
+        
+        success_text = (
+            f"✅ <b>ᴘᴜʀᴄʜᴀsᴇ sᴜᴄᴄᴇssғᴜʟ!</b>\n\n"
+            f"📖 <b>sᴛᴏʀʏ:</b> {story['title']}\n"
+            f"💸 <b>ᴅᴇᴅᴜᴄᴛᴇᴅ:</b> ₹{price}\n"
+            f"👛 <b>ʀᴇᴍᴀɪɴɪɴɢ ʙᴀʟᴀɴᴄᴇ:</b> ₹{new_balance}\n\n"
+            f"👇 Click below to access your story:"
         )
+        
+        access_btn = InlineKeyboardMarkup([
+            [InlineKeyboardButton(f"🚀 ᴀᴄᴄᴇss {story['title']}", url=story.get('link', 'https://t.me'))]
+        ])
+        
+        await callback_query.message.edit_text(success_text, reply_markup=access_btn)
 
-    # Deduct Balance & Save Purchase
-    new_balance = current_balance - price
-    await update_user_wallet(user_id, new_balance)
-    await add_user_purchase(user_id, story['title'], story.get('link', '#'))
-
-    await callback_query.answer("🎉 Purchase successful!", show_alert=True)
-    
-    success_text = (
-        f"✅ <b>ᴘᴜʀᴄʜᴀsᴇ sᴜᴄᴄᴇssғᴜʟ!</b>\n\n"
-        f"📖 <b>sᴛᴏʀʏ:</b> {story['title']}\n"
-        f"💸 <b>ᴅᴇᴅᴜᴄᴛᴇᴅ:</b> ₹{price}\n"
-        f"👛 <b>ʀᴇᴍᴀɪɴɪɴɢ ʙᴀʟᴀɴᴄᴇ:</b> ₹{new_balance}\n\n"
-        f"👇 Click below to access your story:"
-    )
-    
-    access_btn = InlineKeyboardMarkup([
-        [InlineKeyboardButton(f"🚀 ᴀᴄᴄᴇss {story['title']}", url=story.get('link', 'https://t.me'))]
-    ])
-    
-    await callback_query.message.edit_text(success_text, reply_markup=access_btn)
+    except Exception as e:
+        print(f"Error in process_wallet_payment: {e}")
+        await callback_query.answer("❌ Error processing wallet payment!", show_alert=True)
 
 # 8. Search Prompt Handler
 @Client.on_message(filters.regex("^(🔎 sᴇᴀʀᴄʜ sᴛᴏʀʏ|🔎 Search Story)$") & filters.private)
