@@ -6,28 +6,34 @@ from pyrogram.types import (
     InlineKeyboardMarkup, 
     InlineKeyboardButton, 
     ForceReply, 
-    WebAppInfo, 
-    CallbackQuery
+    WebAppInfo
 )
-from database.db import get_stories_by_cat, search_stories_db, get_story_by_title
+from database.db import (
+    get_stories_by_cat, 
+    search_stories_db, 
+    get_story_by_title,
+    get_user_wallet,
+    update_user_wallet,
+    add_user_purchase
+)
 from config import WEB_APP_URL
 
 # Search State Dictionary
 SEARCH_WAITING = {}
 
-# 1. Main Menu Reply Keyboard (Exact Original Layout)
+# 1. Main Menu Reply Keyboard Layout (Wallet Included)
 MAIN_MENU = ReplyKeyboardMarkup(
     [
-        [KeyboardButton("🚀 ᴏᴘᴇɴ ᴍɪɴɪ ᴀᴘᴘ")],  # WebApp link yahan se hata kar normal button banaya gaya hai
-        [KeyboardButton("📢 ᴜᴘᴅᴀᴛᴇs ᴄʜᴀɴɴᴇʟ", style=enums.ButtonStyle.PRIMARY)],
+        [KeyboardButton("🚀 ᴏᴘᴇɴ ᴍɪɴɪ ᴀᴘᴘ")],
+        [KeyboardButton("💼 ᴍʏ ᴡᴀʟʟᴇᴛ", style=enums.ButtonStyle.SUCCESS), KeyboardButton("👤 ᴍʏ ᴀᴄᴄᴏᴜɴᴛ", style=enums.ButtonStyle.PRIMARY)],
         [KeyboardButton("🔎 sᴇᴀʀᴄʜ sᴛᴏʀʏ", style=enums.ButtonStyle.SUCCESS), KeyboardButton("📻 ᴘᴏᴄᴋᴇᴛ ғᴍ", style=enums.ButtonStyle.DANGER)],
-        [KeyboardButton("📚 ᴘʀᴀᴛɪʟɪᴘɪ ғᴍ", style=enums.ButtonStyle.DANGER), KeyboardButton("👤 ᴍʏ ᴀᴄᴄᴏᴜɴᴛ", style=enums.ButtonStyle.PRIMARY)],
+        [KeyboardButton("📚 ᴘʀᴀᴛɪʟɪᴘɪ ғᴍ", style=enums.ButtonStyle.DANGER), KeyboardButton("📢 ᴜᴘᴅᴀᴛᴇs ᴄʜᴀɴɴᴇʟ", style=enums.ButtonStyle.PRIMARY)],
         [KeyboardButton("📞 sᴜᴘᴘᴏʀᴛ", style=enums.ButtonStyle.SUCCESS)]
     ],
     resize_keyboard=True
 )
 
-# 2. 🚀 OPEN MINI APP Handler (Sends Details + Inner WebApp Button)
+# 2. 🚀 OPEN MINI APP Handler
 @Client.on_message(filters.regex("^(🚀 ᴏᴘᴇɴ ᴍɪɴɪ ᴀᴘᴘ|🚀 Open Mini App)$") & filters.private)
 async def miniapp_button_handler(client, message):
     text = (
@@ -35,15 +41,45 @@ async def miniapp_button_handler(client, message):
         "ᴄʟɪᴄᴋ ᴛʜᴇ ʙᴜᴛᴛᴏɴ ʙᴇʟᴏᴡ ᴛᴏ ᴏᴘᴇɴ ᴏᴜʀ ᴏғғɪᴄɪᴀʟ ᴍɪɴɪ ᴀᴘᴘ ᴀɴᴅ ᴇxᴘʟᴏʀᴇ ᴀʟʟ sᴛᴏʀɪᴇs!"
     )
     
-    # Inner WebApp Button
     inner_kb = InlineKeyboardMarkup([
         [InlineKeyboardButton("🚀 ʟᴀᴜɴᴄʜ ᴍɪɴɪ ᴀᴘᴘ", web_app=WebAppInfo(url=WEB_APP_URL))]
     ])
     
     await message.reply_text(text, reply_markup=inner_kb)
 
+# 3. 💼 MY WALLET Handler
+@Client.on_message(filters.regex("^(💼 ᴍʏ ᴡᴀʟʟᴇᴛ|💼 My Wallet)$") & filters.private)
+async def wallet_handler(client, message):
+    user_id = message.from_user.id
+    balance = await get_user_wallet(user_id)
+    
+    text = (
+        f"<b>👛 ʏᴏᴜʀ ᴡᴀʟʟᴇᴛ ᴅᴇᴛᴀɪʟs</b>\n"
+        f"━━━━━━━━━━━━━━━━━━━\n"
+        f"<b>💳 ᴄᴜʀʀᴇɴᴛ ʙᴀʟᴀɴᴄᴇ:</b> ₹{balance}\n"
+        f"━━━━━━━━━━━━━━━━━━━\n\n"
+        f"💡 <i>Use wallet balance for 1-click instant purchases inside Mini App or Bot.</i>"
+    )
+    
+    kb = InlineKeyboardMarkup([
+        [InlineKeyboardButton("➕ ᴀᴅᴅ ᴍᴏɴᴇʏ / ᴛᴏᴘ-ᴜᴘ", callback_data="add_wallet_funds")]
+    ])
+    
+    await message.reply_text(text, reply_markup=kb)
 
-# 3. Pocket FM / Pratilipi FM Category Handler
+# Callback for Add Money
+@Client.on_callback_query(filters.regex("^add_wallet_funds$"))
+async def add_funds_callback(client, callback_query):
+    text = (
+        "<b>➕ ᴀᴅᴅ ᴍᴏɴᴇʏ ᴛᴏ ᴡᴀʟʟᴇᴛ</b>\n\n"
+        "Contact admin or send payment screenshot to top-up your wallet balance."
+    )
+    kb = InlineKeyboardMarkup([
+        [InlineKeyboardButton("💬 ᴄᴏɴᴛᴀᴄᴛ ᴀᴅᴍɪɴ ғᴏʀ ᴛᴏᴘᴜᴘ", url="https://t.me/kaluu_help_bot")]
+    ])
+    await callback_query.message.edit_text(text, reply_markup=kb)
+
+# 4. Pocket FM / Pratilipi FM Category Handler
 @Client.on_message(filters.regex("^(📻 ᴘᴏᴄᴋᴇᴛ ғᴍ|📚 ᴘʀᴀᴛɪʟɪᴘɪ ғᴍ|📻 Pocket FM|📚 Pratilipi FM)$") & filters.private)
 async def category_handler(client, message):
     cat_map = {
@@ -61,20 +97,19 @@ async def category_handler(client, message):
     keyboard_buttons.append([KeyboardButton("🔙 ʙᴀᴄᴋ ᴛᴏ ᴍᴀɪɴ ᴍᴇɴᴜ")])
     
     category_keyboard = ReplyKeyboardMarkup(keyboard_buttons, resize_keyboard=True)
-    await message.reply_text(f"<b>📚 ᴀᴠᴀɪʟᴀʙʟᴇ sᴛᴏʀɪᴇs ({message.text}):</b>\n\nsᴇʟᴇᴄᴛ ʏᴏᴜʀ sᴛᴏʀʏ ғʀᴏᴍ ᴛʜᴇ ʟɪsᴛ ʙᴇʟᴏᴡ:", reply_markup=category_keyboard)
+    await message.reply_text(f"<b>📚 ᴀᴠᴀɪʟᴀʙʟᴇ sᴛᴏʀɪᴇs ({message.text}):</b>\n\nsᴇʟᴇᴄᴛ ʏᴏᴜʀ sᴛᴏʀʏ ғᴏʀ ᴅᴇᴛᴀɪʟs:", reply_markup=category_keyboard)
 
-
-# 4. Back to Main Menu Handler
+# 5. Back to Main Menu Handler
 @Client.on_message(filters.regex("^(🔙 ʙᴀᴄᴋ ᴛᴏ ᴍᴀɪɴ ᴍᴇɴᴜ|🔙 Back to Main Menu)$") & filters.private)
 async def back_to_main_menu(client, message):
     user_id = message.from_user.id
     SEARCH_WAITING.pop(user_id, None)
     await message.reply_text("<b>🌟 ᴍᴀɪɴ ᴍᴇɴᴜ:</b>", reply_markup=MAIN_MENU)
 
-
-# 5. Story Selection Click Handler (📖 Story Title)
+# 6. Story Selection Click Handler (Shows Direct Pay & Wallet Pay Options)
 @Client.on_message(filters.regex("^📖 ") & filters.private)
 async def story_selected_handler(client, message):
+    user_id = message.from_user.id
     story_title = message.text.replace("📖 ", "").strip()
     story = await get_story_by_title(story_title)
     
@@ -82,19 +117,75 @@ async def story_selected_handler(client, message):
         return await message.reply_text("❌ <b>ᴛʜɪs sᴛᴏʀʏ ɪs ɴᴏᴛ ᴀᴠᴀɪʟᴀʙʟᴇ.</b>")
         
     clean_title = story['title'].replace(" ", "_")
-    btn = InlineKeyboardMarkup([[InlineKeyboardButton("💳 ʙᴜʏ ɴᴏᴡ", callback_data=f"buy_{clean_title}_{story['price']}")]])
+    wallet_bal = await get_user_wallet(user_id)
+    
+    # Dual Options Keyboard
+    btn = InlineKeyboardMarkup([
+        [InlineKeyboardButton(f"💳 ᴅɪʀᴇᴄᴛ ᴘᴀʏ (₹{story['price']})", callback_data=f"buy_{clean_title}_{story['price']}")],
+        [InlineKeyboardButton(f"👛 ᴘᴀʏ ᴠɪᴀ ᴡᴀʟʟᴇᴛ (Bal: ₹{wallet_bal})", callback_data=f"walletpay_{clean_title}_{story['price']}")]
+    ])
+    
     photo_url = story.get('photo', 'https://picsum.photos/400/200')
     desc = story.get('desc', 'ɴᴏ ᴅᴇsᴄʀɪᴘᴛɪᴏɴ ᴀᴠᴀɪʟᴀʙʟᴇ.')
     
-    caption_text = f"📖 <b>ᴛɪᴛʟᴇ:</b> {story['title']}\n💰 <b>ᴘʀɪᴄᴇ:</b> ₹{story['price']}\n📝 <b>ᴅᴇsᴄ:</b> {desc}"
+    caption_text = (
+        f"📖 <b>ᴛɪᴛʟᴇ:</b> {story['title']}\n"
+        f"💰 <b>ᴘʀɪᴄᴇ:</b> ₹{story['price']}\n"
+        f"👛 <b>ʏᴏᴜʀ ᴡᴀʟʟᴇᴛ:</b> ₹{wallet_bal}\n"
+        f"📝 <b>ᴅᴇsᴄ:</b> {desc}\n\n"
+        f"<i>Select payment method below:</i>"
+    )
     
     try:
         await message.reply_photo(photo=photo_url, caption=caption_text, reply_markup=btn)
     except Exception:
         await message.reply_text(caption_text, reply_markup=btn)
 
+# 7. Wallet Deduction Payment Callback Handler
+@Client.on_callback_query(filters.regex(r"^walletpay_"))
+async def process_wallet_payment(client, callback_query):
+    user_id = callback_query.from_user.id
+    data_parts = callback_query.data.split("_")
+    
+    clean_title = data_parts[1]
+    price = float(data_parts[2])
+    story_title = clean_title.replace("_", " ")
 
-# 6. Search Prompt Handler
+    story = await get_story_by_title(story_title)
+    if not story:
+        return await callback_query.answer("❌ Story not found!", show_alert=True)
+
+    current_balance = await get_user_wallet(user_id)
+
+    # Balance Check
+    if current_balance < price:
+        return await callback_query.answer(
+            f"❌ Insufficient Balance!\nRequired: ₹{price}\nAvailable: ₹{current_balance}\n\nPlease top-up your wallet.",
+            show_alert=True
+        )
+
+    # Deduct Balance & Save Purchase
+    new_balance = current_balance - price
+    await update_user_wallet(user_id, new_balance)
+    await add_user_purchase(user_id, story['title'], story.get('link', '#'))
+
+    await callback_query.answer("🎉 Purchase successful!", show_alert=True)
+    
+    success_text = (
+        f"✅ <b>ᴘᴜʀᴄʜᴀsᴇ sᴜᴄᴄᴇssғᴜʟ!</b>\n\n"
+        f"📖 <b>sᴛᴏʀʏ:</b> {story['title']}\n"
+        f"💸 <b>ᴅᴇᴅᴜᴄᴛᴇᴅ:</b> ₹{price}\n"
+        f"👛 <b>ʀᴇᴍᴀɪɴɪɴɢ ʙᴀʟᴀɴᴄᴇ:</b> ₹{new_balance}\n\n"
+        f"👇 Click below to access your story:"
+    )
+    
+    access_btn = InlineKeyboardMarkup([
+        [InlineKeyboardButton(f"🚀 ᴀᴄᴄᴇss {story['title']}", url=story.get('link', 'https://t.me'))]
+    ])
+    
+    await callback_query.message.edit_text(success_text, reply_markup=access_btn)
+
+# 8. Search Prompt Handler
 @Client.on_message(filters.regex("^(🔎 sᴇᴀʀᴄʜ sᴛᴏʀʏ|🔎 Search Story)$") & filters.private)
 async def search_prompt(client, message):
     user_id = message.from_user.id
@@ -106,13 +197,12 @@ async def search_prompt(client, message):
         reply_markup=ForceReply(selective=True, placeholder="ᴛʏᴘᴇ sᴛᴏʀʏ ɴᴀᴍᴇ ʜᴇʀᴇ...")
     )
 
-
-# 7. Clean Search Process
+# 9. Clean Search Process
 @Client.on_message(
     filters.private 
     & filters.text 
-    & ~filters.command(["start", "addstory", "deletestory", "allstories", "cancel"]) 
-    & ~filters.regex("^(🚀 ᴏᴘᴇɴ ᴍɪɴɪ ᴀᴘᴘ|📢 ᴜᴘᴅᴀᴛᴇs ᴄʜᴀɴɴᴇʟ|👤 ᴍʏ ᴀᴄᴄᴏᴜɴᴛ|📞 sᴜᴘᴘᴏʀᴛ|📻 ᴘᴏᴄᴋᴇᴛ ғᴍ|📚 ᴘʀᴀᴛɪʟɪᴘɪ ғᴍ|🔙 ʙᴀᴄᴋ ᴛᴏ ᴍᴀɪɴ ᴍᴇɴᴜ|📖 |🔎 sᴇᴀʀᴄʜ sᴛᴏʀʏ|🚀 Open Mini App|📢 Updates Channel|👤 My Account|📞 Support|📻 Pocket FM|📚 Pratilipi FM|🔙 Back to Main Menu|🔎 Search Story)"),
+    & ~filters.command(["start", "addstory", "deletestory", "allstories", "cancel", "addmoney"]) 
+    & ~filters.regex("^(🚀 ᴏᴘᴇɴ ᴍɪɴɪ ᴀᴘᴘ|💼 ᴍʏ ᴡᴀʟʟᴇᴛ|📢 ᴜᴘᴅᴀᴛᴇs ᴄʜᴀɴɴᴇʟ|👤 ᴍʏ ᴀᴄᴄᴏᴜɴᴛ|📞 sᴜᴘᴘᴏʀᴛ|📻 ᴘᴏᴄᴋᴇᴛ ғᴍ|📚 ᴘʀᴀᴛɪʟɪᴘɪ ғᴍ|🔙 ʙᴀᴄᴋ ᴛᴏ ᴍᴀɪɴ ᴍᴇɴᴜ|📖 |🔎 sᴇᴀʀᴄʜ sᴛᴏʀʏ|🚀 Open Mini App|💼 My Wallet|📢 Updates Channel|👤 My Account|📞 Support|📻 Pocket FM|📚 Pratilipi FM|🔙 Back to Main Menu|🔎 Search Story)"),
     group=2
 )
 async def process_search(client, message):
