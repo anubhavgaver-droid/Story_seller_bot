@@ -4,8 +4,8 @@ from config import MONGO_URL, LOG_CHANNEL
 client = AsyncIOMotorClient(MONGO_URL)
 db = client["story_seller_db"]
 stories_col = db["stories"]
-users_col = db["users"]  # New Collection for User Registration
-purchases_col = db["purchases"]  # New Collection for Purchased Stories
+users_col = db["users"]  # Collection for User Registration & Wallet
+purchases_col = db["purchases"]  # Collection for Purchased Stories
 
 # -------------------- LOG HELPER FUNCTION --------------------
 async def send_log(client_bot, text: str):
@@ -25,7 +25,7 @@ async def is_user_registered(user_id: int) -> bool:
     return False
 
 async def register_user(user_id: int, first_name: str, username: str = None):
-    """नए यूज़र को रजिस्टर करेगा और status True सेट करेगा"""
+    """नए यूज़र को रजिस्टर करेगा और Default Wallet Balance (0.0) सेट करेगा"""
     await users_col.update_one(
         {"user_id": user_id},
         {
@@ -34,17 +34,46 @@ async def register_user(user_id: int, first_name: str, username: str = None):
                 "first_name": first_name,
                 "username": username,
                 "is_registered": True
+            },
+            "$setOnInsert": {
+                "wallet_balance": 0.0
             }
         },
         upsert=True
     )
 
+# -------------------- WALLET DATABASE FUNCTIONS --------------------
+async def get_user_wallet(user_id: int) -> float:
+    """यूज़र का Wallet Balance निकालता है"""
+    user = await users_col.find_one({"user_id": user_id})
+    if user:
+        return float(user.get("wallet_balance", 0.0))
+    return 0.0
+
+async def update_user_wallet(user_id: int, new_balance: float):
+    """Wallet Balance को direct update करने के लिए"""
+    await users_col.update_one(
+        {"user_id": user_id},
+        {"$set": {"wallet_balance": round(float(new_balance), 2)}},
+        upsert=True
+    )
+
+async def add_wallet_balance(user_id: int, amount: float) -> float:
+    """Wallet में Balance जोड़ने या घटाने के लिए ($inc)"""
+    user = await users_col.find_one_and_update(
+        {"user_id": user_id},
+        {"$inc": {"wallet_balance": round(float(amount), 2)}},
+        upsert=True,
+        return_document=True
+    )
+    return float(user.get("wallet_balance", 0.0))
+
 # -------------------- USER PURCHASES FUNCTIONS --------------------
-async def add_user_purchase(user_id: int, story_title: str):
-    """ऑटो-पेमेंट कन्फर्म होने पर यूज़र की खरीदी गई स्टोरी डेटाबेस में सेव करेगा"""
+async def add_user_purchase(user_id: int, story_title: str, story_link: str = "#"):
+    """ऑटो-पेमेंट या Wallet deduction कन्फर्म होने पर यूज़र की खरीदी गई स्टोरी डेटाबेस में सेव करेगा"""
     await purchases_col.update_one(
         {"user_id": user_id, "story_title": story_title},
-        {"$set": {"user_id": user_id, "story_title": story_title}},
+        {"$set": {"user_id": user_id, "story_title": story_title, "link": story_link}},
         upsert=True
     )
 
@@ -61,7 +90,6 @@ async def delete_story_db(title: str) -> bool:
     """स्टोरी डिलीट करने का फ़ंक्शन - Main List और Purchase List दोनों से डिलीट करता है"""
     res = await stories_col.delete_one({"title": title})
     
-    # अगर मेन डेटाबेस से स्टोरी डिलीट हो गई है, तो इसे सभी यूज़र्स की Purchases से भी हटा दें
     if res.deleted_count > 0:
         await purchases_col.delete_many({
             "$or": [
