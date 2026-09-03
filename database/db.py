@@ -68,14 +68,21 @@ async def add_wallet_balance(user_id: int, amount: float) -> float:
     )
     return float(user.get("wallet_balance", 0.0))
 
-# -------------------- USER PURCHASES FUNCTIONS --------------------
+# -------------------- USER PURCHASES & ACCESS CHECK --------------------
 async def add_user_purchase(user_id: int, story_title: str, story_link: str = "#"):
-    """ऑटो-पेमेंट या Wallet deduction कन्फर्म होने पर यूज़र की खरीदी गई स्टोरी डेटाबेस में सेव करेगा"""
+    """ऑटो-पेमेंट या Wallet deduction कन्फर्म होने पर खरीदे गए टाइटल की पहली लाइन सेव करेगा"""
+    clean_title = story_title.strip().split("\n")[0]
     await purchases_col.update_one(
-        {"user_id": user_id, "story_title": story_title},
-        {"$set": {"user_id": user_id, "story_title": story_title, "link": story_link}},
+        {"user_id": user_id, "story_title": clean_title},
+        {"$set": {"user_id": user_id, "story_title": clean_title, "link": story_link}},
         upsert=True
     )
+
+async def is_story_unlocked(user_id: int, story_title: str) -> bool:
+    """चेक करता है कि यूज़र ने स्टोरी खरीदी है या नहीं"""
+    clean_title = story_title.strip().split("\n")[0]
+    purchase = await purchases_col.find_one({"user_id": user_id, "story_title": clean_title})
+    return bool(purchase)
 
 async def get_user_purchases(user_id: int):
     """यूज़र की खरीदी हुई सभी स्टोरीज़ की लिस्ट निकालने के लिए फ़ंक्शन"""
@@ -83,18 +90,22 @@ async def get_user_purchases(user_id: int):
     return await cursor.to_list(length=None)
 
 # -------------------- STORY DATABASE FUNCTIONS --------------------
-async def add_story_db(data):
+async def add_story_db(data: dict):
+    """स्टोरी जोड़ते समय Title की केवल पहली लाइन को ही Clean Title बनाएगा"""
+    if "title" in data:
+        data["title"] = data["title"].strip().split("\n")[0]
     await stories_col.insert_one(data)
 
 async def delete_story_db(title: str) -> bool:
     """स्टोरी डिलीट करने का फ़ंक्शन - Main List और Purchase List दोनों से डिलीट करता है"""
-    res = await stories_col.delete_one({"title": title})
+    clean_title = title.strip().split("\n")[0]
+    res = await stories_col.delete_one({"title": clean_title})
     
     if res.deleted_count > 0:
         await purchases_col.delete_many({
             "$or": [
-                {"story_title": title},
-                {"title": title}
+                {"story_title": clean_title},
+                {"title": clean_title}
             ]
         })
         return True
@@ -122,5 +133,6 @@ async def search_stories_db(query, page=1, limit=10):
     total_pages = (total + limit - 1) // limit if total > 0 else 1
     return stories, total_pages
 
-async def get_story_by_title(title):
-    return await stories_col.find_one({"title": title})
+async def get_story_by_title(title: str):
+    clean_title = title.strip().split("\n")[0]
+    return await stories_col.find_one({"title": clean_title})
