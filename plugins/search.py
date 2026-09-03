@@ -81,7 +81,6 @@ async def category_handler(client, message):
     if not stories:
         return await message.reply_text(f"❌ <b>ɴᴏ sᴛᴏʀɪᴇs ᴀᴠᴀɪʟᴀʙʟᴇ ɪɴ {message.text}.</b>", reply_markup=MAIN_MENU)
         
-    # ✅ Fixed: f-string ke andar backslash (\n) hatane ke liye splitlines()[0] ka use kiya
     keyboard_buttons = [[KeyboardButton(f"📖 {s['title'].strip().splitlines()[0]}")] for s in stories]
     keyboard_buttons.append([KeyboardButton("🔙 ʙᴀᴄᴋ ᴛᴏ ᴍᴀɪɴ ᴍᴇɴᴜ")])
     
@@ -95,7 +94,7 @@ async def back_to_main_menu(client, message):
     SEARCH_WAITING.pop(user_id, None)
     await message.reply_text("<b>🌟 ᴍᴀɪɴ ᴍᴇɴᴜ:</b>", reply_markup=MAIN_MENU)
 
-# 6. Story Selection Click Handler (Shows Direct Pay & Wallet Pay Options)
+# 6. Story Selection Click Handler (Demo Button Included)
 @Client.on_message(filters.regex("^📖 ") & filters.private)
 async def story_selected_handler(client, message):
     user_id = message.from_user.id
@@ -109,11 +108,20 @@ async def story_selected_handler(client, message):
     encoded_title = clean_title.replace(" ", "_")
     wallet_bal = await get_user_wallet(user_id)
     
+    inline_buttons = []
+    
+    # 🎬 Demo Button (Checks if demo_link exists and is not 'none')
+    demo_url = story.get('demo_link')
+    if demo_url and demo_url.lower() != 'none':
+        inline_buttons.append([InlineKeyboardButton("🎬 ᴅᴇᴍᴏ / ᴘʀᴇᴠɪᴇᴡ", url=demo_url)])
+        
     # Dual Options Keyboard
-    btn = InlineKeyboardMarkup([
+    inline_buttons.extend([
         [InlineKeyboardButton(f"💳 ᴅɪʀᴇᴄᴛ ᴘᴀʏ (₹{story['price']})", callback_data=f"buy_{encoded_title}_{story['price']}")],
         [InlineKeyboardButton(f"👛 ᴘᴀʏ ᴠɪᴀ ᴡᴀʟʟᴇᴛ (Bal: ₹{wallet_bal})", callback_data=f"walletpay_{encoded_title}_{story['price']}")]
     ])
+    
+    btn = InlineKeyboardMarkup(inline_buttons)
     
     photo_url = story.get('photo', 'https://picsum.photos/400/200')
     desc = story.get('desc', 'ɴᴏ ᴅᴇsᴄʀɪᴘᴛɪᴏɴ ᴀᴠᴀɪʟᴀʙʟᴇ.')
@@ -219,7 +227,6 @@ async def process_search(client, message):
     if not stories:
         return await message.reply_text(f"❌ <b>ɴᴏ sᴛᴏʀʏ ғᴏᴜɴᴅ ᴡɪᴛʜ ɴᴀᴍᴇ '{query}'!</b>", reply_markup=MAIN_MENU)
         
-    # ✅ Fixed: f-string ke andar backslash (\n) hatane ke liye splitlines()[0] ka use kiya
     keyboard_buttons = [[KeyboardButton(f"📖 {s['title'].strip().splitlines()[0]}")] for s in stories]
     keyboard_buttons.append([KeyboardButton("🔙 ʙᴀᴄᴋ ᴛᴏ ᴍᴀɪɴ ᴍᴇɴᴜ")])
     
