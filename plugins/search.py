@@ -81,7 +81,8 @@ async def category_handler(client, message):
     if not stories:
         return await message.reply_text(f"❌ <b>ɴᴏ sᴛᴏʀɪᴇs ᴀᴠᴀɪʟᴀʙʟᴇ ɪɴ {message.text}.</b>", reply_markup=MAIN_MENU)
         
-    keyboard_buttons = [[KeyboardButton(f"📖 {s['title'].strip().split('\n')[0]}")] for s in stories]
+    # ✅ Fixed: f-string ke andar backslash (\n) hatane ke liye splitlines()[0] ka use kiya
+    keyboard_buttons = [[KeyboardButton(f"📖 {s['title'].strip().splitlines()[0]}")] for s in stories]
     keyboard_buttons.append([KeyboardButton("🔙 ʙᴀᴄᴋ ᴛᴏ ᴍᴀɪɴ ᴍᴇɴᴜ")])
     
     category_keyboard = ReplyKeyboardMarkup(keyboard_buttons, resize_keyboard=True)
@@ -104,7 +105,7 @@ async def story_selected_handler(client, message):
     if not story:
         return await message.reply_text("❌ <b>ᴛʜɪs sᴛᴏʀʏ ɪs ɴᴏᴛ ᴀᴠᴀɪʟᴀʙʟᴇ.</b>")
         
-    clean_title = story['title'].strip().split("\n")[0]
+    clean_title = story['title'].strip().splitlines()[0]
     encoded_title = clean_title.replace(" ", "_")
     wallet_bal = await get_user_wallet(user_id)
     
@@ -154,7 +155,7 @@ async def process_wallet_payment(client, callback_query):
                 show_alert=True
             )
 
-        clean_title = story['title'].strip().split("\n")[0]
+        clean_title = story['title'].strip().splitlines()[0]
         encoded_title = clean_title.replace(" ", "_")
         delivery_link = f"https://t.me/{BOT_USERNAME}?start=get_{encoded_title}"
 
@@ -218,7 +219,8 @@ async def process_search(client, message):
     if not stories:
         return await message.reply_text(f"❌ <b>ɴᴏ sᴛᴏʀʏ ғᴏᴜɴᴅ ᴡɪᴛʜ ɴᴀᴍᴇ '{query}'!</b>", reply_markup=MAIN_MENU)
         
-    keyboard_buttons = [[KeyboardButton(f"📖 {s['title'].strip().split('\n')[0]}")] for s in stories]
+    # ✅ Fixed: f-string ke andar backslash (\n) hatane ke liye splitlines()[0] ka use kiya
+    keyboard_buttons = [[KeyboardButton(f"📖 {s['title'].strip().splitlines()[0]}")] for s in stories]
     keyboard_buttons.append([KeyboardButton("🔙 ʙᴀᴄᴋ ᴛᴏ ᴍᴀɪɴ ᴍᴇɴᴜ")])
     
     search_keyboard = ReplyKeyboardMarkup(keyboard_buttons, resize_keyboard=True)
