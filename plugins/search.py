@@ -98,7 +98,7 @@ async def miniapp_button_handler(client, message):
     inner_kb = InlineKeyboardMarkup([
         [InlineKeyboardButton("🚀 ʟᴀᴜɴᴄʜ ᴍɪɴɪ ᴀᴘᴘ", web_app=WebAppInfo(url=WEB_APP_URL))]
     ])
-    await message.reply_text(text, reply_markup=inner_kb)
+    await message.reply_text(text, reply_markup=inner_kb, quote=True)
 
 # 3. 💼 MY WALLET Handler
 @Client.on_message(filters.regex("^(💼 ᴍʏ ᴡᴀʟʟᴇᴛ|💼 My Wallet)$") & filters.private)
@@ -116,7 +116,7 @@ async def wallet_handler(client, message):
     kb = InlineKeyboardMarkup([
         [InlineKeyboardButton("➕ ᴀᴅᴅ ᴍᴏɴᴇʏ / ᴛᴏᴘ-ᴜᴘ", callback_data="add_wallet_funds")]
     ])
-    await message.reply_text(text, reply_markup=kb)
+    await message.reply_text(text, reply_markup=kb, quote=True)
 
 # 4. Pocket FM / Pratilipi FM Category Handler
 @Client.on_message(filters.regex("^(📻 ᴘᴏᴄᴋᴇᴛ ғᴍ|📚 ᴘʀᴀᴛɪʟɪᴘɪ ғᴍ|📻 Pocket FM|📚 Pratilipi FM)$") & filters.private)
@@ -129,13 +129,13 @@ async def category_handler(client, message):
     stories, total_pages = await get_stories_by_cat(cat_key, page=1, limit=50)
     
     if not stories:
-        return await message.reply_text(f"❌ <b>ɴᴏ sᴛᴏʀɪᴇs ᴀᴠᴀɪʟᴀʙʟᴇ ɪɴ {message.text}.</b>", reply_markup=MAIN_MENU)
+        return await message.reply_text(f"❌ <b>ɴᴏ sᴛᴏʀɪᴇs ᴀᴠᴀɪʟᴀʙʟᴇ ɪɴ {message.text}.</b>", reply_markup=MAIN_MENU, quote=True)
         
     keyboard_buttons = [[KeyboardButton(f"📖 {s['title'].strip().splitlines()[0]}")] for s in stories]
     keyboard_buttons.append([KeyboardButton("🔙 ʙᴀᴄᴋ ᴛᴏ ᴍᴀɪɴ ᴍᴇɴᴜ")])
     
     category_keyboard = ReplyKeyboardMarkup(keyboard_buttons, resize_keyboard=True)
-    await message.reply_text(f"<b>📚 ᴀᴠᴀɪʟᴀʙʟᴇ sᴛᴏʀɪᴇs ({message.text}):</b>\n\nsᴇʟᴇᴄᴛ ʏᴏᴜʀ sᴛᴏʀʏ ғᴏʀ ᴅᴇᴛᴀɪʟs:", reply_markup=category_keyboard)
+    await message.reply_text(f"<b>📚 ᴀᴠᴀɪʟᴀʙʟᴇ sᴛᴏʀɪᴇs ({message.text}):</b>\n\nsᴇʟᴇᴄᴛ ʏᴏᴜʀ sᴛᴏʀʏ ғᴏʀ ᴅᴇᴛᴀɪʟs:", reply_markup=category_keyboard, quote=True)
 
 # 5. Back to Main Menu Handler
 @Client.on_message(filters.regex("^(🔙 ʙᴀᴄᴋ ᴛᴏ ᴍᴀɪɴ ᴍᴇɴᴜ|🔙 Back to Main Menu)$") & filters.private)
@@ -143,7 +143,7 @@ async def back_to_main_menu(client, message):
     user_id = message.from_user.id
     SEARCH_WAITING.pop(user_id, None)
     RANGE_WAITING.pop(user_id, None)
-    await message.reply_text("<b>🌟 ᴍᴀɪɴ ᴍᴇɴᴜ:</b>", reply_markup=MAIN_MENU)
+    await message.reply_text("<b>🌟 ᴍᴀɪɴ ᴍᴇɴᴜ:</b>", reply_markup=MAIN_MENU, quote=True)
 
 # 6. Story Selection Click Handler
 @Client.on_message(filters.regex("^📖 ") & filters.private)
@@ -153,7 +153,7 @@ async def story_selected_handler(client, message):
     story = await get_story_by_title(story_title)
     
     if not story:
-        return await message.reply_text("❌ <b>ᴛʜɪs sᴛᴏʀʏ ɪs ɴᴏᴛ ᴀᴠᴀɪʟᴀʙʟᴇ.</b>")
+        return await message.reply_text("❌ <b>ᴛʜɪs sᴛᴏʀʏ ɪs ɴᴏᴛ ᴀᴠᴀɪʟᴀʙʟᴇ.</b>", quote=True)
         
     clean_title = story['title'].strip().splitlines()[0]
     encoded_title = clean_title.replace(" ", "_")
@@ -182,9 +182,9 @@ async def story_selected_handler(client, message):
     )
     
     try:
-        await message.reply_photo(photo=photo_url, caption=caption_text, reply_markup=btn)
+        await message.reply_photo(photo=photo_url, caption=caption_text, reply_markup=btn, quote=True)
     except Exception:
-        await message.reply_text(caption_text, reply_markup=btn)
+        await message.reply_text(caption_text, reply_markup=btn, quote=True)
 
 # 6.1 View Demo Callback Handler
 @Client.on_callback_query(filters.regex(r"^viewdemo_"))
@@ -365,11 +365,11 @@ async def batch_start_handler(client, message):
             encoded_title = raw_param.replace("get_", "")
             story_title = encoded_title.replace("_", " ")
         except Exception:
-            return await message.reply_text("❌ <b>ɪɴᴠᴀʟɪᴅ ᴏʀ ᴄᴏʀʀᴜᴘᴛᴇᴅ ʟɪɴᴋ!</b>")
+            return await message.reply_text("❌ <b>ɪɴᴠᴀʟɪᴅ ᴏʀ ᴄᴏʀʀᴜᴘᴛᴇᴅ ʟɪɴᴋ!</b>", quote=True)
 
         story = await get_story_by_title(story_title)
         if not story:
-            return await message.reply_text("❌ <b>sᴛᴏʀʏ ɴᴏᴛ ғᴏᴜɴᴅ ɪɴ ᴅᴀᴛᴀʙᴀsᴇ!</b>")
+            return await message.reply_text("❌ <b>sᴛᴏʀʏ ɴᴏᴛ ғᴏᴜɴᴅ ɪɴ ᴅᴀᴛᴀʙᴀsᴇ!</b>", quote=True)
 
         clean_title = story['title'].strip().splitlines()[0]
 
@@ -381,14 +381,15 @@ async def batch_start_handler(client, message):
             ])
             return await message.reply_text(
                 f"🔒 <b>ᴀᴄᴄᴇss ᴅᴇɴɪᴇᴅ!</b>\n\nYou haven't purchased <b>{clean_title}</b> yet.",
-                reply_markup=buy_btn
+                reply_markup=buy_btn,
+                quote=True
             )
 
         first_id = story.get('first_msg_id')
         last_id = story.get('last_msg_id')
 
         if not first_id or not last_id:
-            return await message.reply_text("⚠️ <b>ɴᴏ ғɪʟᴇs ᴀssᴏᴄɪᴀᴛᴇᴅ ᴡɪᴛʜ ᴛʜɪs sᴛᴏʀʏ!</b>")
+            return await message.reply_text("⚠️ <b>ɴᴏ ғɪʟᴇs ᴀssᴏᴄɪᴀᴛᴇᴅ ᴡɪᴛʜ ᴛʜɪs sᴛᴏʀʏ!</b>", quote=True)
 
         total_files = (last_id - first_id) + 1
 
@@ -402,7 +403,8 @@ async def batch_start_handler(client, message):
                 f"📚 <b>{clean_title}</b>\n\n"
                 f"⚠️ इस स्टोरी में कुल <b>{total_files}</b> एपिसोड्स हैं।\n"
                 f"आप सभी एक साथ मँगवाना चाहते हैं या अपनी पसंद की रेंज?",
-                reply_markup=choice_kb
+                reply_markup=choice_kb,
+                quote=True
             )
 
         # Directly send files if 100 or less
@@ -419,7 +421,8 @@ async def search_prompt(client, message):
         "<b>ɴᴏᴡ ʏᴏᴜ ᴄᴀɴ sᴇᴀʀᴄʜ ʏᴏᴜʀ sᴛᴏʀʏ!</b> 🔍\n\n"
         "ᴛʏᴘᴇ ᴀɴᴅ sᴇɴᴅ ᴛʜᴇ sᴛᴏʀʏ ɴᴀᴍᴇ:\n"
         "<i>(स्पेलिंग थोड़ी गलत होने पर भी बॉट सही रिजल्ट ढूंढ लेगा)</i>",
-        reply_markup=ForceReply(selective=True, placeholder="ᴛʏᴘᴇ sᴛᴏʀʏ ɴᴀᴍᴇ ʜᴇʀᴇ...")
+        reply_markup=ForceReply(selective=True, placeholder="ᴛʏᴘᴇ sᴛᴏʀʏ ɴᴀᴍᴇ ʜᴇʀᴇ..."),
+        quote=True
     )
 
 # 11. Process Custom Range Input Text from User
@@ -431,12 +434,12 @@ async def process_range_input(client, message):
         
     text = message.text.strip()
     if "-" not in text:
-        return await message.reply_text("❌ <b>गलत फॉर्मेट!</b> कृपया सही फॉर्मेट में लिखें, जैसे: <code>110-120</code>")
+        return await message.reply_text("❌ <b>गलत फॉर्मेट!</b> कृपया सही फॉर्मेट में लिखें, जैसे: <code>110-120</code>", quote=True)
         
     try:
         start_ep, end_ep = map(int, text.split("-"))
     except ValueError:
-        return await message.reply_text("❌ <b>केवल नंबर लिखें</b> (जैसे <code>110-120</code>)।")
+        return await message.reply_text("❌ <b>केवल नंबर लिखें</b> (जैसे <code>110-120</code>)।", quote=True)
         
     data = RANGE_WAITING.get(user_id)
     story = data['story']
@@ -447,13 +450,14 @@ async def process_range_input(client, message):
     
     # Boundary Validations
     if start_ep < 1 or start_ep > end_ep:
-        return await message.reply_text("❌ <b>अमान्य रेंज!</b> शुरुआत का नंबर 1 से कम या अंत वाले नंबर से बड़ा नहीं हो सकता।")
+        return await message.reply_text("❌ <b>अमान्य रेंज!</b> शुरुआत का नंबर 1 से कम या अंत वाले नंबर से बड़ा नहीं हो सकता।", quote=True)
         
     if start_ep > total_story_episodes or end_ep > total_story_episodes:
         return await message.reply_text(
             f"❌ <b>रेंज सीमा से बाहर है!</b>\n\n"
             f"इस स्टोरी में केवल <b>{total_story_episodes}</b> एपिसोड्स उपलब्ध हैं।\n"
-            f"कृपया <code>1</code> से <code>{total_story_episodes}</code> के बीच की सीमा दर्ज करें।"
+            f"कृपया <code>1</code> से <code>{total_story_episodes}</code> के बीच की सीमा दर्ज करें।",
+            quote=True
         )
 
     # State Reset
@@ -513,10 +517,10 @@ async def process_search(client, message):
         matched_stories = db_stories or []
     
     if not matched_stories:
-        return await message.reply_text(f"❌ <b>ɴᴏ sᴛᴏʀʏ ғᴏᴜɴᴅ ᴡɪᴛʜ ɴᴀᴍᴇ '{query}'!</b>", reply_markup=MAIN_MENU)
+        return await message.reply_text(f"❌ <b>ɴᴏ sᴛᴏʀʏ ғᴏᴜɴᴅ ᴡɪᴛʜ ɴᴀᴍᴇ '{query}'!</b>", reply_markup=MAIN_MENU, quote=True)
         
     keyboard_buttons = [[KeyboardButton(f"📖 {s['title'].strip().splitlines()[0]}")] for s in matched_stories]
-    keyboard_buttons.append([KeyboardButton("🔙 ʙᴀᴄᴋ ᴛᴏ ᴍᴀɪɴ 模ᴇɴᴜ")])
+    keyboard_buttons.append([KeyboardButton("🔙 ʙᴀᴄᴋ ᴛᴏ ᴍᴀɪɴ ᴍᴇɴᴜ")])
     
     search_keyboard = ReplyKeyboardMarkup(keyboard_buttons, resize_keyboard=True)
-    await message.reply_text(f"🔍 <b>ғᴏᴜɴᴅ sᴛᴏʀɪᴇs ᴍᴀᴛᴄʜɪɴɢ '{query}':</b>", reply_markup=search_keyboard)
+    await message.reply_text(f"🔍 <b>ғᴏᴜɴᴅ sᴛᴏʀɪᴇs ᴍᴀᴛᴄʜɪɴɢ '{query}':</b>", reply_markup=search_keyboard, quote=True)
