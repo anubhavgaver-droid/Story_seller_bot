@@ -1,4 +1,5 @@
 import json
+import asyncio
 from pyrogram import Client, filters, enums
 from pyrogram.types import (
     ReplyKeyboardMarkup, 
@@ -17,9 +18,10 @@ from database.db import (
     get_user_purchases, 
     get_user_wallet,
     update_user_wallet,
-    add_user_purchase
+    add_user_purchase,
+    is_story_unlocked
 )
-from config import BOT_USERNAME, WEB_APP_URL
+from config import BOT_USERNAME, WEB_APP_URL, CHANNEL_ID
 
 # Search State Dictionary
 SEARCH_WAITING = {}
@@ -56,13 +58,14 @@ async def web_app_data_handler(client, message):
             if not story:
                 return await message.reply_text("❌ <b>sᴛᴏʀʏ ɴᴏᴛ ғᴏᴜɴᴅ.</b>")
 
-            clean_title = story_title.replace(" ", "_")
+            clean_title = story_title.strip().split("\n")[0]
+            encoded_title = clean_title.replace(" ", "_")
             wallet_bal = await get_user_wallet(message.from_user.id)
             
             # Payment Option Keyboard
             btn = InlineKeyboardMarkup([
-                [InlineKeyboardButton(f"💳 ᴅɪʀᴇᴄᴛ ᴘᴀʏ (₹{price})", callback_data=f"buy_{clean_title}_{price}")],
-                [InlineKeyboardButton(f"👛 ᴘᴀʏ ᴠɪᴀ ᴡᴀʟʟᴇᴛ (Bal: ₹{wallet_bal})", callback_data=f"walletpay_{clean_title}_{price}")]
+                [InlineKeyboardButton(f"💳 ᴅɪʀᴇᴄᴛ ᴘᴀʏ (₹{price})", callback_data=f"buy_{encoded_title}_{price}")],
+                [InlineKeyboardButton(f"👛 ᴘᴀʏ ᴠɪᴀ ᴡᴀʟʟᴇᴛ (Bal: ₹{wallet_bal})", callback_data=f"walletpay_{encoded_title}_{price}")]
             ])
             
             photo_url = story.get('photo', 'https://picsum.photos/400/200')
@@ -70,7 +73,7 @@ async def web_app_data_handler(client, message):
 
             caption_text = (
                 f"🛒 <b>ᴏʀᴅᴇʀ ɪɴɪᴛɪᴀᴛᴇᴅ ғʀᴏᴍ ᴍɪɴɪ ᴀᴘᴘ</b>\n\n"
-                f"📖 <b>ᴛɪᴛʟᴇ:</b> {story_title}\n"
+                f"📖 <b>ᴛɪᴛʟᴇ:</b> {clean_title}\n"
                 f"💰 <b>ᴘʀɪᴄᴇ:</b> ₹{price}\n"
                 f"👛 <b>ʏᴏᴜʀ ᴡᴀʟʟᴇᴛ:</b> ₹{wallet_bal}\n"
                 f"📝 <b>ᴅᴇsᴄ:</b> {desc}\n\n"
@@ -108,23 +111,27 @@ async def process_wallet_payment(client, callback_query):
                 show_alert=True
             )
 
+        clean_title = story['title'].strip().split("\n")[0]
+        encoded_title = clean_title.replace(" ", "_")
+        delivery_link = f"https://t.me/{BOT_USERNAME}?start=get_{encoded_title}"
+
         # 2. Deduct Balance & Add Purchase
         new_balance = current_balance - price
         await update_user_wallet(user_id, new_balance)
-        await add_user_purchase(user_id, story['title'], story.get('link', '#'))
+        await add_user_purchase(user_id, clean_title, story_link=delivery_link)
 
         await callback_query.answer("🎉 Purchase successful! Story unlocked.", show_alert=True)
         
         success_text = (
             f"✅ <b>ᴘᴜʀᴄʜᴀsᴇ sᴜᴄᴄᴇssғᴜʟ!</b>\n\n"
-            f"📖 <b>sᴛᴏʀʏ:</b> {story['title']}\n"
+            f"📖 <b>sᴛᴏʀʏ:</b> {clean_title}\n"
             f"💸 <b>ᴅᴇᴅᴜᴄᴛᴇᴅ:</b> ₹{price}\n"
             f"👛 <b>ʀᴇᴍᴀɪɴɪɴɢ ʙᴀʟᴀɴᴄᴇ:</b> ₹{new_balance}\n\n"
-            f"👇 Click below to access your story:"
+            f"👇 Click below to access your story files:"
         )
         
         access_btn = InlineKeyboardMarkup([
-            [InlineKeyboardButton(f"🚀 ᴀᴄᴄᴇss {story['title']}", url=story.get('link', 'https://t.me'))]
+            [InlineKeyboardButton("📂 ɢᴇᴛ ғɪʟᴇs (Unlocked)", url=delivery_link)]
         ])
         
         await callback_query.message.edit_text(success_text, reply_markup=access_btn)
@@ -133,11 +140,12 @@ async def process_wallet_payment(client, callback_query):
         print(f"Error processing wallet payment: {e}")
         await callback_query.answer("❌ Error processing wallet payment!", show_alert=True)
 
-# ------------------ Start Handler ------------------
+# ------------------ Start & Deep-Link Batch Delivery Handler ------------------
 @Client.on_message(filters.command("start") & filters.private, group=-1)
 async def start_handler(client, message):
     user = message.from_user
     
+    # 1. User Registration Logic
     registered = await is_user_registered(user.id)
     if not registered:
         await register_user(user.id, user.first_name, user.username)
@@ -154,13 +162,82 @@ async def start_handler(client, message):
 
     args = message.text.split(maxsplit=1)
     
+    # 2. BATCH DELIVERY MECHANISM (get_ENCODED_TITLE)
+    if len(args) > 1 and args[1].startswith("get_"):
+        raw_param = args[1]
+        try:
+            encoded_title = raw_param.replace("get_", "")
+            story_title = encoded_title.replace("_", " ")
+        except Exception:
+            return await message.reply_text("❌ <b>ɪɴᴠᴀʟɪᴅ ᴏʀ ᴄᴏʀʀᴜᴘᴛᴇᴅ ʟɪɴᴋ!</b>")
+
+        story = await get_story_by_title(story_title)
+        if not story:
+            return await message.reply_text("❌ <b>sᴛᴏʀʏ ɴᴏᴛ ғᴏᴜɴᴅ ɪɴ ᴅᴀᴛᴀʙᴀsᴇ!</b>")
+
+        clean_title = story['title'].strip().split("\n")[0]
+
+        # Purchase Status Verification
+        unlocked = await is_story_unlocked(user.id, clean_title)
+        if not unlocked:
+            buy_btn = InlineKeyboardMarkup([
+                [InlineKeyboardButton("💳 ʙᴜʏ ɴᴏᴡ", callback_data=f"buy_{encoded_title}_{story['price']}")]
+            ])
+            return await message.reply_text(
+                f"🔒 <b>ᴀᴄᴄᴇss ᴅᴇɴɪᴇᴅ!</b>\n\n"
+                f"You haven't purchased <b>{clean_title}</b> yet.\n"
+                f"Please buy it first to unlock access.",
+                reply_markup=buy_btn
+            )
+
+        first_id = story.get('first_msg_id')
+        last_id = story.get('last_msg_id')
+
+        if not first_id or not last_id:
+            return await message.reply_text("⚠️ <b>ɴᴏ ғɪʟᴇs ᴀssᴏᴄɪᴀᴛᴇᴅ ᴡɪᴛʜ ᴛʜɪs sᴛᴏʀʏ!</b>\nPlease contact support.")
+
+        status_msg = await message.reply_text(f"⏳ <b>ғᴇᴛᴄʜɪɴɢ ғɪʟᴇs ғᴏʀ:</b> <i>{clean_title}</i>\nᴘʟᴇᴀsᴇ ᴡᴀɪᴛ...")
+
+        # File Delivery Loop
+        success_count = 0
+        total_files = (last_id - first_id) + 1
+
+        for msg_id in range(first_id, last_id + 1):
+            try:
+                await client.copy_message(
+                    chat_id=user.id,
+                    from_chat_id=CHANNEL_ID,
+                    message_id=msg_id,
+                    protect_content=True
+                )
+                success_count += 1
+                await asyncio.sleep(0.5)
+            except Exception as e:
+                print(f"Error copying message {msg_id}: {e}")
+
+        try:
+            await status_msg.delete()
+        except Exception:
+            pass
+
+        if success_count > 0:
+            return await message.reply_text(
+                f"🎉 <b>All files delivered successfully!</b>\n\n"
+                f"📖 <b>Story:</b> {clean_title}\n"
+                f"📦 <b>Delivered Episodes/Files:</b> {success_count} / {total_files}"
+            )
+        else:
+            return await message.reply_text("❌ <b>Failed to deliver files. Make sure bot is Admin in DB Channel.</b>")
+
+    # 3. DIRECT STORY VIEW FROM DEEP LINK (story_ENCODED_TITLE)
     if len(args) > 1 and args[1].startswith("story_"):
         raw_param = args[1]
         story_title = raw_param.replace("story_", "").replace("_", " ")
         story = await get_story_by_title(story_title)
         
         if story:
-            clean_title = story['title'].replace(" ", "_")
+            clean_title = story['title'].strip().split("\n")[0]
+            encoded_title = clean_title.replace(" ", "_")
             photo_url = story.get('photo', 'https://picsum.photos/400/200')
             desc = story.get('desc', 'ɴᴏ ᴅᴇsᴄʀɪᴘᴛɪᴏɴ ᴀᴠᴀɪʟᴀʙʟᴇ.')
             wallet_bal = await get_user_wallet(user.id)
@@ -177,19 +254,19 @@ async def start_handler(client, message):
                 [
                     InlineKeyboardButton(
                         f"💳 ᴅɪʀᴇᴄᴛ ʙᴜʏ (₹{story['price']})", 
-                        callback_data=f"buy_{clean_title}_{story['price']}"
+                        callback_data=f"buy_{encoded_title}_{story['price']}"
                     )
                 ],
                 [
                     InlineKeyboardButton(
                         f"👛 ᴘᴀʏ ᴠɪᴀ ᴡᴀʟʟᴇᴛ (Bal: ₹{wallet_bal})", 
-                        callback_data=f"walletpay_{clean_title}_{story['price']}"
+                        callback_data=f"walletpay_{encoded_title}_{story['price']}"
                     )
                 ]
             ])
             
             caption_text = (
-                f"📖 <b>ᴛɪᴛʟᴇ:</b> {story['title']}\n"
+                f"📖 <b>ᴛɪᴛʟᴇ:</b> {clean_title}\n"
                 f"💰 <b>ᴘʀɪᴄᴇ:</b> ₹{story['price']}\n"
                 f"👛 <b>ʏᴏᴜʀ ᴡᴀʟʟᴇᴛ:</b> ₹{wallet_bal}\n"
                 f"📝 <b>ᴅᴇsᴄ:</b> {desc}\n\n"
@@ -203,6 +280,7 @@ async def start_handler(client, message):
         else:
             return await message.reply_text("❌ <b>ᴛʜɪs sᴛᴏʀʏ ɪs ɴᴏᴛ ᴀᴠᴀɪʟᴀʙʟᴇ.</b>", reply_markup=MAIN_MENU)
 
+    # 4. NORMAL /START WELCOME MESSAGE
     welcome_text = (
         f"<b>━━━━━━━ 🌟 sᴛᴏʀʏ sᴇʟʟᴇʀ ʙᴏᴛ 🌟 ━━━━━━━</b>\n\n"
         f"ʜᴇʟʟᴏ {user.first_name}! 👋\n\n"
@@ -226,8 +304,7 @@ async def wallet_handler(client, message):
     )
     
     kb = InlineKeyboardMarkup([
-        [InlineKeyboardButton("➕ ᴀᴅᴅ ᴍᴏɴᴇʏ / ᴛᴏᴘ-ᴜᴘ", callback_data="add_wallet_funds")],
-        [InlineKeyboardButton("📜 ᴛʀᴀɴsᴀᴄᴛɪᴏɴ ʜɪsᴛᴏʀʏ", callback_data="wallet_history")]
+        [InlineKeyboardButton("➕ ᴀᴅᴅ ᴍᴏɴᴇʏ / ᴛᴏᴘ-ᴜᴘ", callback_data="add_wallet_funds")]
     ])
     
     await message.reply_text(text, reply_markup=kb)
@@ -290,8 +367,12 @@ async def account_handler(client, message):
     for item in purchases:
         story = await get_story_by_title(item['story_title'])
         if story:
-            acc_text += f"• <b>{story['title']}</b>\n"
-            buttons.append([InlineKeyboardButton(f"🚀 ᴀᴄᴄᴇss {story['title']}", url=story['link'])])
+            clean_title = story['title'].strip().split("\n")[0]
+            encoded_title = clean_title.replace(" ", "_")
+            delivery_link = f"https://t.me/{BOT_USERNAME}?start=get_{encoded_title}"
+            
+            acc_text += f"• <b>{clean_title}</b>\n"
+            buttons.append([InlineKeyboardButton(f"🚀 ᴀᴄᴄᴇss {clean_title}", url=delivery_link)])
             
     reply_markup = InlineKeyboardMarkup(buttons) if buttons else None
     await message.reply_text(acc_text, reply_markup=reply_markup)
