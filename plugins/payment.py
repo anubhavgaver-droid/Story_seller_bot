@@ -1,7 +1,7 @@
 import urllib.parse
 from pyrogram import Client, filters
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ForceReply
-from config import UPI_ID, ADMIN_ID
+from config import UPI_ID, ADMIN_ID, BOT_USERNAME
 from database.db import get_story_by_title, add_user_purchase, add_wallet_balance
 
 # Waiting States
@@ -16,11 +16,12 @@ async def view_story(client, callback):
     if not story:
         return await callback.answer("❌ sᴛᴏʀʏ ɴᴏᴛ ғᴏᴜɴᴅ!", show_alert=True)
         
-    clean_title = story['title'].replace(" ", "_")
-    btn = InlineKeyboardMarkup([[InlineKeyboardButton("💳 ʙᴜʏ ɴᴏᴡ", callback_data=f"buy_{clean_title}_{story['price']}")]])
+    clean_title = story['title'].strip().split("\n")[0]
+    encoded_title = clean_title.replace(" ", "_")
+    btn = InlineKeyboardMarkup([[InlineKeyboardButton("💳 ʙᴜʏ ɴᴏᴡ", callback_data=f"buy_{encoded_title}_{story['price']}")]])
     await callback.message.reply_photo(
         photo=story.get('photo', 'https://picsum.photos/400/200'),
-        caption=f"📖 <b>ᴛɪᴛʟᴇ:</b> {story['title']}\n💰 <b>ᴘʀɪᴄᴇ:</b> ₹{story['price']}\n📝 <b>ᴅᴇsᴄ:</b> {story['desc']}",
+        caption=f"📖 <b>ᴛɪᴛʟᴇ:</b> {clean_title}\n💰 <b>ᴘʀɪᴄᴇ:</b> ₹{story['price']}\n📝 <b>ᴅᴇsᴄ:</b> {story.get('desc', 'N/A')}",
         reply_markup=btn
     )
     await callback.answer()
@@ -184,11 +185,16 @@ async def approve_order(client, callback):
     story = await get_story_by_title(title)
     if not story:
         return await callback.answer("❌ sᴛᴏʀʏ ɴᴏᴛ ғᴏᴜɴᴅ ɪɴ ᴅᴀᴛᴀʙᴀsᴇ!", show_alert=True)
-        
-    await add_user_purchase(user_id, story['title'])
+    
+    clean_title = story['title'].strip().split("\n")[0]
+    encoded_title = clean_title.replace(" ", "_")
+    delivery_link = f"https://t.me/{BOT_USERNAME}?start=get_{encoded_title}"
+
+    # Save to Purchases DB
+    await add_user_purchase(user_id, clean_title, story_link=delivery_link)
 
     access_btn = InlineKeyboardMarkup([
-        [InlineKeyboardButton("🚀 ᴀᴄᴄᴇss sᴛᴏʀʏ", url=story['link'])]
+        [InlineKeyboardButton("📂 ɢᴇᴛ ғɪʟᴇs (Unlocked)", url=delivery_link)]
     ])
     
     try:
@@ -196,7 +202,7 @@ async def approve_order(client, callback):
             chat_id=user_id,
             text=(
                 f"🎉 <b>ʏᴏᴜʀ ᴘᴀʏᴍᴇɴᴛ ʜᴀs ʙᴇᴇɴ ᴀᴘᴘʀᴏᴠᴇᴅ!</b>\n\n"
-                f"📖 <b>sᴛᴏʀʏ:</b> {story['title']}\n\n"
+                f"📖 <b>sᴛᴏʀʏ:</b> {clean_title}\n\n"
                 f"ᴄʟɪᴄᴋ ᴛʜᴇ ʙᴜᴛᴛᴏɴ ʙᴇʟᴏᴡ ᴛᴏ ᴀᴄᴄᴇss ʏᴏᴜʀ ᴄᴏɴᴛᴇɴᴛ:"
             ),
             reply_markup=access_btn,
