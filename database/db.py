@@ -4,7 +4,7 @@ from config import MONGO_URL, LOG_CHANNEL
 client = AsyncIOMotorClient(MONGO_URL)
 db = client["story_seller_db"]
 stories_col = db["stories"]
-users_col = db["users"]  # Collection for User Registration & Wallet
+users_col = db["users"]        # Collection for User Registration & Wallet
 purchases_col = db["purchases"]  # Collection for Purchased Stories
 
 # -------------------- LOG HELPER FUNCTION --------------------
@@ -91,22 +91,35 @@ async def get_user_purchases(user_id: int):
 
 # -------------------- STORY DATABASE FUNCTIONS --------------------
 async def add_story_db(data: dict):
-    """स्टोरी जोड़ते समय Title की केवल पहली लाइन को ही Clean Title बनाएगा और demo_link सपोर्ट करेगा"""
+    """
+    स्टोरी जोड़ते समय Title की केवल पहली लाइन को ही Clean Title बनाएगा।
+    demo_enabled (Yes/No) और message ID range (first_msg_id & last_msg_id) को सपोर्ट करता है।
+    """
     if "title" in data:
         data["title"] = data["title"].strip().split("\n")[0]
     
-    # Check for demo_link field
-    if "demo_link" not in data or not data["demo_link"]:
-        data["demo_link"] = "none"
+    # Defaults for Demo System
+    data.setdefault("demo_enabled", False)
+    data.setdefault("first_msg_id", 0)
+    data.setdefault("last_msg_id", 0)
 
     await stories_col.insert_one(data)
 
-async def update_story_demo_link(title: str, demo_link: str) -> bool:
-    """किसी भी मौजूदा स्टोरी का डेमो लिंक अपडेट करने के लिए फ़ंक्शन"""
+async def update_story_demo_status(title: str, is_enabled: bool) -> bool:
+    """किसी स्टोरी के लिए Demo (Yes/No) टॉगल करने का फ़ंक्शन"""
     clean_title = title.strip().split("\n")[0]
     res = await stories_col.update_one(
         {"title": clean_title},
-        {"$set": {"demo_link": demo_link}}
+        {"$set": {"demo_enabled": is_enabled}}
+    )
+    return res.modified_count > 0
+
+async def update_story_range(title: str, first_msg_id: int, last_msg_id: int) -> bool:
+    """किसी स्टोरी के लिए First और Last Message ID सेट करने का फ़ंक्शन"""
+    clean_title = title.strip().split("\n")[0]
+    res = await stories_col.update_one(
+        {"title": clean_title},
+        {"$set": {"first_msg_id": int(first_msg_id), "last_msg_id": int(last_msg_id)}}
     )
     return res.modified_count > 0
 
