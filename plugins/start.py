@@ -106,7 +106,7 @@ async def web_app_data_handler(client, message):
         if action == "buy_story":
             story = await get_story_by_title(story_title)
             if not story:
-                return await message.reply_text("❌ <b>sᴛᴏʀʏ ɴᴏᴛ ғᴏᴜɴᴅ.</b>")
+                return await message.reply_text("❌ <b>sᴛᴏʀʏ ɴᴏᴛ ғᴏᴜɴᴅ.</b>", quote=True)
 
             clean_title = story_title.strip().split("\n")[0]
             encoded_title = clean_title.replace(" ", "_")
@@ -136,9 +136,9 @@ async def web_app_data_handler(client, message):
             )
             
             try:
-                await message.reply_photo(photo=photo_url, caption=caption_text, reply_markup=btn)
+                await message.reply_photo(photo=photo_url, caption=caption_text, reply_markup=btn, quote=True)
             except Exception:
-                await message.reply_text(caption_text, reply_markup=btn)
+                await message.reply_text(caption_text, reply_markup=btn, quote=True)
     except Exception as e:
         print(f"WebApp Data Error: {e}")
 
@@ -319,12 +319,12 @@ async def process_start_range_input(client, message):
         
     text = message.text.strip()
     if "-" not in text:
-        return await message.reply_text("❌ <b>गलत फॉर्मेट!</b> कृपया सही फॉर्मेट में लिखें, जैसे: <code>110-120</code>")
+        return await message.reply_text("❌ <b>गलत फॉर्मेट!</b> कृपया सही फॉर्मेट में लिखें, जैसे: <code>110-120</code>", quote=True)
         
     try:
         start_ep, end_ep = map(int, text.split("-"))
     except ValueError:
-        return await message.reply_text("❌ <b>केवल नंबर लिखें</b> (जैसे <code>110-120</code>)।")
+        return await message.reply_text("❌ <b>केवल नंबर लिखें</b> (जैसे <code>110-120</code>)।", quote=True)
         
     data = START_RANGE_WAITING.get(user_id)
     story = data['story']
@@ -335,13 +335,14 @@ async def process_start_range_input(client, message):
     
     # Range Checks
     if start_ep < 1 or start_ep > end_ep:
-        return await message.reply_text("❌ <b>अमान्य रेंज!</b> शुरुआत का नंबर 1 से कम या अंत वाले नंबर से बड़ा नहीं हो सकता।")
+        return await message.reply_text("❌ <b>अमान्य रेंज!</b> शुरुआत का नंबर 1 से कम या अंत वाले नंबर से बड़ा नहीं हो सकता।", quote=True)
         
     if start_ep > total_story_episodes or end_ep > total_story_episodes:
         return await message.reply_text(
             f"❌ <b>रेंज सीमा से बाहर है!</b>\n\n"
             f"इस स्टोरी में केवल <b>{total_story_episodes}</b> एपिसोड्स उपलब्ध हैं।\n"
-            f"कृपया <code>1</code> से <code>{total_story_episodes}</code> के बीच की सीमा दर्ज करें।"
+            f"कृपया <code>1</code> से <code>{total_story_episodes}</code> के बीच की सीमा दर्ज करें।",
+            quote=True
         )
 
     START_RANGE_WAITING.pop(user_id, None)
@@ -362,24 +363,27 @@ async def process_start_range_input(client, message):
     )
 
 # ------------------ Start & Deep-Link Batch Delivery Handler ------------------
-@Client.on_message(filters.command("start") & filters.private, group=-1)
+@Client.on_message(filters.command("start") & filters.private)
 async def start_handler(client, message):
     user = message.from_user
     
-    # 1. Registration Logic
-    registered = await is_user_registered(user.id)
-    if not registered:
-        await register_user(user.id, user.first_name, user.username)
-        try:
-            log_text = (
-                f"<b>🆕 ɴᴇᴡ ᴜsᴇʀ ʀᴇɢɪsᴛᴇʀᴇᴅ!</b>\n"
-                f"<b>ɴᴀᴍᴇ:</b> {user.first_name}\n"
-                f"<b>ᴜsᴇʀ ɪᴅ:</b> <code>{user.id}</code>\n"
-                f"<b>ᴜsᴇʀɴᴀᴍᴇ:</b> @{user.username if user.username else 'None'}"
-            )
-            await send_log(client, log_text)
-        except Exception as e:
-            print(f"Log Error: {e}")
+    # 1. Registration Logic (Wrapped in Try-Except to prevent blocking)
+    try:
+        registered = await is_user_registered(user.id)
+        if not registered:
+            await register_user(user.id, user.first_name, user.username)
+            try:
+                log_text = (
+                    f"<b>🆕 ɴᴇᴡ ᴜsᴇʀ ʀᴇɢɪsᴛᴇʀᴇᴅ!</b>\n"
+                    f"<b>ɴᴀᴍᴇ:</b> {user.first_name}\n"
+                    f"<b>ᴜsᴇʀ ɪᴅ:</b> <code>{user.id}</code>\n"
+                    f"<b>ᴜsᴇʀɴᴀᴍᴇ:</b> @{user.username if user.username else 'None'}"
+                )
+                await send_log(client, log_text)
+            except Exception as e:
+                print(f"Log Error: {e}")
+    except Exception as db_err:
+        print(f"Database Error in /start registration: {db_err}")
 
     args = message.text.split(maxsplit=1)
     
@@ -390,11 +394,11 @@ async def start_handler(client, message):
             encoded_title = raw_param.replace("get_", "")
             story_title = encoded_title.replace("_", " ")
         except Exception:
-            return await message.reply_text("❌ <b>ɪɴᴠᴀʟɪᴅ ᴏʀ ᴄᴏʀʀᴜᴘᴛᴇᴅ ʟɪɴᴋ!</b>")
+            return await message.reply_text("❌ <b>ɪɴᴠᴀʟɪᴅ ᴏʀ ᴄᴏʀʀᴜᴘᴛᴇᴅ ʟɪɴᴋ!</b>", quote=True)
 
         story = await get_story_by_title(story_title)
         if not story:
-            return await message.reply_text("❌ <b>sᴛᴏʀʏ ɴᴏᴛ ғᴏᴜɴᴅ ɪɴ ᴅᴀᴛᴀʙᴀsᴇ!</b>")
+            return await message.reply_text("❌ <b>sᴛᴏʀʏ ɴᴏᴛ ғᴏᴜɴᴅ ɪɴ ᴅᴀᴛᴀʙᴀsᴇ!</b>", quote=True)
 
         clean_title = story['title'].strip().split("\n")[0]
 
@@ -408,14 +412,15 @@ async def start_handler(client, message):
                 f"🔒 <b>ᴀᴄᴄᴇss ᴅᴇɴɪᴇᴅ!</b>\n\n"
                 f"You haven't purchased <b>{clean_title}</b> yet.\n"
                 f"Please buy it first to unlock access.",
-                reply_markup=buy_btn
+                reply_markup=buy_btn,
+                quote=True
             )
 
         first_id = story.get('first_msg_id')
         last_id = story.get('last_msg_id')
 
         if not first_id or not last_id:
-            return await message.reply_text("⚠️ <b>ɴᴏ ғɪʟᴇs ᴀssᴏᴄɪᴀᴛᴇᴅ ᴡɪᴛʜ ᴛʜɪs sᴛᴏʀʏ!</b>\nPlease contact support.")
+            return await message.reply_text("⚠️ <b>ɴᴏ ғɪʟᴇs ᴀssᴏᴄɪᴀᴛᴇᴅ ᴡɪᴛʜ ᴛʜɪs sᴛᴏʀʏ!</b>\nPlease contact support.", quote=True)
 
         total_files = (last_id - first_id) + 1
 
@@ -429,7 +434,8 @@ async def start_handler(client, message):
                 f"📚 <b>{clean_title}</b>\n\n"
                 f"⚠️ इस स्टोरी में कुल <b>{total_files}</b> एपिसोड्स हैं।\n"
                 f"आप सभी एपिसोड्स एक साथ पाना चाहते हैं या कुछ खास रेंज?",
-                reply_markup=choice_kb
+                reply_markup=choice_kb,
+                quote=True
             )
 
         # Directly send files if <= 100
@@ -487,19 +493,21 @@ async def start_handler(client, message):
             )
             
             try:
-                return await message.reply_photo(photo=photo_url, caption=caption_text, reply_markup=btn)
+                return await message.reply_photo(photo=photo_url, caption=caption_text, reply_markup=btn, quote=True)
             except Exception:
-                return await message.reply_text(caption_text, reply_markup=btn)
+                return await message.reply_text(caption_text, reply_markup=btn, quote=True)
         else:
-            return await message.reply_text("❌ <b>ᴛʜɪs sᴛᴏʀʏ ɪs ɴᴏᴛ ᴀᴠᴀɪʟᴀʙʟᴇ.</b>", reply_markup=MAIN_MENU)
+            return await message.reply_text("❌ <b>ᴛʜɪs sᴛᴏʀʏ ɪs ɴᴏᴛ ᴀᴠᴀɪʟᴀʙʟᴇ.</b>", reply_markup=MAIN_MENU, quote=True)
 
-    # 4. NORMAL /START WELCOME MESSAGE
+    # 4. NORMAL /START WELCOME MESSAGE (Screenshot Exact Layout with Reply Quote)
     welcome_text = (
-        f"<b>━━━━━━━ 🌟 sᴛᴏʀʏ sᴇʟʟᴇʀ ʙᴏᴛ 🌟 ━━━━━━━</b>\n\n"
-        f"ʜᴇʟʟᴏ {user.first_name}! 👋\n\n"
-        "ᴜsᴇ ᴛʜᴇ ʙᴜᴛᴛᴏɴs ʙᴇʟᴏᴡ ᴛᴏ sᴇᴀʀᴄʜ ᴏʀ ᴘᴜʀᴄʜᴀsᴇ ʏᴏᴜʀ ғᴀᴠᴏʀɪᴛᴇ sᴛᴏʀɪᴇs."
+        f"<b>━━━━━━━━━━━━━━━━━━━━━━</b>\n"
+        f"🌟 <b>STORY SELLER BOT</b> 🌟\n"
+        f"<b>━━━━━━━━━━━━━━━━━━━━━━</b>\n\n"
+        f"<b>HELLO {user.first_name}! 👋</b>\n\n"
+        f"<b>USE THE BUTTONS BELOW TO SEARCH OR PURCHASE YOUR FAVORITE STORIES.</b>"
     )
-    await message.reply_text(welcome_text, reply_markup=MAIN_MENU)
+    await message.reply_text(welcome_text, reply_markup=MAIN_MENU, quote=True)
 
 # ------------------ Wallet System Handlers ------------------
 
@@ -520,7 +528,7 @@ async def wallet_handler(client, message):
         [InlineKeyboardButton("➕ ᴀᴅᴅ ᴍᴏɴᴇʏ / ᴛᴏᴘ-ᴜᴘ", callback_data="add_wallet_funds")]
     ])
     
-    await message.reply_text(text, reply_markup=kb)
+    await message.reply_text(text, reply_markup=kb, quote=True)
 
 @Client.on_callback_query(filters.regex("^add_wallet_funds$"))
 async def add_funds_callback(client, callback_query):
@@ -544,14 +552,14 @@ async def open_miniapp_handler(client, message):
     btn = InlineKeyboardMarkup([
         [InlineKeyboardButton("🚀 ʟᴀᴜɴᴄʜ ᴍɪɴɪ ᴀᴘᴘ", web_app=WebAppInfo(url=WEB_APP_URL))]
     ])
-    await message.reply_text(text, reply_markup=btn)
+    await message.reply_text(text, reply_markup=btn, quote=True)
 
 @Client.on_message(filters.regex("^(📢 ᴜᴘᴅᴀᴛᴇs ᴄʜᴀɴɴᴇʟ|📢 Updates Channel)$") & filters.private)
 async def updates_handler(client, message):
     kb = InlineKeyboardMarkup([
         [InlineKeyboardButton("📢 ᴊᴏɪɴ ᴄʜᴀɴɴᴇʟ", url="https://t.me/freestoryhubMR")]
     ])
-    await message.reply_text("<b>📢 ᴜᴘᴅᴀᴛᴇs ᴄʜᴀɴɴᴇʟ:</b>\n\nᴊᴏɪɴ ᴏᴜʀ ᴄʜᴀɴɴᴇʟ ғᴏʀ ᴛʜᴇ ʟᴀᴛᴇsᴛ ᴜᴘᴅᴀᴛᴇs ᴀɴᴅ ɴᴇᴡ sᴛᴏʀɪᴇs!", reply_markup=kb)
+    await message.reply_text("<b>📢 ᴜᴘᴅᴀᴛᴇs ᴄʜᴀɴɴᴇʟ:</b>\n\nᴊᴏɪɴ ᴏᴜʀ ᴄʜᴀɴɴᴇʟ ғᴏʀ ᴛʜᴇ ʟᴀᴛᴇsᴛ ᴜᴘᴅᴀᴛᴇs ᴀɴᴅ ɴᴇᴡ sᴛᴏʀɪᴇs!", reply_markup=kb, quote=True)
 
 @Client.on_message(filters.regex("^(👤 ᴍʏ ᴀᴄᴄᴏᴜɴᴛ|👤 My Account)$") & filters.private)
 async def account_handler(client, message):
@@ -572,7 +580,7 @@ async def account_handler(client, message):
     
     if not purchases:
         acc_text += "❌ <b>ʏᴏᴜ ʜᴀᴠᴇɴ'ᴛ ᴘᴜʀᴄʜᴀsᴇᴅ ᴀɴʏ sᴛᴏʀɪᴇs ʏᴇᴛ.</b>"
-        return await message.reply_text(acc_text)
+        return await message.reply_text(acc_text, quote=True)
     
     acc_text += "📖 <b>ʏᴏᴜʀ ᴘᴜʀᴄʜᴀsᴇᴅ sᴛᴏʀɪᴇs:</b>\n\n"
     buttons = []
@@ -588,11 +596,11 @@ async def account_handler(client, message):
             buttons.append([InlineKeyboardButton(f"🚀 ᴀᴄᴄᴇss {clean_title}", url=delivery_link)])
             
     reply_markup = InlineKeyboardMarkup(buttons) if buttons else None
-    await message.reply_text(acc_text, reply_markup=reply_markup)
+    await message.reply_text(acc_text, reply_markup=reply_markup, quote=True)
 
 @Client.on_message(filters.regex("^(📞 sᴜᴘᴘᴏʀᴛ|📞 Support)$") & filters.private)
 async def support_handler(client, message):
     kb = InlineKeyboardMarkup([
         [InlineKeyboardButton("💬 ᴄᴏɴᴛᴀᴄᴛ sᴜᴘᴘᴏʀᴛ", url="https://t.me/pratilipifm0900")]
     ])
-    await message.reply_text("<b>📞 ᴄᴜsᴛᴏᴍᴇʀ sᴜᴘᴘᴏʀᴛ:</b>\n\nɪғ ʏᴏᴜ ғᴀᴄᴇ ᴀɴʏ ɪssᴜᴇs, ғᴇᴇʟ ғʀᴇᴇ ᴛᴏ ᴄᴏɴᴛᴀᴄᴛ support.", reply_markup=kb)
+    await message.reply_text("<b>📞 ᴄᴜsᴛᴏᴍᴇʀ sᴜᴘᴘᴏʀᴛ:</b>\n\nɪғ ʏᴏᴜ ғᴀᴄᴇ ᴀɴʏ ɪssᴜᴇs, ғᴇᴇʟ ғʀᴇᴇ ᴛᴏ ᴄᴏɴᴛᴀᴄᴛ support.", reply_markup=kb, quote=True)
