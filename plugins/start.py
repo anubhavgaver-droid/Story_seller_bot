@@ -63,10 +63,19 @@ async def web_app_data_handler(client, message):
             wallet_bal = await get_user_wallet(message.from_user.id)
             
             # Payment Option Keyboard
-            btn = InlineKeyboardMarkup([
+            inline_buttons = []
+            
+            # Demo button check
+            demo_url = story.get('demo_link')
+            if demo_url and demo_url.lower() != 'none':
+                inline_buttons.append([InlineKeyboardButton("🎬 ᴅᴇᴍᴏ / ᴘʀᴇᴠɪᴇᴡ", url=demo_url)])
+
+            inline_buttons.extend([
                 [InlineKeyboardButton(f"💳 ᴅɪʀᴇᴄᴛ ᴘᴀʏ (₹{price})", callback_data=f"buy_{encoded_title}_{price}")],
                 [InlineKeyboardButton(f"👛 ᴘᴀʏ ᴠɪᴀ ᴡᴀʟʟᴇᴛ (Bal: ₹{wallet_bal})", callback_data=f"walletpay_{encoded_title}_{price}")]
             ])
+            
+            btn = InlineKeyboardMarkup(inline_buttons)
             
             photo_url = story.get('photo', 'https://picsum.photos/400/200')
             desc = story.get('desc', 'ɴᴏ ᴅᴇsᴄʀɪᴘᴛɪᴏɴ ᴀᴠᴀɪʟᴀʙʟᴇ.')
@@ -244,26 +253,36 @@ async def start_handler(client, message):
             
             miniapp_direct_url = f"{WEB_APP_URL}?tgWebAppStartParam={raw_param}"
             
-            btn = InlineKeyboardMarkup([
+            # Keyboards Creation
+            buttons = [
                 [
                     InlineKeyboardButton(
                         "🚀 ᴏᴘᴇɴ ᴅɪʀᴇᴄᴛ sᴛᴏʀʏ ᴍɪɴɪ ᴀᴘᴘ", 
                         web_app=WebAppInfo(url=miniapp_direct_url)
                     )
-                ],
-                [
-                    InlineKeyboardButton(
-                        f"💳 ᴅɪʀᴇᴄᴛ ʙᴜʏ (₹{story['price']})", 
-                        callback_data=f"buy_{encoded_title}_{story['price']}"
-                    )
-                ],
-                [
-                    InlineKeyboardButton(
-                        f"👛 ᴘᴀʏ ᴠɪᴀ ᴡᴀʟʟᴇᴛ (Bal: ₹{wallet_bal})", 
-                        callback_data=f"walletpay_{encoded_title}_{story['price']}"
-                    )
                 ]
+            ]
+            
+            # Add Demo Button if available
+            demo_url = story.get('demo_link')
+            if demo_url and demo_url.lower() != 'none':
+                buttons.append([InlineKeyboardButton("🎬 ᴅᴇᴍᴏ / ᴘʀᴇᴠɪᴇᴡ", url=demo_url)])
+
+            # Add Buy & Wallet Buttons
+            buttons.append([
+                InlineKeyboardButton(
+                    f"💳 ᴅɪʀᴇᴄᴛ ʙᴜʏ (₹{story['price']})", 
+                    callback_data=f"buy_{encoded_title}_{story['price']}"
+                )
             ])
+            buttons.append([
+                InlineKeyboardButton(
+                    f"👛 ᴘᴀʏ ᴠɪᴀ ᴡᴀʟʟᴇᴛ (Bal: ₹{wallet_bal})", 
+                    callback_data=f"walletpay_{encoded_title}_{story['price']}"
+                )
+            ])
+            
+            btn = InlineKeyboardMarkup(buttons)
             
             caption_text = (
                 f"📖 <b>ᴛɪᴛʟᴇ:</b> {clean_title}\n"
