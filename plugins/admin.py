@@ -1,6 +1,7 @@
+import re
 from pyrogram import Client, filters
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ForceReply
-from config import ADMIN_ID, BOT_USERNAME, WEB_APP_URL
+from config import ADMIN_ID, BOT_USERNAME, WEB_APP_URL, CHANNEL_ID
 from database.db import (
     add_story_db, 
     delete_story_db, 
@@ -13,12 +14,19 @@ from database.db import (
 ADD_STATE = {}
 DELETE_STATE = {}
 
-# ------------------ 7. ADMIN ADD MONEY TO USER WALLET ------------------
+def extract_msg_id(text: str):
+    """Link या Message ID में से Numeric Message ID निकालने का Helper फ़ंक्शन"""
+    text = str(text).strip()
+    if text.isdigit():
+        return int(text)
+    match = re.search(r"/(\d+)$", text)
+    return int(match.group(1)) if match else None
+
+# ------------------ ADMIN ADD MONEY TO USER WALLET ------------------
 @Client.on_message(filters.command("addmoney") & filters.user(ADMIN_ID) & filters.private, group=1)
 async def add_money_handler(client, message):
     args = message.text.split()
     
-    # Validation Check
     if len(args) < 3:
         usage_text = (
             "⚠️ <b>ɪɴᴠᴀʟɪᴅ ᴄᴏᴍᴍᴀɴᴅ ғᴏʀᴍᴀᴛ!</b>\n\n"
@@ -34,12 +42,10 @@ async def add_money_handler(client, message):
         target_user_id = int(args[1])
         amount = float(args[2])
     except ValueError:
-        return await message.reply_text("❌ <b> Invalid User ID or Amount! Numbers only enter karein.</b>")
+        return await message.reply_text("❌ <b>Invalid User ID or Amount! Numbers only enter karein.</b>")
 
-    # Update balance in database using MongoDB $inc
     new_balance = await add_wallet_balance(target_user_id, amount)
 
-    # Admin Response
     success_msg = (
         f"✅ <b>ᴡᴀʟʟᴇᴛ ᴜᴘᴅᴀᴛᴇᴅ sᴜᴄᴄᴇssғᴜʟʟʏ!</b>\n\n"
         f"👤 <b>ᴜsᴇʀ ɪᴅ:</b> <code>{target_user_id}</code>\n"
@@ -48,11 +54,10 @@ async def add_money_handler(client, message):
     )
     await message.reply_text(success_msg)
 
-    # 1. Notify Target User
     user_notify_text = (
         f"🎉 <b>ᴡᴀʟʟᴇᴛ ᴄʀᴇᴅɪᴛᴇᴅ!</b>\n\n"
         f"💰 <b>ᴀᴍᴏᴜɴᴛ ᴀᴅᴅᴇᴅ:</b> ₹{amount}\n"
-        f"👛 <b> Total ʙᴀʟᴀɴᴄᴇ:</b> ₹{new_balance}\n\n"
+        f"👛 <b>Total ʙᴀʟᴀɴᴄᴇ:</b> ₹{new_balance}\n\n"
         f"<i>Now you can buy any story using your wallet in Mini App or Bot!</i>"
     )
     try:
@@ -60,7 +65,6 @@ async def add_money_handler(client, message):
     except Exception as e:
         await message.reply_text(f"⚠️ Balance update ho gaya, lekin User ko message delivery fail ho gayi (User blocked bot): {e}")
 
-    # 2. Log in Channel
     log_text = (
         f"<b>💼 ᴀᴅᴍɪɴ ᴡᴀʟʟᴇᴛ ᴛᴏᴘ-ᴜᴘ</b>\n\n"
         f"👤 <b>Target User ID:</b> <code>{target_user_id}</code>\n"
@@ -71,7 +75,6 @@ async def add_money_handler(client, message):
         await send_log(client, log_text)
     except Exception:
         pass
-
 
 # 1. Cancel Command
 @Client.on_message(filters.command("cancel") & filters.user(ADMIN_ID) & filters.private, group=1)
@@ -95,9 +98,12 @@ async def list_stories(client, message):
     for idx, s in enumerate(stories, start=1):
         clean_title = s['title'].replace(" ", "_")
         bot_link = f"https://t.me/{BOT_USERNAME}?start=story_{clean_title}"
+        f_id = s.get('first_msg_id', 'N/A')
+        l_id = s.get('last_msg_id', 'N/A')
         
         text += (
             f"{idx}. <b>{s['title']}</b> | ₹{s['price']} | <i>{s['category']}</i>\n"
+            f"   📦 <b>Batch Range:</b> Message {f_id} to {l_id}\n"
             f"   🔗 <b>sʜᴀʀᴇ ʟɪɴᴋ:</b> <code>{bot_link}</code>\n\n"
         )
     
@@ -123,14 +129,14 @@ async def start_add(client, message):
         [InlineKeyboardButton("📻 Pocket FM", callback_data="setcat_pocket_fm")],
         [InlineKeyboardButton("📚 Pratilipi FM", callback_data="setcat_pratilipi_fm")]
     ])
-    await message.reply_text("<b>[sᴛᴇᴘ 1/6]</b> sᴇʟᴇᴄᴛ ᴛʜᴇ sᴛᴏʀʏ ᴄᴀᴛᴇɢᴏʀʏ:\n<i>(ᴛʏᴘᴇ /cancel ᴛᴏ ᴀʙᴏʀᴛ)</i>", reply_markup=kb)
+    await message.reply_text("<b>[sᴛᴇᴘ 1/7]</b> sᴇʟᴇᴄᴛ ᴛʜᴇ sᴛᴏʀʏ ᴄᴀᴛᴇɢᴏʀʏ:\n<i>(ᴛʏᴘᴇ /cancel ᴛᴏ ᴀʙᴏʀᴛ)</i>", reply_markup=kb)
 
 # 5. Category Selection Callback
 @Client.on_callback_query(filters.regex("^setcat_") & filters.user(ADMIN_ID))
 async def cat_selected(client, callback):
     ADD_STATE[callback.from_user.id]['category'] = callback.data.split("setcat_")[1]
     ADD_STATE[callback.from_user.id]['step'] = 'TITLE'
-    await callback.message.reply_text("<b>[sᴛᴇᴘ 2/6]</b> ᴇɴᴛᴇʀ ᴛʜᴇ sᴛᴏʀʏ ᴛɪᴛʟᴇ:", reply_markup=ForceReply(True))
+    await callback.message.reply_text("<b>[sᴛᴇᴘ 2/7]</b> ᴇɴᴛᴇʀ ᴛʜᴇ sᴛᴏʀʏ ᴛɪᴛʟᴇ:", reply_markup=ForceReply(True))
     await callback.answer()
 
 # 6. Admin Input Wizard
@@ -159,7 +165,7 @@ async def wizard_inputs(client, message):
     if step == 'TITLE':
         ADD_STATE[user_id]['title'] = message.text.strip().split("\n")[0]
         ADD_STATE[user_id]['step'] = 'PHOTO'
-        await message.reply_text("<b>[sᴛᴇᴘ 3/6]</b> sᴇɴᴅ ᴛʜᴇ sᴛᴏʀʏ ᴘᴏsᴛᴇʀ ᴘʜᴏᴛᴏ (ᴏʀ ᴇɴᴛᴇʀ ᴀɴ ɪᴍᴀɢᴇ ᴜʀʟ):", reply_markup=ForceReply(True))
+        await message.reply_text("<b>[sᴛᴇᴘ 3/7]</b> sᴇɴᴅ ᴛʜᴇ sᴛᴏʀʏ ᴘᴏsᴛᴇʀ ᴘʜᴏᴛᴏ (ᴏʀ ᴇɴᴛᴇʀ ᴀɴ ɪᴍᴀɢᴇ ᴜʀʟ):", reply_markup=ForceReply(True))
         
     elif step == 'PHOTO':
         if message.photo:
@@ -170,31 +176,49 @@ async def wizard_inputs(client, message):
             return await message.reply_text("❌ ᴘʟᴇᴀsᴇ sᴇɴᴅ ᴀ ᴠᴀʟɪᴅ ᴘʜᴏᴛᴏ ᴏʀ ɪᴍᴀɢᴇ ᴜʀʟ:")
             
         ADD_STATE[user_id]['step'] = 'PRICE'
-        await message.reply_text("<b>[sᴛᴇᴘ 4/6]</b> ᴇɴᴛᴇʀ ᴛʜᴇ ᴘʀɪᴄᴇ (₹):", reply_markup=ForceReply(True))
+        await message.reply_text("<b>[sᴛᴇᴘ 4/7]</b> ᴇɴᴛᴇʀ ᴛʜᴇ ᴘʀɪᴄᴇ (₹):", reply_markup=ForceReply(True))
         
     elif step == 'PRICE':
         if not message.text or not message.text.isdigit():
             return await message.reply_text("❌ ᴘʟᴇᴀsᴇ ᴇɴᴛᴇʀ ᴛʜᴇ ᴘʀɪᴄᴇ ɪɴ ɴᴜᴍʙᴇʀs ᴏɴʟʏ (ᴇ.ɢ., 99):")
         ADD_STATE[user_id]['price'] = int(message.text)
         ADD_STATE[user_id]['step'] = 'DESC'
-        await message.reply_text("<b>[sᴛᴇᴘ 5/6]</b> ᴇɴᴛᴇʀ ᴛʜᴇ ᴅᴇsᴄʀɪᴘᴛɪᴏɴ:", reply_markup=ForceReply(True))
+        await message.reply_text("<b>[sᴛᴇᴘ 5/7]</b> ᴇɴᴛᴇʀ ᴛʜᴇ ᴅᴇsᴄʀɪᴘᴛɪᴏɴ:", reply_markup=ForceReply(True))
         
     elif step == 'DESC':
         ADD_STATE[user_id]['desc'] = message.text.strip()
-        ADD_STATE[user_id]['step'] = 'LINK'
-        await message.reply_text("<b>[sᴛᴇᴘ 6/6]</b> sᴇɴᴅ ᴛʜᴇ ᴅᴇsᴛɪɴᴀᴛɪᴏɴ / ᴄʜᴀɴɴᴇʟ ʟɪɴᴋ ғᴏʀ ᴀғᴛᴇʀ-ᴘᴜʀᴄʜᴀsᴇ:", reply_markup=ForceReply(True))
+        ADD_STATE[user_id]['step'] = 'FIRST_MSG'
+        await message.reply_text("<b>[sᴛᴇᴘ 6/7]</b> DB Channel से स्टोरी की <b>FIRST Message ID / Link</b> भेजें:", reply_markup=ForceReply(True))
         
-    elif step == 'LINK':
+    elif step == 'FIRST_MSG':
+        first_id = extract_msg_id(message.text)
+        if not first_id:
+            return await message.reply_text("❌ Invalid ID/Link! Valid Message ID or Telegram Link enter karein:")
+        
+        ADD_STATE[user_id]['first_msg_id'] = first_id
+        ADD_STATE[user_id]['step'] = 'LAST_MSG'
+        await message.reply_text("<b>[sᴛᴇᴘ 7/7]</b> DB Channel से स्टोरी की <b>LAST Message ID / Link</b> भेजें:", reply_markup=ForceReply(True))
+
+    elif step == 'LAST_MSG':
+        last_id = extract_msg_id(message.text)
+        if not last_id:
+            return await message.reply_text("❌ Invalid ID/Link! Valid Message ID or Telegram Link enter karein:")
+
         data = ADD_STATE[user_id]
-        data['link'] = message.text.strip()
+        data['last_msg_id'] = last_id
         
+        if data['last_msg_id'] < data['first_msg_id']:
+            return await message.reply_text("❌ Last Message ID, First Message ID से छोटी नहीं हो सकती। फिर से सही Last ID भेजें:")
+
+        # Internal Get Link for delivery
+        clean_title = data['title'].replace(" ", "_")
+        data['link'] = f"https://t.me/{BOT_USERNAME}?start=get_{clean_title}"
+
         # Save to DB
         await add_story_db(data)
         
-        clean_title = data['title'].replace(" ", "_")
-        
-        # 1. Main Share Link
         bot_share_link = f"https://t.me/{BOT_USERNAME}?start=story_{clean_title}"
+        total_files = data['last_msg_id'] - data['first_msg_id'] + 1
         
         # Log notification
         log_msg = (
@@ -202,7 +226,7 @@ async def wizard_inputs(client, message):
             f"<b>📌 ᴛɪᴛʟᴇ:</b> {data['title']}\n"
             f"<b>📂 ᴄᴀᴛᴇɢᴏʀʏ:</b> {data['category']}\n"
             f"<b>💰 ᴘʀɪᴄᴇ:</b> ₹{data['price']}\n"
-            f"<b>🔗 ᴅᴇsᴛɪɴᴀᴛɪᴏɴ ʟɪɴᴋ:</b> {data['link']}\n\n"
+            f"<b>📦 ғɪʟᴇs:</b> {total_files} (Msg {data['first_msg_id']} to {data['last_msg_id']})\n\n"
             f"🔗 <b>sʜᴀʀᴇᴀʙʟᴇ ʟɪɴᴋ:</b>\n<code>{bot_share_link}</code>"
         )
         try:
@@ -214,7 +238,8 @@ async def wizard_inputs(client, message):
         await message.reply_text(
             f"✅ <b>sᴛᴏʀʏ ᴀᴅᴅᴇᴅ sᴜᴄᴄᴇssғᴜʟʟʏ!</b>\n\n"
             f"<b>ᴛɪᴛʟᴇ:</b> {data['title']}\n"
-            f"<b>ᴘʀɪᴄᴇ:</b> ₹{data['price']}\n\n"
+            f"<b>ᴘʀɪᴄᴇ:</b> ₹{data['price']}\n"
+            f"<b>ᴛᴏᴛᴀʟ ғɪʟᴇs:</b> {total_files}\n\n"
             f"🔗 <b>sʜᴀʀᴇᴀʙʟᴇ ʟɪɴᴋ:</b>\n<code>{bot_share_link}</code>",
             disable_web_page_preview=True
         )
