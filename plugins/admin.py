@@ -22,6 +22,60 @@ def extract_msg_id(text: str):
     match = re.search(r"/(\d+)$", text)
     return int(match.group(1)) if match else None
 
+# ------------------ ADMIN ADD MONEY TO USER WALLET ------------------
+@Client.on_message(filters.command("addmoney") & filters.user(ADMIN_ID) & filters.private, group=1)
+async def add_money_handler(client, message):
+    args = message.text.split()
+    
+    if len(args) < 3:
+        usage_text = (
+            "⚠️ <b>ɪɴᴠᴀʟɪᴅ ᴄᴏᴍᴍᴀɴᴅ ғᴏʀᴍᴀᴛ!</b>\n\n"
+            "<b>ᴜsᴀɢᴇ:</b>\n"
+            "<code>/addmoney <user_id> <amount></code>\n\n"
+            "<b>ᴇxᴀᴍᴘʟᴇs:</b>\n"
+            "• <code>/addmoney 123456789 100</code> (Adds ₹100)\n"
+            "• <code>/addmoney 123456789 -50</code> (Deducts ₹50)"
+        )
+        return await message.reply_text(usage_text)
+
+    try:
+        target_user_id = int(args[1])
+        amount = float(args[2])
+    except ValueError:
+        return await message.reply_text("❌ <b>Invalid User ID or Amount! Numbers only enter karein.</b>")
+
+    new_balance = await add_wallet_balance(target_user_id, amount)
+
+    success_msg = (
+        f"✅ <b>ᴡᴀʟʟᴇᴛ ᴜᴘᴅᴀᴛᴇᴅ sᴜᴄᴄᴇssғᴜʟʟʏ!</b>\n\n"
+        f"👤 <b>ᴜsᴇʀ ɪᴅ:</b> <code>{target_user_id}</code>\n"
+        f"💰 <b>ᴀᴅᴅᴇᴅ/ᴅᴇᴅᴜᴄᴛᴇᴅ:</b> ₹{amount}\n"
+        f"👛 <b>ɴᴇᴡ Total ʙᴀʟᴀɴᴄᴇ:</b> ₹{new_balance}"
+    )
+    await message.reply_text(success_msg)
+
+    user_notify_text = (
+        f"🎉 <b>ᴡᴀʟʟᴇᴛ ᴄʀᴇᴅɪᴛᴇᴅ!</b>\n\n"
+        f"💰 <b>ᴀᴍᴏᴜɴᴛ ᴀᴅᴅᴇᴅ:</b> ₹{amount}\n"
+        f"👛 <b>Total ʙᴀʟᴀɴᴄᴇ:</b> ₹{new_balance}\n\n"
+        f"<i>Now you can buy any story using your wallet in Mini App or Bot!</i>"
+    )
+    try:
+        await client.send_message(chat_id=target_user_id, text=user_notify_text)
+    except Exception as e:
+        await message.reply_text(f"⚠️ Balance update ho gaya, lekin User ko message delivery fail ho gayi (User blocked bot): {e}")
+
+    log_text = (
+        f"<b>💼 ᴀᴅᴍɪɴ ᴡᴀʟʟᴇᴛ ᴛᴏᴘ-ᴜᴘ</b>\n\n"
+        f"👤 <b>Target User ID:</b> <code>{target_user_id}</code>\n"
+        f"💸 <b>Amount:</b> ₹{amount}\n"
+        f"👛 <b>Updated Total:</b> ₹{new_balance}"
+    )
+    try:
+        await send_log(client, log_text)
+    except Exception:
+        pass
+        
 # 1. Cancel Command
 @Client.on_message(filters.command("cancel") & filters.user(ADMIN_ID) & filters.private, group=1)
 async def cancel_action(client, message):
@@ -57,6 +111,19 @@ async def list_stories(client, message):
         )
     
     await message.reply_text(text, disable_web_page_preview=True)
+
+# 3. Delete Story Command
+@Client.on_message(filters.command("deletestory") & filters.user(ADMIN_ID) & filters.private, group=1)
+async def start_delete(client, message):
+    user_id = message.from_user.id
+    DELETE_STATE[user_id] = True
+    await message.reply_text(
+        "🗑️ <b>ᴅᴇʟᴇᴛᴇ sᴛᴏʀɪᴇs ᴡɪᴢᴀʀᴅ:</b>\n\n"
+        "ᴇɴᴛᴇʀ ᴛʜᴇ <b>ᴇxᴀᴄᴛ ᴛɪᴛʟᴇ</b> ᴏғ ᴛʜᴇ sᴛᴏʀʏ ʏᴏᴜ ᴡᴀɴᴛ ᴛᴏ ᴅᴇʟᴇᴛᴇ:\n"
+        "<i>(ᴛʏᴘᴇ /cancel ᴛᴏ ᴀʙᴏʀᴛ)</i>",
+        reply_markup=ForceReply(True)
+    )
+
 
 # 3. Add Story Command
 @Client.on_message(filters.command("addstory") & filters.user(ADMIN_ID) & filters.private, group=1)
