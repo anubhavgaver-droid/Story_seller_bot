@@ -100,10 +100,12 @@ async def list_stories(client, message):
         bot_link = f"https://t.me/{BOT_USERNAME}?start=story_{clean_title}"
         f_id = s.get('first_msg_id', 'N/A')
         l_id = s.get('last_msg_id', 'N/A')
+        demo = s.get('demo_link', 'N/A')
         
         text += (
             f"{idx}. <b>{s['title']}</b> | ₹{s['price']} | <i>{s['category']}</i>\n"
             f"   📦 <b>Batch Range:</b> Message {f_id} to {l_id}\n"
+            f"   🎧 <b>Demo Link:</b> {demo}\n"
             f"   🔗 <b>sʜᴀʀᴇ ʟɪɴᴋ:</b> <code>{bot_link}</code>\n\n"
         )
     
@@ -129,14 +131,14 @@ async def start_add(client, message):
         [InlineKeyboardButton("📻 Pocket FM", callback_data="setcat_pocket_fm")],
         [InlineKeyboardButton("📚 Pratilipi FM", callback_data="setcat_pratilipi_fm")]
     ])
-    await message.reply_text("<b>[sᴛᴇᴘ 1/7]</b> sᴇʟᴇᴄᴛ ᴛʜᴇ sᴛᴏʀʏ ᴄᴀᴛᴇɢᴏʀʏ:\n<i>(ᴛʏᴘᴇ /cancel ᴛᴏ ᴀʙᴏʀᴛ)</i>", reply_markup=kb)
+    await message.reply_text("<b>[sᴛᴇᴘ 1/8]</b> sᴇʟᴇᴄᴛ ᴛʜᴇ sᴛᴏʀʏ ᴄᴀᴛᴇɢᴏʀʏ:\n<i>(ᴛʏᴘᴇ /cancel ᴛᴏ ᴀʙᴏʀᴛ)</i>", reply_markup=kb)
 
 # 5. Category Selection Callback
 @Client.on_callback_query(filters.regex("^setcat_") & filters.user(ADMIN_ID))
 async def cat_selected(client, callback):
     ADD_STATE[callback.from_user.id]['category'] = callback.data.split("setcat_")[1]
     ADD_STATE[callback.from_user.id]['step'] = 'TITLE'
-    await callback.message.reply_text("<b>[sᴛᴇᴘ 2/7]</b> ᴇɴᴛᴇʀ ᴛʜᴇ sᴛᴏʀʏ ᴛɪᴛʟᴇ:", reply_markup=ForceReply(True))
+    await callback.message.reply_text("<b>[sᴛᴇᴘ 2/8]</b> ᴇɴᴛᴇʀ ᴛʜᴇ sᴛᴏʀʏ ᴛɪᴛʟᴇ:", reply_markup=ForceReply(True))
     await callback.answer()
 
 # 6. Admin Input Wizard
@@ -165,7 +167,7 @@ async def wizard_inputs(client, message):
     if step == 'TITLE':
         ADD_STATE[user_id]['title'] = message.text.strip().split("\n")[0]
         ADD_STATE[user_id]['step'] = 'PHOTO'
-        await message.reply_text("<b>[sᴛᴇᴘ 3/7]</b> sᴇɴᴅ ᴛʜᴇ sᴛᴏʀʏ ᴘᴏsᴛᴇʀ ᴘʜᴏᴛᴏ (ᴏʀ ᴇɴᴛᴇʀ ᴀɴ ɪᴍᴀɢᴇ ᴜʀʟ):", reply_markup=ForceReply(True))
+        await message.reply_text("<b>[sᴛᴇᴘ 3/8]</b> sᴇɴᴅ ᴛʜᴇ sᴛᴏʀʏ ᴘᴏsᴛᴇʀ ᴘʜᴏᴛᴏ (ᴏʀ ᴇɴᴛᴇʀ ᴀɴ ɪᴍᴀɢᴇ ᴜʀʟ):", reply_markup=ForceReply(True))
         
     elif step == 'PHOTO':
         if message.photo:
@@ -176,19 +178,29 @@ async def wizard_inputs(client, message):
             return await message.reply_text("❌ ᴘʟᴇᴀsᴇ sᴇɴᴅ ᴀ ᴠᴀʟɪᴅ ᴘʜᴏᴛᴏ ᴏʀ ɪᴍᴀɢᴇ ᴜʀʟ:")
             
         ADD_STATE[user_id]['step'] = 'PRICE'
-        await message.reply_text("<b>[sᴛᴇᴘ 4/7]</b> ᴇɴᴛᴇʀ ᴛʜᴇ ᴘʀɪᴄᴇ (₹):", reply_markup=ForceReply(True))
+        await message.reply_text("<b>[sᴛᴇᴘ 4/8]</b> ᴇɴᴛᴇʀ ᴛʜᴇ ᴘʀɪᴄᴇ (₹):", reply_markup=ForceReply(True))
         
     elif step == 'PRICE':
         if not message.text or not message.text.isdigit():
             return await message.reply_text("❌ ᴘʟᴇᴀsᴇ ᴇɴᴛᴇʀ ᴛʜᴇ ᴘʀɪᴄᴇ ɪɴ ɴᴜᴍʙᴇʀs ᴏɴʟʏ (ᴇ.ɢ., 99):")
         ADD_STATE[user_id]['price'] = int(message.text)
         ADD_STATE[user_id]['step'] = 'DESC'
-        await message.reply_text("<b>[sᴛᴇᴘ 5/7]</b> ᴇɴᴛᴇʀ ᴛʜᴇ ᴅᴇsᴄʀɪᴘᴛɪᴏɴ:", reply_markup=ForceReply(True))
+        await message.reply_text("<b>[sᴛᴇᴘ 5/8]</b> ᴇɴᴛᴇʀ ᴛʜᴇ ᴅᴇsᴄʀɪᴘᴛɪᴏɴ:", reply_markup=ForceReply(True))
         
     elif step == 'DESC':
         ADD_STATE[user_id]['desc'] = message.text.strip()
+        ADD_STATE[user_id]['step'] = 'DEMO_LINK'
+        await message.reply_text(
+            "<b>[sᴛᴇᴘ 6/8]</b> ᴇɴᴛᴇʀ ᴛʜᴇ <b>ᴅᴇᴍᴏ ʟɪɴᴋ</b> (URL or Message Link):\n"
+            "<i>(अगर डेमो लिंक नहीं देना चाहते तो 'none' लिखें)</i>",
+            reply_markup=ForceReply(True)
+        )
+
+    elif step == 'DEMO_LINK':
+        demo_text = message.text.strip()
+        ADD_STATE[user_id]['demo_link'] = None if demo_text.lower() == 'none' else demo_text
         ADD_STATE[user_id]['step'] = 'FIRST_MSG'
-        await message.reply_text("<b>[sᴛᴇᴘ 6/7]</b> DB Channel से स्टोरी की <b>FIRST Message ID / Link</b> भेजें:", reply_markup=ForceReply(True))
+        await message.reply_text("<b>[sᴛᴇᴘ 7/8]</b> DB Channel से स्टोरी की <b>FIRST Message ID / Link</b> भेजें:", reply_markup=ForceReply(True))
         
     elif step == 'FIRST_MSG':
         first_id = extract_msg_id(message.text)
@@ -197,7 +209,7 @@ async def wizard_inputs(client, message):
         
         ADD_STATE[user_id]['first_msg_id'] = first_id
         ADD_STATE[user_id]['step'] = 'LAST_MSG'
-        await message.reply_text("<b>[sᴛᴇᴘ 7/7]</b> DB Channel से स्टोरी की <b>LAST Message ID / Link</b> भेजें:", reply_markup=ForceReply(True))
+        await message.reply_text("<b>[sᴛᴇᴘ 8/8]</b> DB Channel से स्टोरी की <b>LAST Message ID / Link</b> भेजें:", reply_markup=ForceReply(True))
 
     elif step == 'LAST_MSG':
         last_id = extract_msg_id(message.text)
@@ -214,18 +226,20 @@ async def wizard_inputs(client, message):
         clean_title = data['title'].replace(" ", "_")
         data['link'] = f"https://t.me/{BOT_USERNAME}?start=get_{clean_title}"
 
-        # Save to DB
+        # Save to DB (Ensure database/db.py supports 'demo_link' key)
         await add_story_db(data)
         
         bot_share_link = f"https://t.me/{BOT_USERNAME}?start=story_{clean_title}"
         total_files = data['last_msg_id'] - data['first_msg_id'] + 1
+        demo_val = data.get('demo_link', 'N/A')
         
         # Log notification
         log_msg = (
-            f"<b>➕ ɴᴇᴡ sᴛᴏʀʏ ᴀᴅᴅᴇᴅ!</b>\n\n"
+            f"<b>➕ ɴᴇᴡ sᴛᴏʀʏ ᴀᴅ模!</b>\n\n"
             f"<b>📌 ᴛɪᴛʟᴇ:</b> {data['title']}\n"
             f"<b>📂 ᴄᴀᴛᴇɢᴏʀʏ:</b> {data['category']}\n"
             f"<b>💰 ᴘʀɪᴄᴇ:</b> ₹{data['price']}\n"
+            f"<b>🎧 ᴅᴇᴍᴏ:</b> {demo_val}\n"
             f"<b>📦 ғɪʟᴇs:</b> {total_files} (Msg {data['first_msg_id']} to {data['last_msg_id']})\n\n"
             f"🔗 <b>sʜᴀʀᴇᴀʙʟᴇ ʟɪɴᴋ:</b>\n<code>{bot_share_link}</code>"
         )
@@ -239,6 +253,7 @@ async def wizard_inputs(client, message):
             f"✅ <b>sᴛᴏʀʏ ᴀᴅᴅᴇᴅ sᴜᴄᴄᴇssғᴜʟʟʏ!</b>\n\n"
             f"<b>ᴛɪᴛʟᴇ:</b> {data['title']}\n"
             f"<b>ᴘʀɪᴄᴇ:</b> ₹{data['price']}\n"
+            f"<b>ᴅᴇᴍᴏ:</b> {demo_val}\n"
             f"<b>ᴛᴏᴛᴀʟ ғɪʟᴇs:</b> {total_files}\n\n"
             f"🔗 <b>sʜᴀʀᴇᴀʙʟᴇ ʟɪɴᴋ:</b>\n<code>{bot_share_link}</code>",
             disable_web_page_preview=True
