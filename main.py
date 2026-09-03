@@ -20,8 +20,12 @@ async def handle_miniapp(request):
 async def handle_get_stories(request):
     stories = []
     async for story in stories_col.find():
+        # Title ki pehli line ko clean karke bhej rahe hain
+        raw_title = story.get("title", "Untitled")
+        clean_title = raw_title.strip().splitlines()[0] if raw_title else "Untitled"
+        
         stories.append({
-            "title": story.get("title", "Untitled"),
+            "title": clean_title,
             "price": story.get("price", 0),
             "platform": story.get("platform", story.get("category", "PRATILIPI FM")),
             "desc": story.get("desc", ""),
