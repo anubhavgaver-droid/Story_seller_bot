@@ -91,10 +91,24 @@ async def get_user_purchases(user_id: int):
 
 # -------------------- STORY DATABASE FUNCTIONS --------------------
 async def add_story_db(data: dict):
-    """स्टोरी जोड़ते समय Title की केवल पहली लाइन को ही Clean Title बनाएगा"""
+    """स्टोरी जोड़ते समय Title की केवल पहली लाइन को ही Clean Title बनाएगा और demo_link सपोर्ट करेगा"""
     if "title" in data:
         data["title"] = data["title"].strip().split("\n")[0]
+    
+    # Check for demo_link field
+    if "demo_link" not in data or not data["demo_link"]:
+        data["demo_link"] = "none"
+
     await stories_col.insert_one(data)
+
+async def update_story_demo_link(title: str, demo_link: str) -> bool:
+    """किसी भी मौजूदा स्टोरी का डेमो लिंक अपडेट करने के लिए फ़ंक्शन"""
+    clean_title = title.strip().split("\n")[0]
+    res = await stories_col.update_one(
+        {"title": clean_title},
+        {"$set": {"demo_link": demo_link}}
+    )
+    return res.modified_count > 0
 
 async def delete_story_db(title: str) -> bool:
     """स्टोरी डिलीट करने का फ़ंक्शन - Main List और Purchase List दोनों से डिलीट करता है"""
