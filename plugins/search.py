@@ -16,7 +16,7 @@ from database.db import (
     update_user_wallet,
     add_user_purchase
 )
-from config import WEB_APP_URL
+from config import WEB_APP_URL, BOT_USERNAME
 
 # Search State Dictionary
 SEARCH_WAITING = {}
@@ -81,7 +81,7 @@ async def category_handler(client, message):
     if not stories:
         return await message.reply_text(f"❌ <b>ɴᴏ sᴛᴏʀɪᴇs ᴀᴠᴀɪʟᴀʙʟᴇ ɪɴ {message.text}.</b>", reply_markup=MAIN_MENU)
         
-    keyboard_buttons = [[KeyboardButton(f"📖 {s['title']}")] for s in stories]
+    keyboard_buttons = [[KeyboardButton(f"📖 {s['title'].strip().split('\n')[0]}")] for s in stories]
     keyboard_buttons.append([KeyboardButton("🔙 ʙᴀᴄᴋ ᴛᴏ ᴍᴀɪɴ ᴍᴇɴᴜ")])
     
     category_keyboard = ReplyKeyboardMarkup(keyboard_buttons, resize_keyboard=True)
@@ -104,20 +104,21 @@ async def story_selected_handler(client, message):
     if not story:
         return await message.reply_text("❌ <b>ᴛʜɪs sᴛᴏʀʏ ɪs ɴᴏᴛ ᴀᴠᴀɪʟᴀʙʟᴇ.</b>")
         
-    clean_title = story['title'].replace(" ", "_")
+    clean_title = story['title'].strip().split("\n")[0]
+    encoded_title = clean_title.replace(" ", "_")
     wallet_bal = await get_user_wallet(user_id)
     
     # Dual Options Keyboard
     btn = InlineKeyboardMarkup([
-        [InlineKeyboardButton(f"💳 ᴅɪʀᴇᴄᴛ ᴘᴀʏ (₹{story['price']})", callback_data=f"buy_{clean_title}_{story['price']}")],
-        [InlineKeyboardButton(f"👛 ᴘᴀʏ ᴠɪᴀ ᴡᴀʟʟᴇᴛ (Bal: ₹{wallet_bal})", callback_data=f"walletpay_{clean_title}_{story['price']}")]
+        [InlineKeyboardButton(f"💳 ᴅɪʀᴇᴄᴛ ᴘᴀʏ (₹{story['price']})", callback_data=f"buy_{encoded_title}_{story['price']}")],
+        [InlineKeyboardButton(f"👛 ᴘᴀʏ ᴠɪᴀ ᴡᴀʟʟᴇᴛ (Bal: ₹{wallet_bal})", callback_data=f"walletpay_{encoded_title}_{story['price']}")]
     ])
     
     photo_url = story.get('photo', 'https://picsum.photos/400/200')
     desc = story.get('desc', 'ɴᴏ ᴅᴇsᴄʀɪᴘᴛɪᴏɴ ᴀᴠᴀɪʟᴀʙʟᴇ.')
     
     caption_text = (
-        f"📖 <b>ᴛɪᴛʟᴇ:</b> {story['title']}\n"
+        f"📖 <b>ᴛɪᴛʟᴇ:</b> {clean_title}\n"
         f"💰 <b>ᴘʀɪᴄᴇ:</b> ₹{story['price']}\n"
         f"👛 <b>ʏᴏᴜʀ ᴡᴀʟʟᴇᴛ:</b> ₹{wallet_bal}\n"
         f"📝 <b>ᴅᴇsᴄ:</b> {desc}\n\n"
@@ -153,23 +154,27 @@ async def process_wallet_payment(client, callback_query):
                 show_alert=True
             )
 
+        clean_title = story['title'].strip().split("\n")[0]
+        encoded_title = clean_title.replace(" ", "_")
+        delivery_link = f"https://t.me/{BOT_USERNAME}?start=get_{encoded_title}"
+
         # Deduct Balance & Save Purchase
         new_balance = current_balance - price
         await update_user_wallet(user_id, new_balance)
-        await add_user_purchase(user_id, story['title'], story.get('link', '#'))
+        await add_user_purchase(user_id, clean_title, story_link=delivery_link)
 
         await callback_query.answer("🎉 Purchase successful!", show_alert=True)
         
         success_text = (
             f"✅ <b>ᴘᴜʀᴄʜᴀsᴇ sᴜᴄᴄᴇssғᴜʟ!</b>\n\n"
-            f"📖 <b>sᴛᴏʀʏ:</b> {story['title']}\n"
+            f"📖 <b>sᴛᴏʀʏ:</b> {clean_title}\n"
             f"💸 <b>ᴅᴇᴅᴜᴄᴛᴇᴅ:</b> ₹{price}\n"
             f"👛 <b>ʀᴇᴍᴀɪɴɪɴɢ ʙᴀʟᴀɴᴄᴇ:</b> ₹{new_balance}\n\n"
             f"👇 Click below to access your story:"
         )
         
         access_btn = InlineKeyboardMarkup([
-            [InlineKeyboardButton(f"🚀 ᴀᴄᴄᴇss {story['title']}", url=story.get('link', 'https://t.me'))]
+            [InlineKeyboardButton("📂 ɢᴇᴛ ғɪʟᴇs (Unlocked)", url=delivery_link)]
         ])
         
         await callback_query.message.edit_text(success_text, reply_markup=access_btn)
@@ -213,7 +218,7 @@ async def process_search(client, message):
     if not stories:
         return await message.reply_text(f"❌ <b>ɴᴏ sᴛᴏʀʏ ғᴏᴜɴᴅ ᴡɪᴛʜ ɴᴀᴍᴇ '{query}'!</b>", reply_markup=MAIN_MENU)
         
-    keyboard_buttons = [[KeyboardButton(f"📖 {s['title']}")] for s in stories]
+    keyboard_buttons = [[KeyboardButton(f"📖 {s['title'].strip().split('\n')[0]}")] for s in stories]
     keyboard_buttons.append([KeyboardButton("🔙 ʙᴀᴄᴋ ᴛᴏ ᴍᴀɪɴ ᴍᴇɴᴜ")])
     
     search_keyboard = ReplyKeyboardMarkup(keyboard_buttons, resize_keyboard=True)
