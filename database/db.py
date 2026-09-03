@@ -92,18 +92,38 @@ async def get_user_purchases(user_id: int):
 # -------------------- STORY DATABASE FUNCTIONS --------------------
 async def add_story_db(data: dict):
     """
-    स्टोरी जोड़ते समय Title की केवल पहली लाइन को ही Clean Title बनाएगा।
-    demo_enabled (Yes/No) और message ID range (first_msg_id & last_msg_id) को सपोर्ट करता है।
+    स्टोरी जोड़ते या अपडेट करते समय Title की केवल पहली लाइन को ही Clean Title बनाएगा।
+    demo_enabled (Yes/No), demo_msg_ids (Auto Picked Random IDs) और Range सपोर्ट करता है।
     """
     if "title" in data:
         data["title"] = data["title"].strip().split("\n")[0]
     
-    # Defaults for Demo System
-    data.setdefault("demo_enabled", False)
-    data.setdefault("first_msg_id", 0)
-    data.setdefault("last_msg_id", 0)
+    # Defaults for Demo System & Message IDs
+    demo_enabled = data.get("demo_enabled", False)
+    demo_msg_ids = data.get("demo_msg_ids", [])
+    first_msg_id = data.get("first_msg_id", 0)
+    last_msg_id = data.get("last_msg_id", 0)
 
-    await stories_col.insert_one(data)
+    story_doc = {
+        "title": data["title"],
+        "category": data.get("category", ""),
+        "photo": data.get("photo", ""),
+        "price": data.get("price", 0),
+        "desc": data.get("desc", ""),
+        "demo_enabled": demo_enabled,
+        "demo_msg_ids": demo_msg_ids,
+        "first_msg_id": first_msg_id,
+        "last_msg_id": last_msg_id,
+        "link": data.get("link", "")
+    }
+
+    # Duplicate से बचने के लिए update_one with upsert=True
+    await stories_col.update_one(
+        {"title": data["title"]},
+        {"$set": story_doc},
+        upsert=True
+    )
+    return True
 
 async def update_story_demo_status(title: str, is_enabled: bool) -> bool:
     """किसी स्टोरी के लिए Demo (Yes/No) टॉगल करने का फ़ंक्शन"""
