@@ -1,4 +1,6 @@
 import json
+import asyncio
+import re
 from pyrogram import Client, filters, enums
 from pyrogram.types import (
     ReplyKeyboardMarkup, 
@@ -6,7 +8,8 @@ from pyrogram.types import (
     InlineKeyboardMarkup, 
     InlineKeyboardButton, 
     ForceReply, 
-    WebAppInfo
+    WebAppInfo,
+    CallbackQuery
 )
 from database.db import (
     get_stories_by_cat, 
@@ -16,7 +19,7 @@ from database.db import (
     update_user_wallet,
     add_user_purchase
 )
-from config import WEB_APP_URL, BOT_USERNAME
+from config import WEB_APP_URL, BOT_USERNAME, CHANNEL_ID
 
 # Search State Dictionary
 SEARCH_WAITING = {}
@@ -110,10 +113,9 @@ async def story_selected_handler(client, message):
     
     inline_buttons = []
     
-    # 🎬 Demo Button (Checks if demo_link exists and is not 'none')
-    demo_url = story.get('demo_link')
-    if demo_url and demo_url.lower() != 'none':
-        inline_buttons.append([InlineKeyboardButton("🎬 ᴅᴇᴍᴏ / ᴘʀᴇᴠɪᴇᴡ", url=demo_url)])
+    # 🎬 Demo Button (Checks if demo_enabled is True)
+    if story.get('demo_enabled', False):
+        inline_buttons.append([InlineKeyboardButton("🎬 ᴅᴇᴍᴏ / ᴘʀᴇᴠɪᴇᴡ", callback_data=f"viewdemo_{encoded_title}")])
         
     # Dual Options Keyboard
     inline_buttons.extend([
@@ -138,6 +140,62 @@ async def story_selected_handler(client, message):
         await message.reply_photo(photo=photo_url, caption=caption_text, reply_markup=btn)
     except Exception:
         await message.reply_text(caption_text, reply_markup=btn)
+
+# 🎬 6.1 View Demo Callback Handler (10 Minutes Auto-Delete Logic)
+@Client.on_callback_query(filters.regex(r"^viewdemo_"))
+async def view_demo_callback(client: Client, callback_query: CallbackQuery):
+    try:
+        encoded_title = callback_query.data.split("viewdemo_")[1]
+        story_title = encoded_title.replace("_", " ")
+        
+        story = await get_story_by_title(story_title)
+        if not story or not story.get("demo_enabled"):
+            return await callback_query.answer("⚠️ Demo is not available for this story!", show_alert=True)
+            
+        demo_ids = story.get("demo_msg_ids", [])
+        if not demo_ids:
+            return await callback_query.answer("❌ No Demo files available!", show_alert=True)
+            
+        await callback_query.answer("🎬 Sending Demo files... Please check your chat!")
+        
+        user_id = callback_query.from_user.id
+        sent_messages = []
+        
+        # Header Message
+        header_msg = await client.send_message(
+            chat_id=user_id,
+            text=f"🎬 <b>ᴅᴇᴍᴏ / ᴘʀᴇᴠɪᴇᴡ ғᴏʀ:</b> <code>{story['title']}</code>\n\n"
+                 f"⏰ <i>This demo preview will automatically delete in 10 minutes!</i>"
+        )
+        sent_messages.append(header_msg)
+        
+        # Copy Auto-Picked Demo Messages from DB Channel
+        for msg_id in demo_ids:
+            try:
+                copied_msg = await client.copy_message(
+                    chat_id=user_id,
+                    from_chat_id=CHANNEL_ID,
+                    message_id=msg_id,
+                    caption=f"🎧 <b>Demo Sample</b> - {story['title']}"
+                )
+                sent_messages.append(copied_msg)
+            except Exception as e:
+                print(f"Error copying demo msg {msg_id}: {e}")
+
+        # Async background task to auto delete after 10 minutes (600s)
+        async def auto_delete_task(messages_list):
+            await asyncio.sleep(600) # 10 Minutes Timer
+            for msg in messages_list:
+                try:
+                    await msg.delete()
+                except Exception:
+                    pass
+                    
+        asyncio.create_task(auto_delete_task(sent_messages))
+
+    except Exception as e:
+        print(f"Error in view_demo_callback: {e}")
+        await callback_query.answer("❌ Failed to send Demo files!", show_alert=True)
 
 # 7. Fixed Wallet Deduction Payment Callback Handler
 @Client.on_callback_query(filters.regex(r"^walletpay_"))
