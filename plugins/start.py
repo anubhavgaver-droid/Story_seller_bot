@@ -1,11 +1,13 @@
 import json
 import asyncio
+import time
 from pyrogram import Client, filters, enums
 from pyrogram.types import (
     ReplyKeyboardMarkup, 
     KeyboardButton, 
     InlineKeyboardMarkup, 
     InlineKeyboardButton, 
+    ForceReply,
     WebAppInfo,
     CallbackQuery
 )
@@ -24,10 +26,11 @@ from database.db import (
 )
 from config import BOT_USERNAME, WEB_APP_URL, CHANNEL_ID
 
-# Search State Dictionary
-SEARCH_WAITING = {}
+# Storage Dictionaries for Clean Chat & Range Input
+CLEAN_CHAT_STORAGE = {}
+START_RANGE_WAITING = {}
 
-# 1. Main Menu Keyboard Layout (Wallet Button Added)
+# 1. Main Menu Keyboard Layout (Wallet Button Included)
 MAIN_MENU = ReplyKeyboardMarkup(
     [
         [KeyboardButton("🚀 ᴏᴘᴇɴ ᴍɪɴɪ ᴀᴘᴘ")],
@@ -44,6 +47,52 @@ async def web_app_filter(_, __, message):
     return bool(message.web_app_data)
 
 filter_webapp = filters.create(web_app_filter)
+
+# ------------------ Helper: File Delivery Function ------------------
+async def send_story_files_start(client, user_id, story, first_id, last_id, clean_title, custom_range_text=""):
+    sent_message_ids = []
+    success_count = 0
+    total_files = (last_id - first_id) + 1
+
+    status_msg = await client.send_message(
+        user_id, 
+        f"⏳ <b>ғᴇᴛᴄʜɪɴɢ ғɪʟᴇs {custom_range_text}...</b>\n<i>ᴘʟᴇᴀsᴇ ᴡᴀɪᴛ...</i>"
+    )
+    
+    for msg_id in range(first_id, last_id + 1):
+        try:
+            sent_msg = await client.copy_message(
+                chat_id=user_id,
+                from_chat_id=CHANNEL_ID,
+                message_id=msg_id,
+                protect_content=True
+            )
+            sent_message_ids.append(sent_msg.id)
+            success_count += 1
+            await asyncio.sleep(0.4)  # Avoid FloodWait
+        except Exception as e:
+            print(f"Error copying message {msg_id}: {e}")
+
+    # Track status message for clean action
+    sent_message_ids.append(status_msg.id)
+    
+    # Store IDs for clean button
+    delivery_key = f"{user_id}_{int(time.time())}"
+    CLEAN_CHAT_STORAGE[delivery_key] = sent_message_ids
+
+    # One-Click Delete Button
+    clean_kb = InlineKeyboardMarkup([
+        [InlineKeyboardButton("🧹 ᴄʟᴇᴀɴ / ᴅᴇʟᴇᴛᴇ ᴀʟʟ ғɪʟᴇs", callback_data=f"cleanchat_{delivery_key}")]
+    ])
+
+    await client.send_message(
+        chat_id=user_id,
+        text=f"🎉 <b>ғɪʟᴇs ᴅᴇʟɪᴠᴇʀᴇᴅ sᴜᴄᴄᴇssғᴜʟʟʏ!</b> {custom_range_text}\n\n"
+             f"📖 <b>sᴛᴏʀʏ:</b> {clean_title}\n"
+             f"📦 <b>ᴅᴇʟɪᴠᴇʀᴇᴅ:</b> {success_count} / {total_files} Files\n\n"
+             f"👇 <i>सुनने के बाद चैट साफ़ करने के लिए नीचे बटन पर क्लिक करें:</i>",
+        reply_markup=clean_kb
+    )
 
 # ------------------ Mini App Web Data Receiver ------------------
 @Client.on_message(filters.service & filter_webapp & filters.private)
@@ -63,10 +112,8 @@ async def web_app_data_handler(client, message):
             encoded_title = clean_title.replace(" ", "_")
             wallet_bal = await get_user_wallet(message.from_user.id)
             
-            # Payment Option Keyboard
             inline_buttons = []
             
-            # Demo button check (Using demo_enabled)
             if story.get('demo_enabled', False):
                 inline_buttons.append([InlineKeyboardButton("🎬 ᴅᴇᴍᴏ / ᴘʀᴇᴠɪᴇᴡ", callback_data=f"viewdemo_{encoded_title}")])
 
@@ -76,7 +123,6 @@ async def web_app_data_handler(client, message):
             ])
             
             btn = InlineKeyboardMarkup(inline_buttons)
-            
             photo_url = story.get('photo', 'https://picsum.photos/400/200')
             desc = story.get('desc', 'ɴᴏ ᴅᴇsᴄʀɪᴘᴛɪᴏɴ ᴀᴠᴀɪʟᴀʙʟᴇ.')
 
@@ -116,7 +162,6 @@ async def view_demo_callback(client: Client, callback_query: CallbackQuery):
         user_id = callback_query.from_user.id
         sent_messages = []
         
-        # Header Message
         header_msg = await client.send_message(
             chat_id=user_id,
             text=f"🎬 <b>ᴅᴇᴍᴏ / ᴘʀᴇᴠɪᴇᴡ ғᴏʀ:</b> <code>{story['title']}</code>\n\n"
@@ -124,7 +169,6 @@ async def view_demo_callback(client: Client, callback_query: CallbackQuery):
         )
         sent_messages.append(header_msg)
         
-        # Copy Auto-Picked Demo Messages from DB Channel
         for msg_id in demo_ids:
             try:
                 copied_msg = await client.copy_message(
@@ -137,9 +181,8 @@ async def view_demo_callback(client: Client, callback_query: CallbackQuery):
             except Exception as e:
                 print(f"Error copying demo msg {msg_id}: {e}")
 
-        # Async background task to auto delete after 10 minutes (600s)
         async def auto_delete_task(messages_list):
-            await asyncio.sleep(600)  # 10 Minutes Timer
+            await asyncio.sleep(600)
             for msg in messages_list:
                 try:
                     await msg.delete()
@@ -157,8 +200,6 @@ async def view_demo_callback(client: Client, callback_query: CallbackQuery):
 async def process_wallet_payment(client, callback_query):
     try:
         data_parts = callback_query.data.split("_")
-        
-        # Split safely from the last item to support spaces in story titles
         price = float(data_parts[-1])
         story_title = " ".join(data_parts[1:-1])
 
@@ -169,7 +210,6 @@ async def process_wallet_payment(client, callback_query):
         user_id = callback_query.from_user.id
         current_balance = await get_user_wallet(user_id)
 
-        # 1. Balance Check
         if current_balance < price:
             return await callback_query.answer(
                 f"❌ Insufficient Balance!\nRequired: ₹{price}\nAvailable: ₹{current_balance}\n\nPlease top-up your wallet.",
@@ -180,7 +220,6 @@ async def process_wallet_payment(client, callback_query):
         encoded_title = clean_title.replace(" ", "_")
         delivery_link = f"https://t.me/{BOT_USERNAME}?start=get_{encoded_title}"
 
-        # 2. Deduct Balance & Add Purchase
         new_balance = current_balance - price
         await update_user_wallet(user_id, new_balance)
         await add_user_purchase(user_id, clean_title, story_link=delivery_link)
@@ -205,12 +244,129 @@ async def process_wallet_payment(client, callback_query):
         print(f"Error processing wallet payment: {e}")
         await callback_query.answer("❌ Error processing wallet payment!", show_alert=True)
 
+# ------------------ Start Batch Callback Router ------------------
+@Client.on_callback_query(filters.regex(r"^(sendall_|askrange_|cleanchat_)"))
+async def start_batch_callback_router(client, callback_query):
+    data = callback_query.data
+    user_id = callback_query.from_user.id
+    
+    # 1. Send All Episodes Option
+    if data.startswith("sendall_"):
+        encoded_title = data.split("sendall_")[1]
+        story_title = encoded_title.replace("_", " ")
+        story = await get_story_by_title(story_title)
+        if not story:
+            return await callback_query.answer("❌ Story not found!", show_alert=True)
+            
+        await callback_query.message.edit_text("⏳ <b>Preparing to send all files... Please wait!</b>")
+        clean_title = story['title'].strip().split("\n")[0]
+        await send_story_files_start(client, user_id, story, story['first_msg_id'], story['last_msg_id'], clean_title)
+        await callback_query.answer()
+        
+    # 2. Ask Custom Range Option
+    elif data.startswith("askrange_"):
+        encoded_title = data.split("askrange_")[1]
+        story_title = encoded_title.replace("_", " ")
+        story = await get_story_by_title(story_title)
+        if not story:
+            return await callback_query.answer("❌ Story not found!", show_alert=True)
+        
+        START_RANGE_WAITING[user_id] = {
+            "story": story,
+            "encoded_title": encoded_title
+        }
+        
+        total_episodes = (story['last_msg_id'] - story['first_msg_id']) + 1
+        
+        await callback_query.message.reply_text(
+            f"🔢 <b>Enter Episode Range (1 - {total_episodes}):</b>\n\n"
+            f"कृपया रेंज दर्ज करें कि आपको कहाँ से कहाँ तक एपिसोड चाहिए।\n"
+            f"<i>(उदाहरण के लिए लिखें: <code>110-120</code> या <code>1-50</code>)</i>",
+            reply_markup=ForceReply(selective=True)
+        )
+        await callback_query.answer()
+
+    # 3. One-Click Clean / Delete Chat
+    elif data.startswith("cleanchat_"):
+        key = data.split("cleanchat_")[1]
+        msg_ids = CLEAN_CHAT_STORAGE.get(key, [])
+
+        if not msg_ids:
+            return await callback_query.answer("⚠️ चैट पहले ही साफ़ की जा चुकी है!", show_alert=True)
+
+        await callback_query.answer("🧹 Cleaning files... Please wait!")
+
+        for m_id in msg_ids:
+            try:
+                await client.delete_messages(chat_id=user_id, message_ids=m_id)
+                await asyncio.sleep(0.1)
+            except Exception:
+                pass
+
+        try:
+            await callback_query.message.edit_text("✅ <b>चैट सफलतापूर्वक साफ़ कर दी गई है!</b> 🗑️")
+        except Exception:
+            pass
+
+        CLEAN_CHAT_STORAGE.pop(key, None)
+
+# ------------------ Process Start Custom Range Input Text ------------------
+@Client.on_message(filters.private & filters.text, group=4)
+async def process_start_range_input(client, message):
+    user_id = message.from_user.id
+    if user_id not in START_RANGE_WAITING:
+        return message.continue_propagation()
+        
+    text = message.text.strip()
+    if "-" not in text:
+        return await message.reply_text("❌ <b>गलत फॉर्मेट!</b> कृपया सही फॉर्मेट में लिखें, जैसे: <code>110-120</code>")
+        
+    try:
+        start_ep, end_ep = map(int, text.split("-"))
+    except ValueError:
+        return await message.reply_text("❌ <b>केवल नंबर लिखें</b> (जैसे <code>110-120</code>)।")
+        
+    data = START_RANGE_WAITING.get(user_id)
+    story = data['story']
+    
+    db_first = story['first_msg_id']
+    db_last = story['last_msg_id']
+    total_story_episodes = (db_last - db_first) + 1
+    
+    # Range Checks
+    if start_ep < 1 or start_ep > end_ep:
+        return await message.reply_text("❌ <b>अमान्य रेंज!</b> शुरुआत का नंबर 1 से कम या अंत वाले नंबर से बड़ा नहीं हो सकता।")
+        
+    if start_ep > total_story_episodes or end_ep > total_story_episodes:
+        return await message.reply_text(
+            f"❌ <b>रेंज सीमा से बाहर है!</b>\n\n"
+            f"इस स्टोरी में केवल <b>{total_story_episodes}</b> एपिसोड्स उपलब्ध हैं।\n"
+            f"कृपया <code>1</code> से <code>{total_story_episodes}</code> के बीच की सीमा दर्ज करें।"
+        )
+
+    START_RANGE_WAITING.pop(user_id, None)
+
+    target_first = db_first + (start_ep - 1)
+    target_last = db_first + (end_ep - 1)
+    
+    clean_title = story['title'].strip().split("\n")[0]
+    
+    await send_story_files_start(
+        client, 
+        user_id, 
+        story, 
+        target_first, 
+        target_last, 
+        clean_title, 
+        custom_range_text=f"(Episodes {start_ep} - {end_ep})"
+    )
+
 # ------------------ Start & Deep-Link Batch Delivery Handler ------------------
 @Client.on_message(filters.command("start") & filters.private, group=-1)
 async def start_handler(client, message):
     user = message.from_user
     
-    # 1. User Registration Logic
+    # 1. Registration Logic
     registered = await is_user_registered(user.id)
     if not registered:
         await register_user(user.id, user.first_name, user.username)
@@ -242,7 +398,7 @@ async def start_handler(client, message):
 
         clean_title = story['title'].strip().split("\n")[0]
 
-        # Purchase Status Verification
+        # Purchase Verification
         unlocked = await is_story_unlocked(user.id, clean_title)
         if not unlocked:
             buy_btn = InlineKeyboardMarkup([
@@ -261,38 +417,24 @@ async def start_handler(client, message):
         if not first_id or not last_id:
             return await message.reply_text("⚠️ <b>ɴᴏ ғɪʟᴇs ᴀssᴏᴄɪᴀᴛᴇᴅ ᴡɪᴛʜ ᴛʜɪs sᴛᴏʀʏ!</b>\nPlease contact support.")
 
-        status_msg = await message.reply_text(f"⏳ <b>ғᴇᴛᴄʜɪɴɢ ғɪʟᴇs ғᴏʀ:</b> <i>{clean_title}</i>\nᴘʟᴇᴀsᴇ ᴡᴀɪᴛ...")
-
-        # File Delivery Loop
-        success_count = 0
         total_files = (last_id - first_id) + 1
 
-        for msg_id in range(first_id, last_id + 1):
-            try:
-                await client.copy_message(
-                    chat_id=user.id,
-                    from_chat_id=CHANNEL_ID,
-                    message_id=msg_id,
-                    protect_content=True
-                )
-                success_count += 1
-                await asyncio.sleep(0.5)
-            except Exception as e:
-                print(f"Error copying message {msg_id}: {e}")
-
-        try:
-            await status_msg.delete()
-        except Exception:
-            pass
-
-        if success_count > 0:
+        # Interactive Choice Range Dialog if > 100 Files
+        if total_files > 100:
+            choice_kb = InlineKeyboardMarkup([
+                [InlineKeyboardButton(f"📦 All Episodes ({total_files} Files)", callback_data=f"sendall_{encoded_title}")],
+                [InlineKeyboardButton("🔢 Custom Range (e.g. 110-120)", callback_data=f"askrange_{encoded_title}")]
+            ])
             return await message.reply_text(
-                f"🎉 <b>All files delivered successfully!</b>\n\n"
-                f"📖 <b>Story:</b> {clean_title}\n"
-                f"📦 <b>Delivered Episodes/Files:</b> {success_count} / {total_files}"
+                f"📚 <b>{clean_title}</b>\n\n"
+                f"⚠️ इस स्टोरी में कुल <b>{total_files}</b> एपिसोड्स हैं।\n"
+                f"आप सभी एपिसोड्स एक साथ पाना चाहते हैं या कुछ खास रेंज?",
+                reply_markup=choice_kb
             )
-        else:
-            return await message.reply_text("❌ <b>Failed to deliver files. Make sure bot is Admin in DB Channel.</b>")
+
+        # Directly send files if <= 100
+        await send_story_files_start(client, user.id, story, first_id, last_id, clean_title)
+        return
 
     # 3. DIRECT STORY VIEW FROM DEEP LINK (story_ENCODED_TITLE)
     if len(args) > 1 and args[1].startswith("story_"):
@@ -309,7 +451,6 @@ async def start_handler(client, message):
             
             miniapp_direct_url = f"{WEB_APP_URL}?tgWebAppStartParam={raw_param}"
             
-            # Keyboards Creation
             buttons = [
                 [
                     InlineKeyboardButton(
@@ -319,11 +460,9 @@ async def start_handler(client, message):
                 ]
             ]
             
-            # Add Demo Button if demo_enabled is True
             if story.get('demo_enabled', False):
                 buttons.append([InlineKeyboardButton("🎬 ᴅᴇᴍᴏ / ᴘʀᴇᴠɪᴇᴡ", callback_data=f"viewdemo_{encoded_title}")])
 
-            # Add Buy & Wallet Buttons
             buttons.append([
                 InlineKeyboardButton(
                     f"💳 ᴅɪʀᴇᴄᴛ ʙᴜʏ (₹{story['price']})", 
