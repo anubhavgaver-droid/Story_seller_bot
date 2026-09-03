@@ -7,7 +7,7 @@ ADMIN_ID = int(os.environ.get("ADMIN_ID", "987654321"))
 LOG_CHANNEL = int(os.environ.get("LOG_CHANNEL", "-1001234567890"))
 
 # Database Channel Variable (जहाँ से फाइल्स PM में फॉरवर्ड होंगी)
-CHANNEL_ID = int(os.environ.get("CHANNEL_ID", "-1001234567890"))
+CHANNEL_ID = int(os.environ.get("CHANNEL_ID", "-1002945761623"))
 
 UPI_ID = os.environ.get("UPI_ID", "63983224472@fam")
 PORT = int(os.environ.get("PORT", "8080"))
