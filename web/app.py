@@ -33,13 +33,21 @@ async def serve_miniapp():
 async def get_stories_api():
     stories = []
     async for story in stories_collection.find():
+        # Title की पहली लाइन को साफ़ (Clean) कर रहे हैं
+        raw_title = story.get("title", "Untitled")
+        clean_title = raw_title.strip().splitlines()[0] if raw_title else "Untitled"
+        
+        # चेक करें कि डेमो मैसेजेस हैं या नहीं
+        msg_ids = story.get("msg_ids", [])
+        has_demo = len(msg_ids) > 0
+
         stories.append({
-            # Document _id ko String me convert karke send kar rahe hain
             "id": str(story.get("_id", "")),
-            "title": story.get("title", "Untitled"),
+            "title": clean_title,
             "price": story.get("price", 0),
             "platform": story.get("platform", story.get("category", "PRATILIPI FM")),
             "description": story.get("desc", story.get("description", "")),
-            "photo": story.get("photo", story.get("poster", "https://picsum.photos/200"))
+            "photo": story.get("photo", story.get("poster", "https://picsum.photos/200")),
+            "has_demo": has_demo  # 👈 Mini App को पता चलेगा कि डेमो बटन दिखाना है या नहीं
         })
     return stories
