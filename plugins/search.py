@@ -27,8 +27,6 @@ from config import WEB_APP_URL, BOT_USERNAME, CHANNEL_ID
 
 # State and Storage Dictionaries
 SEARCH_WAITING = {}
-CLEAN_CHAT_STORAGE = {}
-RANGE_WAITING = {}
 
 # 1. Main Menu Reply Keyboard Layout
 MAIN_MENU = ReplyKeyboardMarkup(
@@ -41,52 +39,6 @@ MAIN_MENU = ReplyKeyboardMarkup(
     ],
     resize_keyboard=True
 )
-
-# ------------------ Core Delivery Helper Function ------------------
-async def send_story_files(client, user_id, story, first_id, last_id, clean_title, custom_range_text=""):
-    sent_message_ids = []
-    success_count = 0
-    total_files = (last_id - first_id) + 1
-
-    status_msg = await client.send_message(
-        user_id, 
-        f"⏳ <b>ғᴇᴛᴄʜɪɴɢ ғɪʟᴇs {custom_range_text}...</b>\n<i>ᴘʟᴇᴀsᴇ ᴡᴀɪᴛ...</i>"
-    )
-    
-    for msg_id in range(first_id, last_id + 1):
-        try:
-            sent_msg = await client.copy_message(
-                chat_id=user_id,
-                from_chat_id=CHANNEL_ID,
-                message_id=msg_id,
-                protect_content=True
-            )
-            sent_message_ids.append(sent_msg.id)
-            success_count += 1
-            await asyncio.sleep(0.4)  # Prevent FloodWait limits
-        except Exception as e:
-            print(f"Error copying message {msg_id}: {e}")
-
-    # Add the status notification message to cleanup array
-    sent_message_ids.append(status_msg.id)
-    
-    # Store IDs for clean-up callback
-    delivery_key = f"{user_id}_{int(time.time())}"
-    CLEAN_CHAT_STORAGE[delivery_key] = sent_message_ids
-
-    # One-Click Clean Keyboard
-    clean_kb = InlineKeyboardMarkup([
-        [InlineKeyboardButton("🧹 ᴄʟᴇᴀɴ / ᴅᴇʟᴇᴛᴇ ᴀʟʟ ғɪʟᴇs", callback_data=f"cleanchat_{delivery_key}")]
-    ])
-
-    await client.send_message(
-        chat_id=user_id,
-        text=f"🎉 <b>ғɪʟᴇs ᴅᴇʟɪᴠᴇʀᴇᴅ sᴜᴄᴄᴇssғᴜʟʟʏ!</b> {custom_range_text}\n\n"
-             f"📖 <b>sᴛᴏʀʏ:</b> {clean_title}\n"
-             f"📦 <b>ᴅᴇʟɪᴠᴇʀᴇᴅ:</b> {success_count} / {total_files} Files\n\n"
-             f"👇 <i>सुनने के बाद चैट साफ़ करने के लिए नीचे बटन पर क्लिक करें:</i>",
-        reply_markup=clean_kb
-    )
 
 # 2. 🚀 OPEN MINI APP Handler
 @Client.on_message(filters.regex("^(🚀 ᴏᴘᴇɴ ᴍɪɴɪ ᴀᴘᴘ|🚀 Open Mini App)$") & filters.private)
@@ -142,7 +94,6 @@ async def category_handler(client, message):
 async def back_to_main_menu(client, message):
     user_id = message.from_user.id
     SEARCH_WAITING.pop(user_id, None)
-    RANGE_WAITING.pop(user_id, None)
     await message.reply_text("<b>🌟 ᴍᴀɪɴ ᴍᴇɴᴜ:</b>", reply_markup=MAIN_MENU, quote=True)
 
 # 6. Story Selection Click Handler
@@ -287,131 +238,7 @@ async def process_wallet_payment(client, callback_query):
         print(f"Error in process_wallet_payment: {e}")
         await callback_query.answer("❌ Error processing wallet payment!", show_alert=True)
 
-# 8. Unified Callback Router (All Episodes, Range Ask & Clean Chat)
-@Client.on_callback_query(filters.regex(r"^(sendall_|askrange_|cleanchat_)"))
-async def batch_callback_router(client, callback_query):
-    data = callback_query.data
-    user_id = callback_query.from_user.id
-    
-    # Send All Episodes Option
-    if data.startswith("sendall_"):
-        encoded_title = data.split("sendall_")[1]
-        story_title = encoded_title.replace("_", " ")
-        story = await get_story_by_title(story_title)
-        if not story:
-            return await callback_query.answer("❌ Story not found!", show_alert=True)
-            
-        await callback_query.message.edit_text("⏳ <b>Preparing to send all files... Please wait!</b>")
-        clean_title = story['title'].strip().splitlines()[0]
-        await send_story_files(client, user_id, story, story['first_msg_id'], story['last_msg_id'], clean_title)
-        await callback_query.answer()
-        
-    # Ask Custom Range Option
-    elif data.startswith("askrange_"):
-        encoded_title = data.split("askrange_")[1]
-        story_title = encoded_title.replace("_", " ")
-        story = await get_story_by_title(story_title)
-        if not story:
-            return await callback_query.answer("❌ Story not found!", show_alert=True)
-        
-        RANGE_WAITING[user_id] = {
-            "story": story,
-            "encoded_title": encoded_title
-        }
-        
-        total_episodes = (story['last_msg_id'] - story['first_msg_id']) + 1
-        
-        await callback_query.message.reply_text(
-            f"🔢 <b>Enter Episode Range (1 - {total_episodes}):</b>\n\n"
-            f"कृपया रेंज दर्ज करें कि आपको कहाँ से कहाँ तक एपिसोड चाहिए।\n"
-            f"<i>(उदाहरण के लिए लिखें: <code>110-120</code> या <code>1-50</code>)</i>",
-            reply_markup=ForceReply(selective=True)
-        )
-        await callback_query.answer()
-
-    # One-Click Clean / Close Chat Callback
-    elif data.startswith("cleanchat_"):
-        key = data.split("cleanchat_")[1]
-        msg_ids = CLEAN_CHAT_STORAGE.get(key, [])
-
-        if not msg_ids:
-            return await callback_query.answer("⚠️ चैट पहले ही साफ़ की जा चुकी है!", show_alert=True)
-
-        await callback_query.answer("🧹 Cleaning files... Please wait!")
-
-        for m_id in msg_ids:
-            try:
-                await client.delete_messages(chat_id=user_id, message_ids=m_id)
-                await asyncio.sleep(0.1)
-            except Exception:
-                pass
-
-        try:
-            await callback_query.message.edit_text("✅ <b>चैट सफलतापूर्वक साफ़ कर दी गई है!</b> 🗑️")
-        except Exception:
-            pass
-
-        CLEAN_CHAT_STORAGE.pop(key, None)
-
-# 9. Direct File Batch & Range Delivery Handler (/start get_...)
-@Client.on_message(filters.command("start") & filters.private, group=-1)
-async def batch_start_handler(client, message):
-    user = message.from_user
-    args = message.text.split(maxsplit=1)
-    
-    if len(args) > 1 and args[1].startswith("get_"):
-        raw_param = args[1]
-        try:
-            encoded_title = raw_param.replace("get_", "")
-            story_title = encoded_title.replace("_", " ")
-        except Exception:
-            return await message.reply_text("❌ <b>ɪɴᴠᴀʟɪᴅ ᴏʀ ᴄᴏʀʀᴜᴘᴛᴇᴅ ʟɪɴᴋ!</b>", quote=True)
-
-        story = await get_story_by_title(story_title)
-        if not story:
-            return await message.reply_text("❌ <b>sᴛᴏʀʏ ɴᴏᴛ ғᴏᴜɴᴅ ɪɴ ᴅᴀᴛᴀʙᴀsᴇ!</b>", quote=True)
-
-        clean_title = story['title'].strip().splitlines()[0]
-
-        # Verify access rights
-        unlocked = await is_story_unlocked(user.id, clean_title)
-        if not unlocked:
-            buy_btn = InlineKeyboardMarkup([
-                [InlineKeyboardButton("💳 ʙᴜʏ ɴᴏᴡ", callback_data=f"buy_{encoded_title}_{story['price']}")]
-            ])
-            return await message.reply_text(
-                f"🔒 <b>ᴀᴄᴄᴇss ᴅᴇɴɪᴇᴅ!</b>\n\nYou haven't purchased <b>{clean_title}</b> yet.",
-                reply_markup=buy_btn,
-                quote=True
-            )
-
-        first_id = story.get('first_msg_id')
-        last_id = story.get('last_msg_id')
-
-        if not first_id or not last_id:
-            return await message.reply_text("⚠️ <b>ɴᴏ ғɪʟᴇs ᴀssᴏᴄɪᴀᴛᴇᴅ ᴡɪᴛʜ ᴛʜɪs sᴛᴏʀʏ!</b>", quote=True)
-
-        total_files = (last_id - first_id) + 1
-
-        # Check if files exceed 100
-        if total_files > 100:
-            choice_kb = InlineKeyboardMarkup([
-                [InlineKeyboardButton(f"📦 All Episodes ({total_files} Files)", callback_data=f"sendall_{encoded_title}")],
-                [InlineKeyboardButton("🔢 Custom Range (e.g. 110-120)", callback_data=f"askrange_{encoded_title}")]
-            ])
-            return await message.reply_text(
-                f"📚 <b>{clean_title}</b>\n\n"
-                f"⚠️ इस स्टोरी में कुल <b>{total_files}</b> एपिसोड्स हैं।\n"
-                f"आप सभी एक साथ मँगवाना चाहते हैं या अपनी पसंद की रेंज?",
-                reply_markup=choice_kb,
-                quote=True
-            )
-
-        # Directly send files if 100 or less
-        await send_story_files(client, user.id, story, first_id, last_id, clean_title)
-        return
-
-# 10. Search Prompt Handler
+# 8. Search Prompt Handler
 @Client.on_message(filters.regex("^(🔎 sᴇᴀʀᴄʜ sᴛᴏʀʏ|🔎 Search Story)$") & filters.private)
 async def search_prompt(client, message):
     user_id = message.from_user.id
@@ -425,61 +252,7 @@ async def search_prompt(client, message):
         quote=True
     )
 
-# 11. Process Custom Range Input Text from User
-@Client.on_message(filters.private & filters.text, group=3)
-async def process_range_input(client, message):
-    user_id = message.from_user.id
-    if user_id not in RANGE_WAITING:
-        return message.continue_propagation()
-        
-    text = message.text.strip()
-    if "-" not in text:
-        return await message.reply_text("❌ <b>गलत फॉर्मेट!</b> कृपया सही फॉर्मेट में लिखें, जैसे: <code>110-120</code>", quote=True)
-        
-    try:
-        start_ep, end_ep = map(int, text.split("-"))
-    except ValueError:
-        return await message.reply_text("❌ <b>केवल नंबर लिखें</b> (जैसे <code>110-120</code>)।", quote=True)
-        
-    data = RANGE_WAITING.get(user_id)
-    story = data['story']
-    
-    db_first = story['first_msg_id']
-    db_last = story['last_msg_id']
-    total_story_episodes = (db_last - db_first) + 1
-    
-    # Boundary Validations
-    if start_ep < 1 or start_ep > end_ep:
-        return await message.reply_text("❌ <b>अमान्य रेंज!</b> शुरुआत का नंबर 1 से कम या अंत वाले नंबर से बड़ा नहीं हो सकता।", quote=True)
-        
-    if start_ep > total_story_episodes or end_ep > total_story_episodes:
-        return await message.reply_text(
-            f"❌ <b>रेंज सीमा से बाहर है!</b>\n\n"
-            f"इस स्टोरी में केवल <b>{total_story_episodes}</b> एपिसोड्स उपलब्ध हैं।\n"
-            f"कृपया <code>1</code> से <code>{total_story_episodes}</code> के बीच की सीमा दर्ज करें।",
-            quote=True
-        )
-
-    # State Reset
-    RANGE_WAITING.pop(user_id, None)
-
-    # Calculate DB IDs
-    target_first = db_first + (start_ep - 1)
-    target_last = db_first + (end_ep - 1)
-    
-    clean_title = story['title'].strip().splitlines()[0]
-    
-    await send_story_files(
-        client, 
-        user_id, 
-        story, 
-        target_first, 
-        target_last, 
-        clean_title, 
-        custom_range_text=f"(Episodes {start_ep} - {end_ep})"
-    )
-
-# 12. Enhanced Fuzzy Search Process
+# 9. Enhanced Fuzzy Search Process
 @Client.on_message(
     filters.private 
     & filters.text 
@@ -497,7 +270,7 @@ async def process_search(client, message):
     query = message.text.strip()
     SEARCH_WAITING.pop(user_id, None)
     
-    # 1. Fetch all stories for Fuzzy Matching
+    # Fetch all stories for Fuzzy Matching
     all_stories = await get_all_stories()
     matched_stories = []
     
