@@ -560,7 +560,7 @@
 
     <script>
         const tg = window.Telegram.WebApp;
-        const BOT_USERNAME = "vj_post_search_bot"; // Updated to your bot username
+        const BOT_USERNAME = "vj_post_search_bot"; // Updated bot username
 
         let stories = [];
         let userPurchases = [];
@@ -882,31 +882,15 @@
             }
         }
 
-        /* --- UPDATED BUY STORY FUNCTION FOR WEBAPP DATA --- */
+        /* --- UPDATED BUY STORY FUNCTION WITH SAVER LINK & AUTO CLOSE --- */
         function buyStory(title, price) {
             triggerHaptic('success');
-            
-            const payload = {
-                action: "buy_story",
-                title: title,
-                price: price
-            };
 
-            // Send order data directly back to Python Bot handler via WebApp Data
-            if (tg && tg.sendData) {
-                try {
-                    tg.sendData(JSON.stringify(payload));
-                    tg.close();
-                    return;
-                } catch(e) {
-                    console.error("tg.sendData failed, switching to deep link fallback", e);
-                }
-            }
-
-            // Fallback: Telegram Deep Link Routing
+            // Format Title for Telegram Deep Link Payload
             const cleanTitle = encodeURIComponent(title.replace(/\s+/g, "_"));
             const deepLink = `https://t.me/${BOT_USERNAME}?start=story_${cleanTitle}`;
 
+            // Open Telegram direct bot link and close WebApp instantly
             if (tg && tg.openTelegramLink) {
                 tg.openTelegramLink(deepLink);
                 tg.close();
