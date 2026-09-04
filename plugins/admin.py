@@ -163,15 +163,31 @@ async def start_add(client, message):
         [InlineKeyboardButton("📻 Pocket FM", callback_data="setcat_Pocket FM")],
         [InlineKeyboardButton("📚 Pratilipi FM", callback_data="setcat_Pratilipi FM")]
     ])
-    await message.reply_text("<b>[sᴛᴇᴘ 1/9]</b> sᴇʟᴇᴄᴛ ᴛʜᴇ sᴛᴏʀʏ ᴄᴀᴛᴇɢᴏʀʏ:\n<i>(ᴛʏᴘᴇ /cancel ᴛᴏ ᴀʙᴏʀᴛ)</i>", reply_markup=kb)
+    await message.reply_text("<b>[sᴛᴇᴘ 1/10]</b> sᴇʟᴇᴄᴛ ᴛʜᴇ sᴛᴏʀʏ ᴄᴀᴛᴇɢᴏʀʏ:\n<i>(ᴛʏᴘᴇ /cancel ᴛᴏ ᴀʙᴏʀᴛ)</i>", reply_markup=kb)
 
 # 5. Category Selection Callback
 @Client.on_callback_query(filters.regex("^setcat_") & filters.user(ADMIN_ID))
 async def cat_selected(client, callback):
     ADD_STATE[callback.from_user.id]['category'] = callback.data.split("setcat_")[1]
     ADD_STATE[callback.from_user.id]['platform'] = callback.data.split("setcat_")[1]
+    
+    # Genre Selection Keyboard
+    genre_kb = InlineKeyboardMarkup([
+        [InlineKeyboardButton("🎭 Drama", callback_data="setgenre_Drama"), InlineKeyboardButton("💖 Romance", callback_data="setgenre_Romance")],
+        [InlineKeyboardButton("⚡ Action", callback_data="setgenre_Action"), InlineKeyboardButton("🔍 Thriller", callback_data="setgenre_Thriller")],
+        [InlineKeyboardButton("👻 Horror", callback_data="setgenre_Horror"), InlineKeyboardButton("🔮 Fantasy", callback_data="setgenre_Fantasy")]
+    ])
+    
+    await callback.message.reply_text("<b>[sᴛᴇᴘ 2/10]</b> 🧩 <b>sᴇʟᴇᴄᴛ sᴛᴏʀʏ ɢᴇɴʀᴇ:</b>", reply_markup=genre_kb)
+    await callback.answer()
+
+# 5.1 Genre Selection Callback
+@Client.on_callback_query(filters.regex("^setgenre_") & filters.user(ADMIN_ID))
+async def genre_selected(client, callback):
+    genre_val = callback.data.split("setgenre_")[1]
+    ADD_STATE[callback.from_user.id]['genre'] = genre_val
     ADD_STATE[callback.from_user.id]['step'] = 'TITLE'
-    await callback.message.reply_text("<b>[sᴛᴇᴘ 2/9]</b> ᴇɴᴛᴇʀ ᴛʜᴇ sᴛᴏʀʏ ᴛɪᴛʟᴇ:", reply_markup=ForceReply(True))
+    await callback.message.reply_text("<b>[sᴛᴇᴘ 3/10]</b> 📖 ᴇɴᴛᴇʀ ᴛʜᴇ sᴛᴏʀʏ ᴛɪᴛʟᴇ:", reply_markup=ForceReply(True))
     await callback.answer()
 
 # 6. Demo Option Selection Callback (Yes / No)
@@ -186,7 +202,7 @@ async def demo_option_selected(client, callback):
         ADD_STATE[user_id]['demo_enabled'] = False
         
     ADD_STATE[user_id]['step'] = 'FIRST_MSG'
-    await callback.message.reply_text("<b>[sᴛᴇᴘ 8/9]</b> DB Channel से स्टोरी की <b>FIRST Message ID / Link</b> भेजें:", reply_markup=ForceReply(True))
+    await callback.message.reply_text("<b>[sᴛᴇᴘ 9/10]</b> DB Channel से स्टोरी की <b>FIRST Message ID / Link</b> भेजें:", reply_markup=ForceReply(True))
     await callback.answer()
 
 # 6.1 Range Selection Callbacks (> 100 Files)
@@ -293,15 +309,18 @@ async def wizard_inputs(client, message):
     
     if step == 'TITLE':
         ADD_STATE[user_id]['title'] = message.text.strip().split("\n")[0]
+        ADD_STATE[user_id]['step'] = 'STATUS'
+        await message.reply_text("<b>[sᴛᴇᴘ 4/10]</b> 🔰 ᴇɴᴛᴇʀ sᴛᴏʀʏ sᴛᴀᴛᴜs:\n<i>(उदाहरण: Completed या Ongoing)</i>", reply_markup=ForceReply(True))
+
+    elif step == 'STATUS':
+        ADD_STATE[user_id]['status'] = message.text.strip()
         ADD_STATE[user_id]['step'] = 'EPISODES'
-        await message.reply_text("<b>[sᴛᴇᴘ 3/9]</b> 🎬 ᴇɴᴛᴇʀ ᴛᴏᴛᴀʟ ᴇᴘɪsᴏᴅᴇs:\n<i>(उदाहरण: 80 Episodes, 100+ Episodes या Ongoing)</i>", reply_markup=ForceReply(True))
+        await message.reply_text("<b>[sᴛᴇᴘ 5/10]</b> 🎬 ᴇɴᴛᴇʀ ᴛᴏᴛᴀʟ ᴇᴘɪsᴏᴅᴇs:\n<i>(उदाहरण: 80 Episodes, 100+ Episodes या Ongoing)</i>", reply_markup=ForceReply(True))
 
     elif step == 'EPISODES':
         ADD_STATE[user_id]['episodes'] = message.text.strip()
-        ADD_STATE[user_id]['status'] = "Completed"
-        ADD_STATE[user_id]['genre'] = "Drama"
         ADD_STATE[user_id]['step'] = 'PHOTO'
-        await message.reply_text("<b>[sᴛᴇᴘ 4/9]</b> sᴇɴᴅ ᴛʜᴇ sᴛᴏʀʏ ᴘᴏsᴛᴇʀ ᴘʜᴏᴛᴏ (ᴏʀ ᴇɴᴛᴇʀ ᴀɴ ɪᴍᴀɢᴇ ᴜʀʟ):", reply_markup=ForceReply(True))
+        await message.reply_text("<b>[sᴛᴇᴘ 6/10]</b> sᴇɴᴅ ᴛʜᴇ sᴛᴏʀʏ ᴘᴏsᴛᴇʀ ᴘʜᴏᴛᴏ (ᴏʀ ᴇɴᴛᴇʀ ᴀɴ ɪᴍᴀɢᴇ ᴜʀʟ):", reply_markup=ForceReply(True))
         
     elif step == 'PHOTO':
         if message.photo:
@@ -312,14 +331,14 @@ async def wizard_inputs(client, message):
             return await message.reply_text("❌ ᴘʟᴇᴀsᴇ sᴇɴᴅ ᴀ ᴠᴀʟɪᴅ ᴘʜᴏᴛᴏ ᴏʀ ɪᴍᴀɢᴇ ᴜʀʟ:")
             
         ADD_STATE[user_id]['step'] = 'PRICE'
-        await message.reply_text("<b>[sᴛᴇᴘ 5/9]</b> ᴇɴᴛᴇʀ ᴛʜᴇ ᴘʀɪᴄᴇ (₹):", reply_markup=ForceReply(True))
+        await message.reply_text("<b>[sᴛᴇᴘ 7/10]</b> ᴇɴᴛᴇʀ ᴛʜᴇ ᴘʀɪᴄᴇ (₹):", reply_markup=ForceReply(True))
         
     elif step == 'PRICE':
         if not message.text or not message.text.isdigit():
             return await message.reply_text("❌ ᴘʟᴇᴀsᴇ ᴇɴᴛᴇʀ ᴛʜᴇ ᴘʀɪᴄᴇ ɪɴ ɴᴜᴍʙᴇʀs ᴏɴʟʏ (ᴇ.ɢ., 99):")
         ADD_STATE[user_id]['price'] = int(message.text)
         ADD_STATE[user_id]['step'] = 'DESC'
-        await message.reply_text("<b>[sᴛᴇᴘ 6/9]</b> ᴇɴᴛᴇʀ ᴛʜᴇ ᴅᴇsᴄʀɪᴘᴛɪᴏɴ:", reply_markup=ForceReply(True))
+        await message.reply_text("<b>[sᴛᴇᴘ 8/10]</b> ᴇɴᴛᴇʀ ᴛʜᴇ ᴅᴇsᴄʀɪᴘᴛɪᴏɴ:", reply_markup=ForceReply(True))
         
     elif step == 'DESC':
         ADD_STATE[user_id]['desc'] = message.text.strip()
@@ -331,7 +350,7 @@ async def wizard_inputs(client, message):
                 InlineKeyboardButton("❌ No (Disable Demo)", callback_data="setdemo_no")
             ]
         ])
-        await message.reply_text("<b>[sᴛᴇᴘ 7/9]</b> क्या आप इस स्टोरी के लिए <b>🎬 View Demo</b> चालू रखना चाहते हैं?", reply_markup=kb)
+        await message.reply_text("<b>[sᴛᴇᴘ 9/10]</b> क्या आप इस स्टोरी के लिए <b>🎬 View Demo</b> चालू रखना चाहते हैं?", reply_markup=kb)
 
     elif step == 'FIRST_MSG':
         first_id = extract_msg_id(message.text)
@@ -340,7 +359,7 @@ async def wizard_inputs(client, message):
         
         ADD_STATE[user_id]['first_msg_id'] = first_id
         ADD_STATE[user_id]['step'] = 'LAST_MSG'
-        await message.reply_text("<b>[sᴛᴇᴘ 9/9]</b> DB Channel से स्टोरी की <b>LAST Message ID / Link</b> भेजें:", reply_markup=ForceReply(True))
+        await message.reply_text("<b>[sᴛᴇᴘ 10/10]</b> DB Channel से स्टोरी की <b>LAST Message ID / Link</b> भेजें:", reply_markup=ForceReply(True))
 
     elif step == 'LAST_MSG':
         last_id = extract_msg_id(message.text)
