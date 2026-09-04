@@ -3,68 +3,80 @@ from pyrogram import Client, filters
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ForceReply
 from config import UPI_ID, ADMIN_ID, BOT_USERNAME
 from database.db import get_story_by_title, add_user_purchase, add_wallet_balance
+from strings import get_text  # Language translation system engine
 
 # Waiting States
 PAYMENT_WAITING = {}
 WALLET_TOPUP_WAITING = {}
 
-# 1. View Story
+# ------------------ 1. View Story Handler ------------------
 @Client.on_callback_query(filters.regex("^view_"))
 async def view_story(client, callback):
+    user_id = callback.from_user.id
     title = callback.data.split("view_")[1].replace("_", " ")
     story = await get_story_by_title(title)
     if not story:
-        return await callback.answer("❌ sᴛᴏʀʏ ɴᴏᴛ ғᴏᴜɴᴅ!", show_alert=True)
+        return await callback.answer(get_text(user_id, "story_not_found"), show_alert=True)
         
     clean_title = story['title'].strip().split("\n")[0]
     encoded_title = clean_title.replace(" ", "_")
-    btn = InlineKeyboardMarkup([[InlineKeyboardButton("💳 ʙᴜʏ ɴᴏᴡ", callback_data=f"buy_{encoded_title}_{story['price']}")]])
+    
+    buy_btn_txt = get_text(user_id, "btn_direct_pay").format(price=story['price'])
+    btn = InlineKeyboardMarkup([[InlineKeyboardButton(buy_btn_txt, callback_data=f"buy_{encoded_title}_{story['price']}")]])
+    
+    caption_text = get_text(user_id, "story_details_card").format(
+        title=clean_title,
+        price=story['price'],
+        bal="N/A",
+        desc=story.get('desc', get_text(user_id, "no_desc"))
+    )
+    
     await callback.message.reply_photo(
         photo=story.get('photo', 'https://picsum.photos/400/200'),
-        caption=f"📖 <b>ᴛɪᴛʟᴇ:</b> {clean_title}\n💰 <b>ᴘʀɪᴄᴇ:</b> ₹{story['price']}\n📝 <b>ᴅᴇsᴄ:</b> {story.get('desc', 'N/A')}",
+        caption=caption_text,
         reply_markup=btn
     )
     await callback.answer()
 
-# 2. Generate QR Code for Story Purchase
+# ------------------ 2. Generate QR Code for Story Purchase ------------------
 @Client.on_callback_query(filters.regex("^buy_"))
 async def generate_qr(client, callback):
+    user_id = callback.from_user.id
     try:
-        raw_data = callback.data[4:] # Remove 'buy_'
-        clean_title, price = raw_data.rsplit("_", 1) # Split from the last underscore
+        raw_data = callback.data[4:]  # Remove 'buy_'
+        clean_title, price = raw_data.rsplit("_", 1)  # Split from last underscore
         story_title = clean_title.replace("_", " ")
     except Exception:
-        return await callback.answer("❌ ᴇʀʀᴏʀ ᴘᴀʀsɪɴɢ ᴘᴀʏᴍᴇɴᴛ ᴅᴀᴛᴀ!", show_alert=True)
+        return await callback.answer("❌ Error parsing payment data!", show_alert=True)
     
     upi_link = f"upi://pay?pa={UPI_ID}&pn=StorySeller&am={price}&cu=INR"
     qr_url = f"https://api.qrserver.com/v1/create-qr-code/?size=300x300&data={urllib.parse.quote(upi_link)}"
     
-    caption = (
-        f"💳 <b>ᴏʀᴅᴇʀ ᴄʜᴇᴄᴋᴏᴜᴛ:</b> {story_title}\n"
-        f"💰 <b>ᴀᴍᴏᴜɴᴛ:</b> ₹{price}\n\n"
-        f"📌 <b>ᴜᴘɪ ɪᴅ:</b> <code>{UPI_ID}</code>\n\n"
-        f"👇 ᴀғᴛᴇʀ ᴍᴀᴋɪɴɢ ᴛʜᴇ ᴘᴀʏᴍᴇɴᴛ, ᴄʟɪᴄᴋ ᴏɴ <b>ᴄᴏɴғɪʀᴍ ᴘᴀʏᴍᴇɴᴛ</b> ʙᴇʟᴏᴡ."
+    caption = get_text(user_id, "qr_checkout_caption").format(
+        title=story_title,
+        price=price,
+        upi_id=UPI_ID
     )
-    btn = InlineKeyboardMarkup([[InlineKeyboardButton("✅ ᴄᴏɴғɪʀᴍ ᴘᴀʏᴍᴇɴᴛ", callback_data=f"sent_{clean_title}_{price}")]])
+    
+    btn = InlineKeyboardMarkup([[InlineKeyboardButton(get_text(user_id, "btn_confirm_payment"), callback_data=f"sent_{clean_title}_{price}")]])
     await callback.message.reply_photo(photo=qr_url, caption=caption, reply_markup=btn)
     await callback.answer()
 
-# ---------------- WALLET TOPUP FLOW ----------------
+# ------------------ WALLET TOPUP FLOW ------------------
 
-# 3. Topup Callback Handler -> Asks Amount
+# ------------------ 3. Topup Callback Handler ------------------
 @Client.on_callback_query(filters.regex("^add_wallet_funds$"))
 async def start_wallet_topup(client, callback):
     user_id = callback.from_user.id
     WALLET_TOPUP_WAITING[user_id] = True
     
     await callback.message.reply_text(
-        "💵 <b>ᴇɴᴛᴇʀ ᴛᴏᴘ-ᴜᴘ ᴀᴍᴏᴜɴᴛ:</b>\n\n"
-        "ᴘʟᴇᴀsᴇ ᴛʏᴘᴇ ᴛʜᴇ ᴀᴍᴏᴜɴᴛ (ɪɴ ₹) ʏᴏᴜ ᴡᴀɴᴛ ᴛᴏ ᴀᴅᴅ ᴛᴏ ʏᴏᴜʀ ᴡᴀʟʟᴇᴛ:",
-        reply_markup=ForceReply(selective=True, placeholder="ᴇ.ɢ. 100")
+        get_text(user_id, "enter_topup_amount_prompt"),
+        reply_markup=ForceReply(selective=True, placeholder="e.g. 100")
     )
     await callback.answer()
 
-# 4. Receive Amount Input & Send Wallet QR Code
+# ------------------ 4. Receive Amount Input & Send Wallet QR Code ------------------
 @Client.on_message(filters.private & filters.text & ~filters.command(["start", "cancel"]), group=3)
 async def process_wallet_amount(client, message):
     user_id = message.from_user.id
@@ -75,7 +87,7 @@ async def process_wallet_amount(client, message):
 
     amount_text = message.text.strip()
     if not amount_text.isdigit() or float(amount_text) <= 0:
-        return await message.reply_text("❌ <b> Invalid Amount! Please enter numbers only (e.g. 50, 100, 200).</b>")
+        return await message.reply_text(get_text(user_id, "invalid_amount_msg"))
     
     price = float(amount_text)
     del WALLET_TOPUP_WAITING[user_id]
@@ -83,37 +95,33 @@ async def process_wallet_amount(client, message):
     upi_link = f"upi://pay?pa={UPI_ID}&pn=WalletTopup&am={price}&cu=INR"
     qr_url = f"https://api.qrserver.com/v1/create-qr-code/?size=300x300&data={urllib.parse.quote(upi_link)}"
     
-    caption = (
-        f"👛 <b>ᴡᴀʟʟᴇᴛ ᴛᴏᴘ-ᴜᴘ:</b> ₹{price}\n"
-        f"💰 <b>ᴀᴍᴏᴜɴᴛ:</b> ₹{price}\n\n"
-        f"📌 <b>ᴜᴘɪ ɪᴅ:</b> <code>{UPI_ID}</code>\n\n"
-        f"👇 ᴀғᴛᴇʀ ᴍᴀᴋɪɴɢ ᴛʜᴇ ᴘᴀʏᴍᴇɴᴛ, ᴄʟɪᴄᴋ ᴏɴ <b>ᴄᴏɴғɪʀᴍ ᴘᴀʏᴍᴇɴᴛ</b> ʙᴇʟᴏᴡ."
+    caption = get_text(user_id, "wallet_topup_qr_caption").format(
+        price=price,
+        upi_id=UPI_ID
     )
-    btn = InlineKeyboardMarkup([[InlineKeyboardButton("✅ ᴄᴏɴғɪʀᴍ ᴘᴀʏᴍᴇɴᴛ", callback_data=f"sent_WalletTopup_{price}")]])
+    
+    btn = InlineKeyboardMarkup([[InlineKeyboardButton(get_text(user_id, "btn_confirm_payment"), callback_data=f"sent_WalletTopup_{price}")]])
     await message.reply_photo(photo=qr_url, caption=caption, reply_markup=btn)
 
-# ---------------- SCREENSHOT & APPROVAL HANDLERS ----------------
+# ------------------ SCREENSHOT & APPROVAL HANDLERS ------------------
 
-# 5. Ask User for Screenshot
+# ------------------ 5. Ask User for Screenshot ------------------
 @Client.on_callback_query(filters.regex("^sent_"))
 async def ask_screenshot(client, callback):
+    user_id = callback.from_user.id
     try:
-        raw_data = callback.data[5:] # Remove 'sent_'
+        raw_data = callback.data[5:]  # Remove 'sent_'
         clean_title, price = raw_data.rsplit("_", 1)
         story_title = clean_title.replace("_", " ")
     except Exception:
-        return await callback.answer("❌ ᴇʀʀᴏʀ ᴘᴀʀsɪɴɢ ᴅᴀᴛᴀ!", show_alert=True)
+        return await callback.answer("❌ Error parsing data!", show_alert=True)
         
-    user_id = callback.from_user.id
     PAYMENT_WAITING[user_id] = {"title": story_title, "price": price}
     
-    await callback.message.reply_text(
-        "📸 <b>ᴘʟᴇᴀsᴇ sᴇɴᴅ ʏᴏᴜʀ ᴘᴀʏᴍᴇɴᴛ sᴄʀᴇᴇɴsʜᴏᴛ:</b>\n\n"
-        "sᴇɴᴅ ʏᴏᴜʀ sᴄʀᴇᴇɴsʜᴏᴛ ᴀs ᴀ ᴘʜᴏᴛᴏ ɪɴ ᴛʜɪs ᴄʜᴀᴛ."
-    )
+    await callback.message.reply_text(get_text(user_id, "send_screenshot_prompt"))
     await callback.answer()
 
-# 6. Capture Screenshot Photo & Send to Admin
+# ------------------ 6. Capture Screenshot Photo & Send to Admin ------------------
 @Client.on_message(filters.private & filters.photo, group=2)
 async def receive_screenshot(client, message):
     user_id = message.from_user.id
@@ -152,30 +160,26 @@ async def receive_screenshot(client, message):
         reply_markup=btn
     )
     
-    await message.reply_text("✅ <b>sᴄʀᴇᴇɴsʜᴏᴛ ʀᴇᴄᴇɪᴠᴇᴅ!</b>\nʏᴏᴜʀ ᴘᴀʏᴍᴇɴᴛ ɪs ᴜɴᴅᴇʀ ᴠᴇʀɪғɪᴄᴀᴛɪᴏɴ ʙʏ ᴀᴅᴍɪɴ.")
+    await message.reply_text(get_text(user_id, "screenshot_received_msg"))
     del PAYMENT_WAITING[user_id]
 
-# 7. Approve Payment Handler (Auto Detects Wallet vs Story Purchase)
+# ------------------ 7. Approve Payment Handler (Admin) ------------------
 @Client.on_callback_query(filters.regex("^app_") & filters.user(ADMIN_ID))
 async def approve_order(client, callback):
     data = callback.data.split("_")
-    user_id = int(data[1])
+    target_user_id = int(data[1])
     price = float(data[-1])
     title = "_".join(data[2:-1]).replace("_", " ")
     
     # CASE 1: WALLET TOPUP APPROVAL
     if title == "WalletTopup":
-        new_balance = await add_wallet_balance(user_id, price)
+        new_balance = await add_wallet_balance(target_user_id, price)
         try:
-            await client.send_message(
-                chat_id=user_id,
-                text=(
-                    f"🎉 <b>ᴡᴀʟʟᴇᴛ ᴛᴏᴘ-ᴜᴘ ᴀᴘᴘʀᴏᴠᴇᴅ!</b>\n\n"
-                    f"💰 <b>ᴀᴅᴅᴇᴅ:</b> ₹{price}\n"
-                    f"👛 <b>ɴᴇᴡ ʙᴀʟᴀɴᴄᴇ:</b> ₹{new_balance}\n\n"
-                    f"<i>Now you can purchase stories using your wallet!</i>"
-                )
+            success_msg = get_text(target_user_id, "wallet_approved_user_msg").format(
+                price=price,
+                bal=new_balance
             )
+            await client.send_message(chat_id=target_user_id, text=success_msg)
             await callback.message.edit_caption(caption=f"{callback.message.caption.html}\n\n✅ <b>WALLETTOPUP APPROVED</b>")
             return await callback.answer("Wallet Topup Approved & Balance Added!", show_alert=True)
         except Exception as e:
@@ -184,52 +188,43 @@ async def approve_order(client, callback):
     # CASE 2: DIRECT STORY PURCHASE APPROVAL
     story = await get_story_by_title(title)
     if not story:
-        return await callback.answer("❌ sᴛᴏʀʏ ɴᴏᴛ ғᴏᴜɴᴅ ɪɴ ᴅᴀᴛᴀʙᴀsᴇ!", show_alert=True)
+        return await callback.answer("❌ Story not found in database!", show_alert=True)
     
     clean_title = story['title'].strip().split("\n")[0]
     encoded_title = clean_title.replace(" ", "_")
     delivery_link = f"https://t.me/{BOT_USERNAME}?start=get_{encoded_title}"
 
     # Save to Purchases DB
-    await add_user_purchase(user_id, clean_title, story_link=delivery_link)
+    await add_user_purchase(target_user_id, clean_title, story_link=delivery_link)
 
     access_btn = InlineKeyboardMarkup([
-        [InlineKeyboardButton("📂 ɢᴇᴛ ғɪʟᴇs (Unlocked)", url=delivery_link)]
+        [InlineKeyboardButton(get_text(target_user_id, "btn_get_files_unlocked"), url=delivery_link)]
     ])
     
     try:
+        user_text = get_text(target_user_id, "direct_purchase_approved_user_msg").format(title=clean_title)
         await client.send_message(
-            chat_id=user_id,
-            text=(
-                f"🎉 <b>ʏᴏᴜʀ ᴘᴀʏᴍᴇɴᴛ ʜᴀs ʙᴇᴇɴ ᴀᴘᴘʀᴏᴠᴇᴅ!</b>\n\n"
-                f"📖 <b>sᴛᴏʀʏ:</b> {clean_title}\n\n"
-                f"ᴄʟɪᴄᴋ ᴛʜᴇ ʙᴜᴛᴛᴏɴ ʙᴇʟᴏᴡ ᴛᴏ ᴀᴄᴄᴇss ʏᴏᴜʀ ᴄᴏɴᴛᴇɴᴛ:"
-            ),
+            chat_id=target_user_id,
+            text=user_text,
             reply_markup=access_btn,
             protect_content=True
         )
-        await callback.message.edit_caption(caption=f"{callback.message.caption.html}\n\n✅ <b>ᴀᴘᴘʀᴏᴠᴇᴅ ʙʏ ᴀᴅᴍɪɴ</b>")
+        await callback.message.edit_caption(caption=f"{callback.message.caption.html}\n\n✅ <b>APPROVED BY ADMIN</b>")
         await callback.answer("Approved & Saved to DB Successfully!", show_alert=True)
     except Exception as e:
         await callback.answer(f"Error sending message to user: {e}", show_alert=True)
 
-# 8. Reject Payment Handler
+# ------------------ 8. Reject Payment Handler (Admin) ------------------
 @Client.on_callback_query(filters.regex("^rej_") & filters.user(ADMIN_ID))
 async def reject_order(client, callback):
     data = callback.data.split("_")
-    user_id = int(data[1])
+    target_user_id = int(data[1])
     title = "_".join(data[2:]).replace("_", " ")
     
     try:
-        await client.send_message(
-            chat_id=user_id,
-            text=(
-                f"❌ <b>ʏᴏᴜʀ ᴘᴀʏᴍᴇɴᴛ ʜᴀs ʙᴇᴇɴ ʀᴇᴊᴇᴄᴛᴇᴅ!</b>\n\n"
-                f"📌 <b>ITEM:</b> {title}\n\n"
-                f"ɪғ ʏᴏᴜ ʙᴇʟɪᴇᴠᴇ ᴛʜɪs ɪs ᴀ ᴍɪsᴛᴀᴋᴇ, ᴘʟᴇᴀsᴇ ᴄᴏɴᴛᴀᴄᴛ sᴜᴘᴘᴏʀᴛ."
-            )
-        )
-        await callback.message.edit_caption(caption=f"{callback.message.caption.html}\n\n❌ <b>ʀᴇᴊᴇᴄᴛᴇᴅ ʙʏ ᴀᴅᴍɪɴ</b>")
+        rejection_msg = get_text(target_user_id, "payment_rejected_user_msg").format(item=title)
+        await client.send_message(chat_id=target_user_id, text=rejection_msg)
+        await callback.message.edit_caption(caption=f"{callback.message.caption.html}\n\n❌ <b>REJECTED BY ADMIN</b>")
         await callback.answer("Payment Rejected!", show_alert=True)
     except Exception as e:
         await callback.answer(f"Error sending rejection to user: {e}", show_alert=True)
