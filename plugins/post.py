@@ -1,15 +1,17 @@
 import re
-from pyrogram import Client, filters
+from pyrogram import Client
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-from config import BOT_USERNAME, WEB_APP_URL, CHANNEL, TUTORIAL_VIDEO_URL
+from config import BOT_USERNAME, CHANNEL, TUTORIAL_VIDEO_URL
+
 
 async def send_story_to_channel(client: Client, story_data: dict):
     """
-    जब भी ऐडमिन विजार्ड (/addstory) से नई स्टोरी सेव होगी, 
-    यह फ़ंक्शन स्टोरी चैनल पर Buy Now बटन के साथ पोस्ट ऑटो-पब्लिश करेगा।
+    जब भी /addstory विजार्ड से स्टोरी सेव होगी,
+    यह फ़ंक्शन स्टोर चैनल पर Buy Now (Direct Telegram Mini App Link), 
+    Tutorial और Direct Bot Order बटन के साथ पोस्ट भेजेगा।
     """
     if not CHANNEL:
-        print("⚠️ STORE_CHANNEL_ID config.py में सेट नहीं है!")
+        print("⚠️ CHANNEL_ID config.py में सेट नहीं है!")
         return None
 
     try:
@@ -21,11 +23,12 @@ async def send_story_to_channel(client: Client, story_data: dict):
         clean_title = title.strip().split("\n")[0].replace(" ", "_")
         clean_title = re.sub(r'[^\w\s_]', '', clean_title)
 
-        # 1. Mini App & Direct Bot Start Deep Links
-        miniapp_url = f"{WEB_APP_URL}?startapp=story_{clean_title}" if WEB_APP_URL else f"https://t.me/{BOT_USERNAME}/app?startapp=story_{clean_title}"
+        # Telegram Mini App Direct Link Format
+        # Example: http://t.me/storysellerbyACbot/Store?startapp=story_Test
+        miniapp_url = f"https://t.me/{BOT_USERNAME}/Store?startapp=story_{clean_title}"
         bot_direct_url = f"https://t.me/{BOT_USERNAME}?start=story_{clean_title}"
 
-        # 2. Premium Buttons Layout
+        # Buttons Setup
         buttons = InlineKeyboardMarkup([
             [
                 InlineKeyboardButton("🛒 ʙᴜʏ ɴᴏᴡ", url=miniapp_url),
@@ -36,7 +39,7 @@ async def send_story_to_channel(client: Client, story_data: dict):
             ]
         ])
 
-        # 3. Post Caption Text Format
+        # Post Caption Layout
         post_caption = (
             f"🔥 <b>ɴᴇᴡ sᴛᴏʀʏ ᴀʟᴇʀᴛ!</b> 🔥\n\n"
             f"📖 <b>ᴛɪᴛʟᴇ:</b> {title}\n"
@@ -45,7 +48,7 @@ async def send_story_to_channel(client: Client, story_data: dict):
             f"👇 <i>नीचे दिए गए बटन पर क्लिक करके स्टोरी अनलॉक करें:</i>"
         )
 
-        # 4. Post to Channel
+        # Send Post (Photo / Text)
         if photo:
             sent_msg = await client.send_photo(
                 chat_id=CHANNEL,
@@ -63,5 +66,5 @@ async def send_story_to_channel(client: Client, story_data: dict):
         return sent_msg
 
     except Exception as e:
-        print(f"❌ Error Auto-Posting to Channel: {e}")
+        print(f"❌ Channel Post Error: {e}")
         return None
