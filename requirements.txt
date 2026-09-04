@@ -2,7 +2,7 @@ kurigram
 tgcrypto
 motor
 aiohttp
-requests
+aiofiles
 fastapi
 uvicorn
 jinja2
