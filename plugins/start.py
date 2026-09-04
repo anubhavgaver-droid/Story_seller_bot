@@ -12,7 +12,7 @@ from pyrogram.types import (
     CallbackQuery
 )
 
-# Database imports
+# Required Database functions
 from database.db import (
     get_story_by_title, 
     send_log, 
@@ -26,11 +26,28 @@ from database.db import (
     get_exact_episode_range
 )
 from config import BOT_USERNAME, WEB_APP_URL, CHANNEL_ID
-from plugins.lang import get_text, get_main_menu
 
 # Storage Dictionaries for Clean Chat & Range Input
 CLEAN_CHAT_STORAGE = {}
 START_RANGE_WAITING = {}
+
+# 1. Main Menu Keyboard Layout (Wallet Button Included)
+MAIN_MENU = ReplyKeyboardMarkup(
+    [
+        [KeyboardButton("🚀 ᴏᴘᴇɴ ᴍɪɴɪ ᴀᴘᴘ")],
+        [KeyboardButton("💼 ᴍʏ ᴡᴀʟʟᴇᴛ", style=enums.ButtonStyle.SUCCESS), KeyboardButton("👤 ᴍʏ ᴀᴄᴄᴏᴜɴᴛ", style=enums.ButtonStyle.PRIMARY)],
+        [KeyboardButton("🔎 sᴇᴀʀᴄʜ sᴛᴏʀʏ", style=enums.ButtonStyle.SUCCESS), KeyboardButton("📻 ᴘᴏᴄᴋᴇᴛ ғᴍ", style=enums.ButtonStyle.DANGER)],
+        [KeyboardButton("📚 ᴘʀᴀᴛɪʟɪᴘɪ ғᴍ", style=enums.ButtonStyle.DANGER), KeyboardButton("📢 ᴜᴘᴅᴀᴛᴇs ᴄʜᴀɴɴᴇʟ", style=enums.ButtonStyle.PRIMARY)],
+        [KeyboardButton("📞 sᴜᴘᴘᴏʀᴛ", style=enums.ButtonStyle.SUCCESS)]
+    ],
+    resize_keyboard=True
+)
+
+# Custom Filter for WebApp Data
+async def web_app_filter(_, __, message):
+    return bool(message.web_app_data)
+
+filter_webapp = filters.create(web_app_filter)
 
 # ------------------ Helper: File Delivery Function ------------------
 async def send_story_files_start(client, user_id, story, first_id, last_id, clean_title, custom_range_text=""):
@@ -62,7 +79,7 @@ async def send_story_files_start(client, user_id, story, first_id, last_id, clea
     # Track status message for clean action
     sent_message_ids.append(status_msg.id)
     
-    # Extract exact Episode Range using file/caption names
+    # Extract exact Episode Range using file/caption names from database logic
     ep_range = get_exact_episode_range(sent_messages_obj) if sent_messages_obj else f"Files {first_id} to {last_id}"
 
     # Store IDs for clean button
@@ -85,10 +102,8 @@ async def send_story_files_start(client, user_id, story, first_id, last_id, clea
     )
 
 # ------------------ Mini App Web Data Receiver ------------------
-@Client.on_message(filters.service & filters.private)
+@Client.on_message(filters.service & filter_webapp & filters.private)
 async def web_app_data_handler(client, message):
-    if not message.web_app_data:
-        return
     try:
         data = json.loads(message.web_app_data.data)
         action = data.get("action")
@@ -442,7 +457,7 @@ async def start_handler(client, message):
         total_files = (last_id - first_id) + 1
         custom_ranges = story.get('custom_ranges', [])
 
-        # Interactive Dynamic Range Buttons
+        # Interactive Dynamic Range Buttons Option if Admin Created Custom Buttons
         if custom_ranges:
             buttons = []
             for idx, r in enumerate(custom_ranges):
@@ -533,13 +548,17 @@ async def start_handler(client, message):
             except Exception:
                 return await message.reply_text(caption_text, reply_markup=btn, quote=True)
         else:
-            main_menu_kb = await get_main_menu(user.id)
-            return await message.reply_text("❌ <b>ᴛʜɪs sᴛᴏʀʏ ɪs ɴᴏᴛ ᴀᴠᴀɪʟᴀʙʟᴇ.</b>", reply_markup=main_menu_kb, quote=True)
+            return await message.reply_text("❌ <b>ᴛʜɪs sᴛᴏʀʏ ɪs ɴᴏᴛ ᴀᴠᴀɪʟᴀʙʟᴇ.</b>", reply_markup=MAIN_MENU, quote=True)
 
-    # 4. NORMAL /START WELCOME MESSAGE WITH MULTI-LANG KEYBOARD
-    welcome_text = get_text(user.id, "welcome").format(name=user.first_name)
-    main_menu_kb = await get_main_menu(user.id)
-    await message.reply_text(welcome_text, reply_markup=main_menu_kb, quote=True)
+    # 4. NORMAL /START WELCOME MESSAGE
+    welcome_text = (
+        f"<b>━━━━━━━━━━━━━━━━━━━━━━</b>\n"
+        f"🌟 <b>STORY SELLER BOT</b> 🌟\n"
+        f"<b>━━━━━━━━━━━━━━━━━━━━━━</b>\n\n"
+        f"<b>HELLO {user.first_name}! 👋</b>\n\n"
+        f"<b>USE THE BUTTONS BELOW TO SEARCH OR PURCHASE YOUR FAVORITE STORIES.</b>"
+    )
+    await message.reply_text(welcome_text, reply_markup=MAIN_MENU, quote=True)
 
 # ------------------ Wallet System Handlers ------------------
 
