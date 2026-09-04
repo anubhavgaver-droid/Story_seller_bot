@@ -50,11 +50,11 @@ async def web_app_filter(_, __, message):
 
 filter_webapp = filters.create(web_app_filter)
 
-# ------------------ Helper: Extract Episode Number from Caption ------------------
+# ------------------ Helper: Extract Episode Number from Text/Title ------------------
 def extract_episode_number(text: str) -> int:
     """
-    Extracts episode integer from text or caption using regex patterns.
-    Matches formats like: Episode 1, Ep 01, Ep-1, Episode - 10, #1, etc.
+    Extracts episode integer from text, caption, title, or filename using regex patterns.
+    Matches formats like: Episode 1, Ep 01, Ep-1, Episode - 10, #1, 01, etc.
     """
     if not text:
         return None
@@ -64,7 +64,7 @@ def extract_episode_number(text: str) -> int:
         r'#\s*(\d+)',                                 # #1, #01
         r'(?:part|pt)\s*[-:]?\s*(\d+)',              # Part 1, Pt 01
         r'\bep\s*(\d+)\b',                            # ep1
-        r'\b(\d+)\b'                                  # Fallback: standalone number
+        r'\b(\d+)\b'                                  # Standalone number fallback
     ]
     
     for pattern in patterns:
@@ -75,6 +75,45 @@ def extract_episode_number(text: str) -> int:
             except ValueError:
                 continue
     return None
+
+# ------------------ Helper: Extract Title/Metadata from Message ------------------
+def get_message_searchable_text(msg) -> str:
+    """
+    Extracts all possible searchable text from caption, document name, audio title, or video title.
+    """
+    if not msg:
+        return ""
+    
+    combined_texts = []
+    
+    # 1. Caption / Message Text
+    if msg.caption:
+        combined_texts.append(msg.caption)
+    if msg.text:
+        combined_texts.append(msg.text)
+        
+    # 2. Audio Title / Performer / File Name
+    if msg.audio:
+        if msg.audio.title:
+            combined_texts.append(msg.audio.title)
+        if msg.audio.file_name:
+            combined_texts.append(msg.audio.file_name)
+        if msg.audio.performer:
+            combined_texts.append(msg.audio.performer)
+
+    # 3. Document File Name
+    if msg.document and msg.document.file_name:
+        combined_texts.append(msg.document.file_name)
+
+    # 4. Video File Name
+    if msg.video and msg.video.file_name:
+        combined_texts.append(msg.video.file_name)
+
+    # 5. Voice / Audio Caption Fallback
+    if msg.voice and msg.caption:
+        combined_texts.append(msg.caption)
+
+    return " | ".join(combined_texts)
 
 # ------------------ Helper: Advanced Smart File Delivery Function ------------------
 async def send_story_files_start(client, user_id, story, first_id, last_id, clean_title, custom_range_text="", target_start_ep=None, target_end_ep=None):
@@ -87,10 +126,9 @@ async def send_story_files_start(client, user_id, story, first_id, last_id, clea
         f"⏳ <b>🔍 sᴇᴀʀᴄʜɪɴɢ & ғᴇᴛᴄʜɪɴɢ ᴇᴘɪsᴏᴅᴇs {custom_range_text}...</b>\n<i>ᴘʟᴇᴀsᴇ ᴡᴀɪᴛ...</i>"
     )
 
-    # Batch fetch messages from channel to inspect captions
     msg_ids_to_fetch = list(range(first_id, last_id + 1))
     
-    # Process in chunks of 20 to avoid memory limit or timeout
+    # Process in chunks of 20 to avoid memory issues
     chunk_size = 20
     matching_messages = []
 
@@ -105,9 +143,9 @@ async def send_story_files_start(client, user_id, story, first_id, last_id, clea
                 if not msg or msg.empty:
                     continue
                 
-                # Extract caption or text
-                caption = msg.caption or msg.text or ""
-                ep_num = extract_episode_number(caption)
+                # Fetch text from Caption + Audio Title + Document/File Name
+                searchable_text = get_message_searchable_text(msg)
+                ep_num = extract_episode_number(searchable_text)
 
                 # Filter based on Target Episode Range if provided
                 if target_start_ep is not None and target_end_ep is not None:
@@ -118,9 +156,8 @@ async def send_story_files_start(client, user_id, story, first_id, last_id, clea
         except Exception as e:
             print(f"Error fetching channel messages batch: {e}")
 
-    # If Smart Caption Search was active but found specific matches
+    # Sort matched messages by actual episode number
     if target_start_ep is not None and target_end_ep is not None:
-        # Sort matched messages by actual episode number
         matching_messages.sort(key=lambda x: x[0])
         messages_to_send = [item[1] for item in matching_messages]
     else:
@@ -131,7 +168,7 @@ async def send_story_files_start(client, user_id, story, first_id, last_id, clea
     if total_files == 0:
         await status_msg.edit_text(
             f"❌ <b>ɴᴏ ᴍᴀᴛᴄʜɪɴɢ ᴇᴘɪsᴏᴅᴇs ғᴏᴜɴᴅ!</b>\n\n"
-            f"रेंज <b>{custom_range_text}</b> के एपिसोड्स चैनल कैप्शन में नहीं मिले।"
+            f"रेंज <b>{custom_range_text}</b> के एपिसोड्स न कैप्शन में मिले और न ही फाइल्स/ऑडियो के टाइटल में।"
         )
         return
 
@@ -151,17 +188,14 @@ async def send_story_files_start(client, user_id, story, first_id, last_id, clea
         except Exception as e:
             print(f"Error copying message {msg.id}: {e}")
 
-    # Track status message ID for clean action
     sent_message_ids.append(status_msg.id)
     
-    # Extract exact Episode Range text
+    # Extract exact Episode Range text from delivered files
     ep_range = get_exact_episode_range(sent_messages_obj) if sent_messages_obj else f"Files Range"
 
-    # Store IDs for clean button
     delivery_key = f"{user_id}_{int(time.time())}"
     CLEAN_CHAT_STORAGE[delivery_key] = sent_message_ids
 
-    # One-Click Delete Button
     clean_kb = InlineKeyboardMarkup([
         [InlineKeyboardButton("🧹 ᴄʟᴇᴀɴ / ᴅᴇʟᴇᴛᴇ ᴀʟʟ ғɪʟᴇs", callback_data=f"cleanchat_{delivery_key}")]
     ])
@@ -446,7 +480,7 @@ async def process_start_range_input(client, message):
 
     clean_title = story['title'].strip().split("\n")[0]
     
-    # Passes target start and end episodes to check inside captions dynamically
+    # Passes target start and end episodes to check inside captions + file titles dynamically
     await send_story_files_start(
         client=client, 
         user_id=user_id, 
