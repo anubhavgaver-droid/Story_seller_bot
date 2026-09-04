@@ -15,3 +15,8 @@ BOT_USERNAME = os.environ.get("BOT_USERNAME", "YourStorySellerBot")
 MONGO_URL = os.environ.get("MONGO_URL", "mongodb://localhost:27017")
 
 WEB_APP_URL = "https://story-seller-bot-0jtb.onrender.com" # Apni hosted web app ka HTTPS link
+
+
+# Stickers Config
+DELIVERY_STICKER_ID = "CAACAgUAAxkBAAIekGqafK19rMDCkWo-XnCakyhwR7iEAAJaBAAC-qSxV4gJ0UQKykTsHgQ..."    # Normal/All Delivery Sticker File ID
+SEARCH_RANGE_STICKER_ID = "CAACAgUAAxkBAAIelGqafXZJIuQ2k4lt3yiWGNsF8S3vAAKuCAAChKlgVvuWgEYIQg75HgQ..." # Custom Range Search Sticker File ID
