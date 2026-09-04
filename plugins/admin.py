@@ -101,15 +101,20 @@ async def list_stories(client, message):
         bot_link = f"https://t.me/{BOT_USERNAME}?start=story_{clean_title}"
         f_id = s.get('first_msg_id', 'N/A')
         l_id = s.get('last_msg_id', 'N/A')
+        episodes = s.get('episodes', 'N/A')
+        status = s.get('status', 'Completed')
+        genre = s.get('genre', 'Drama')
         demo_status = "✅ Enabled" if s.get('demo_enabled', False) else "❌ Disabled"
         demo_files = s.get('demo_msg_ids', [])
         ranges_count = len(s.get('custom_ranges', []))
         
         text += (
             f"{idx}. <b>{s['title']}</b> | ₹{s['price']} | <i>{s['category']}</i>\n"
+            f"   🔰 <b>Status:</b> {status} | 🧩 <b>Genre:</b> {genre}\n"
+            f"   🎬 <b>Episodes:</b> {episodes}\n"
             f"   📦 <b>Batch Range:</b> Message {f_id} to {l_id}\n"
             f"   🎯 <b>Custom Buttons:</b> {ranges_count} Ranges Configured\n"
-            f"   🎬 <b>Demo Status:</b> {demo_status} (Auto-Picked IDs: {demo_files})\n"
+            f"   🎧 <b>Demo Status:</b> {demo_status} (IDs: {demo_files})\n"
             f"   🔗 <b>sʜᴀʀᴇ ʟɪɴᴋ:</b> <code>{bot_link}</code>\n\n"
         )
     
@@ -127,7 +132,7 @@ async def start_delete(client, message):
         reply_markup=ForceReply(True)
     )
 
-# 3.1 FIXED: Delete Input Execution Handler
+# 3.1 Delete Input Execution Handler
 @Client.on_message(filters.private & filters.user(ADMIN_ID) & ~filters.command(["start", "addstory", "deletestory", "allstories", "cancel", "addmoney"]), group=1)
 async def process_delete_input(client, message):
     user_id = message.from_user.id
@@ -155,17 +160,18 @@ async def process_delete_input(client, message):
 async def start_add(client, message):
     ADD_STATE[message.from_user.id] = {}
     kb = InlineKeyboardMarkup([
-        [InlineKeyboardButton("📻 Pocket FM", callback_data="setcat_pocket_fm")],
-        [InlineKeyboardButton("📚 Pratilipi FM", callback_data="setcat_pratilipi_fm")]
+        [InlineKeyboardButton("📻 Pocket FM", callback_data="setcat_Pocket FM")],
+        [InlineKeyboardButton("📚 Pratilipi FM", callback_data="setcat_Pratilipi FM")]
     ])
-    await message.reply_text("<b>[sᴛᴇᴘ 1/8]</b> sᴇʟᴇᴄᴛ ᴛʜᴇ sᴛᴏʀʏ ᴄᴀᴛᴇɢᴏʀʏ:\n<i>(ᴛʏᴘᴇ /cancel ᴛᴏ ᴀʙᴏʀᴛ)</i>", reply_markup=kb)
+    await message.reply_text("<b>[sᴛᴇᴘ 1/9]</b> sᴇʟᴇᴄᴛ ᴛʜᴇ sᴛᴏʀʏ ᴄᴀᴛᴇɢᴏʀʏ:\n<i>(ᴛʏᴘᴇ /cancel ᴛᴏ ᴀʙᴏʀᴛ)</i>", reply_markup=kb)
 
 # 5. Category Selection Callback
 @Client.on_callback_query(filters.regex("^setcat_") & filters.user(ADMIN_ID))
 async def cat_selected(client, callback):
     ADD_STATE[callback.from_user.id]['category'] = callback.data.split("setcat_")[1]
+    ADD_STATE[callback.from_user.id]['platform'] = callback.data.split("setcat_")[1]
     ADD_STATE[callback.from_user.id]['step'] = 'TITLE'
-    await callback.message.reply_text("<b>[sᴛᴇᴘ 2/8]</b> ᴇɴᴛᴇʀ ᴛʜᴇ sᴛᴏʀʏ ᴛɪᴛʟᴇ:", reply_markup=ForceReply(True))
+    await callback.message.reply_text("<b>[sᴛᴇᴘ 2/9]</b> ᴇɴᴛᴇʀ ᴛʜᴇ sᴛᴏʀʏ ᴛɪᴛʟᴇ:", reply_markup=ForceReply(True))
     await callback.answer()
 
 # 6. Demo Option Selection Callback (Yes / No)
@@ -180,7 +186,7 @@ async def demo_option_selected(client, callback):
         ADD_STATE[user_id]['demo_enabled'] = False
         
     ADD_STATE[user_id]['step'] = 'FIRST_MSG'
-    await callback.message.reply_text("<b>[sᴛᴇᴘ 7/8]</b> DB Channel से स्टोरी की <b>FIRST Message ID / Link</b> भेजें:", reply_markup=ForceReply(True))
+    await callback.message.reply_text("<b>[sᴛᴇᴘ 8/9]</b> DB Channel से स्टोरी की <b>FIRST Message ID / Link</b> भेजें:", reply_markup=ForceReply(True))
     await callback.answer()
 
 # 6.1 Range Selection Callbacks (> 100 Files)
@@ -203,7 +209,6 @@ async def range_callbacks(client, callback):
 
     elif data in ["setrange_no", "finish_ranges"]:
         story_data = ADD_STATE[user_id]
-        # Finish करने से पहले State Reset करना आवश्यक है
         ADD_STATE.pop(user_id, None)
         await finalize_add_story(client, callback.message, story_data)
         await callback.answer()
@@ -243,13 +248,16 @@ async def finalize_add_story(client, message, data):
 
     log_msg = (
         f"<b>➕ ɴᴇᴡ sᴛᴏʀʏ ᴀᴅᴅᴇᴅ!</b>\n\n"
-        f"<b>📌 ᴛɪᴛʟᴇ:</b> {data['title']}\n"
-        f"<b>📂 ᴄᴀᴛᴇɢᴏʀʏ:</b> {data['category']}\n"
-        f"<b>💰 ᴘʀɪᴄᴇ:</b> ₹{data['price']}\n"
-        f"<b>🎬 ᴅᴇᴍᴏ ᴇɴᴀʙʟᴇᴅ:</b> {demo_status}\n"
-        f"<b>🎧 ᴅᴇᴍᴏ ᴀᴜᴛᴏ-ᴘɪᴄᴋᴇᴅ ɪᴅs:</b> {demo_msg_ids}\n"
-        f"<b>📦 ғɪʟᴇs:</b> {total_files} (Msg {data['first_msg_id']} to {data['last_msg_id']})\n"
-        f"<b>🎯 ᴄᴜsᴛᴏᴍ ʀᴀɴɢᴇs:</b> {ranges_count} Configured\n\n"
+        f"♨️ <b>Story :</b> {data['title']}\n"
+        f"🔰 <b>Status :</b> {data.get('status', 'Completed')}\n"
+        f"🖥️ <b>Platform :</b> {data.get('category', 'Pocket FM')}\n"
+        f"🧩 <b>Genre :</b> {data.get('genre', 'Drama')}\n"
+        f"🎬 <b>Episodes :</b> {data.get('episodes', 'N/A')}\n\n"
+        f"░▒▓█ PRICE - ₹{data['price']} █▓▒░\n\n"
+        f"<b>🎬 Demo Enabled:</b> {demo_status}\n"
+        f"<b>🎧 Demo IDs:</b> {demo_msg_ids}\n"
+        f"<b>📦 Files:</b> {total_files} (Msg {data['first_msg_id']} to {data['last_msg_id']})\n"
+        f"<b>🎯 Custom Ranges:</b> {ranges_count} Configured\n\n"
         f"🔗 <b>sʜᴀʀᴇᴀʙʟᴇ ʟɪɴᴋ:</b>\n<code>{bot_share_link}</code>"
     )
     try:
@@ -259,12 +267,15 @@ async def finalize_add_story(client, message, data):
     
     await message.reply_text(
         f"✅ <b>sᴛᴏʀʏ ᴀᴅᴅᴇᴅ sᴜᴄᴄᴇssғᴜʟʟʏ!</b>\n\n"
-        f"<b>ᴛɪᴛʟᴇ:</b> {data['title']}\n"
-        f"<b>ᴘʀɪᴄᴇ:</b> ₹{data['price']}\n"
-        f"<b>ᴅᴇᴍᴏ ᴇɴᴀʙʟᴇᴅ:</b> {demo_status}\n"
-        f"<b>🎬 ᴅᴇᴍᴏ ɪᴅs:</b> {demo_msg_ids}\n"
-        f"<b>ᴛᴏᴛᴀʟ ғɪʟᴇs:</b> {total_files}\n"
-        f"<b>🎯 ᴄᴜsᴛᴏᴍ ʙᴜᴛᴛᴏɴs:</b> {ranges_count} Configured\n\n"
+        f"♨️ <b>Story :</b> {data['title']}\n"
+        f"🔰 <b>Status :</b> {data.get('status', 'Completed')}\n"
+        f"🖥️ <b>Platform :</b> {data.get('category', 'Pocket FM')}\n"
+        f"🧩 <b>Genre :</b> {data.get('genre', 'Drama')}\n"
+        f"🎬 <b>Episodes :</b> {data.get('episodes', 'N/A')}\n\n"
+        f"░▒▓█ PRICE - ₹{data['price']} █▓▒░\n\n"
+        f"<b>🎬 Demo IDs:</b> {demo_msg_ids}\n"
+        f"<b>📦 Total Files:</b> {total_files}\n"
+        f"<b>🎯 Custom Buttons:</b> {ranges_count} Configured\n\n"
         f"🔗 <b>sʜᴀʀᴇᴀʙʟᴇ ʟɪɴᴋ:</b>\n<code>{bot_share_link}</code>",
         disable_web_page_preview=True
     )
@@ -282,8 +293,15 @@ async def wizard_inputs(client, message):
     
     if step == 'TITLE':
         ADD_STATE[user_id]['title'] = message.text.strip().split("\n")[0]
+        ADD_STATE[user_id]['step'] = 'EPISODES'
+        await message.reply_text("<b>[sᴛᴇᴘ 3/9]</b> 🎬 ᴇɴᴛᴇʀ ᴛᴏᴛᴀʟ ᴇᴘɪsᴏᴅᴇs:\n<i>(उदाहरण: 80 Episodes, 100+ Episodes या Ongoing)</i>", reply_markup=ForceReply(True))
+
+    elif step == 'EPISODES':
+        ADD_STATE[user_id]['episodes'] = message.text.strip()
+        ADD_STATE[user_id]['status'] = "Completed"
+        ADD_STATE[user_id]['genre'] = "Drama"
         ADD_STATE[user_id]['step'] = 'PHOTO'
-        await message.reply_text("<b>[sᴛᴇᴘ 3/8]</b> sᴇɴᴅ ᴛʜᴇ sᴛᴏʀʏ ᴘᴏsᴛᴇʀ ᴘʜᴏᴛᴏ (ᴏʀ ᴇɴᴛᴇʀ ᴀɴ ɪᴍᴀɢᴇ ᴜʀʟ):", reply_markup=ForceReply(True))
+        await message.reply_text("<b>[sᴛᴇᴘ 4/9]</b> sᴇɴᴅ ᴛʜᴇ sᴛᴏʀʏ ᴘᴏsᴛᴇʀ ᴘʜᴏᴛᴏ (ᴏʀ ᴇɴᴛᴇʀ ᴀɴ ɪᴍᴀɢᴇ ᴜʀʟ):", reply_markup=ForceReply(True))
         
     elif step == 'PHOTO':
         if message.photo:
@@ -294,14 +312,14 @@ async def wizard_inputs(client, message):
             return await message.reply_text("❌ ᴘʟᴇᴀsᴇ sᴇɴᴅ ᴀ ᴠᴀʟɪᴅ ᴘʜᴏᴛᴏ ᴏʀ ɪᴍᴀɢᴇ ᴜʀʟ:")
             
         ADD_STATE[user_id]['step'] = 'PRICE'
-        await message.reply_text("<b>[sᴛᴇᴘ 4/8]</b> ᴇɴᴛᴇʀ ᴛʜᴇ ᴘʀɪᴄᴇ (₹):", reply_markup=ForceReply(True))
+        await message.reply_text("<b>[sᴛᴇᴘ 5/9]</b> ᴇɴᴛᴇʀ ᴛʜᴇ ᴘʀɪᴄᴇ (₹):", reply_markup=ForceReply(True))
         
     elif step == 'PRICE':
         if not message.text or not message.text.isdigit():
             return await message.reply_text("❌ ᴘʟᴇᴀsᴇ ᴇɴᴛᴇʀ ᴛʜᴇ ᴘʀɪᴄᴇ ɪɴ ɴᴜᴍʙᴇʀs ᴏɴʟʏ (ᴇ.ɢ., 99):")
         ADD_STATE[user_id]['price'] = int(message.text)
         ADD_STATE[user_id]['step'] = 'DESC'
-        await message.reply_text("<b>[sᴛᴇᴘ 5/8]</b> ᴇɴᴛᴇʀ ᴛʜᴇ ᴅᴇsᴄʀɪᴘᴛɪᴏɴ:", reply_markup=ForceReply(True))
+        await message.reply_text("<b>[sᴛᴇᴘ 6/9]</b> ᴇɴᴛᴇʀ ᴛʜᴇ ᴅᴇsᴄʀɪᴘᴛɪᴏɴ:", reply_markup=ForceReply(True))
         
     elif step == 'DESC':
         ADD_STATE[user_id]['desc'] = message.text.strip()
@@ -313,7 +331,7 @@ async def wizard_inputs(client, message):
                 InlineKeyboardButton("❌ No (Disable Demo)", callback_data="setdemo_no")
             ]
         ])
-        await message.reply_text("<b>[sᴛᴇᴘ 6/8]</b> क्या आप इस स्टोरी के लिए <b>🎬 View Demo</b> चालू रखना चाहते हैं?", reply_markup=kb)
+        await message.reply_text("<b>[sᴛᴇᴘ 7/9]</b> क्या आप इस स्टोरी के लिए <b>🎬 View Demo</b> चालू रखना चाहते हैं?", reply_markup=kb)
 
     elif step == 'FIRST_MSG':
         first_id = extract_msg_id(message.text)
@@ -322,7 +340,7 @@ async def wizard_inputs(client, message):
         
         ADD_STATE[user_id]['first_msg_id'] = first_id
         ADD_STATE[user_id]['step'] = 'LAST_MSG'
-        await message.reply_text("<b>[sᴛᴇᴘ 8/8]</b> DB Channel से स्टोरी की <b>LAST Message ID / Link</b> भेजें:", reply_markup=ForceReply(True))
+        await message.reply_text("<b>[sᴛᴇᴘ 9/9]</b> DB Channel से स्टोरी की <b>LAST Message ID / Link</b> भेजें:", reply_markup=ForceReply(True))
 
     elif step == 'LAST_MSG':
         last_id = extract_msg_id(message.text)
