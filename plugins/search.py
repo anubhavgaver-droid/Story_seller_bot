@@ -24,77 +24,78 @@ from database.db import (
     is_story_unlocked
 )
 from config import WEB_APP_URL, BOT_USERNAME, CHANNEL_ID
+from strings import get_text, get_main_menu  # Import Language System
 
 # State and Storage Dictionaries
 SEARCH_WAITING = {}
 
-# 1. Main Menu Reply Keyboard Layout
-MAIN_MENU = ReplyKeyboardMarkup(
-    [
-        [KeyboardButton("🚀 ᴏᴘᴇɴ ᴍɪɴɪ ᴀᴘᴘ")],
-        [KeyboardButton("💼 ᴍʏ ᴡᴀʟʟᴇᴛ", style=enums.ButtonStyle.SUCCESS), KeyboardButton("👤 ᴍʏ ᴀᴄᴄᴏᴜɴᴛ", style=enums.ButtonStyle.PRIMARY)],
-        [KeyboardButton("🔎 sᴇᴀʀᴄʜ sᴛᴏʀʏ", style=enums.ButtonStyle.SUCCESS), KeyboardButton("📻 ᴘᴏᴄᴋᴇᴛ ғᴍ", style=enums.ButtonStyle.DANGER)],
-        [KeyboardButton("📚 ᴘʀᴀᴛɪʟɪᴘɪ ғᴍ", style=enums.ButtonStyle.DANGER), KeyboardButton("📢 ᴜᴘᴅᴀᴛᴇs ᴄʜᴀɴɴᴇʟ", style=enums.ButtonStyle.PRIMARY)],
-        [KeyboardButton("📞 sᴜᴘᴘᴏʀᴛ", style=enums.ButtonStyle.SUCCESS)]
-    ],
-    resize_keyboard=True
+# 1. Dynamic Regex Filters for Buttons across Languages
+MENU_BUTTON_REGEX = (
+    "^(🚀 ᴏᴘᴇɴ ᴍɪɴɪ ᴀᴘᴘ|🚀 Open Mini App|🚀 मिनी ऐप खोलें|"
+    "💼 ᴍʏ ᴡᴀʟʟᴇᴛ|💼 My Wallet|💼 मेरा वॉलेट|"
+    "👤 ᴍʏ ᴀᴄᴄᴏᴜɴᴛ|👤 My Account|👤 मेरा खाता|"
+    "🔎 sᴇᴀʀᴄʜ sᴛᴏʀʏ|🔎 Search Story|🔎 कहानी खोजें|"
+    "📻 ᴘᴏᴄᴋᴇᴛ ғᴍ|📻 Pocket FM|📻 पॉकेट एफएम|"
+    "📚 ᴘʀᴀᴛɪʟɪᴘɪ ғᴍ|📚 Pratilipi FM|📚 प्रतिलिपि एफएम|"
+    "📢 ᴜᴘᴅᴀᴛᴇs ᴄʜᴀɴɴᴇʟ|📢 Updates Channel|📢 अपडेट्स चैनल|"
+    "📞 sᴜᴘᴘᴏʀᴛ|📞 Support|📞 सहायता|"
+    "🔙 ʙᴀᴄᴋ ᴛᴏ ᴍᴀɪɴ ᴍᴇɴᴜ|🔙 Back to Main Menu|🔙 मुख्य मेनू)$"
 )
 
 # 2. 🚀 OPEN MINI APP Handler
-@Client.on_message(filters.regex("^(🚀 ᴏᴘᴇɴ ᴍɪɴɪ ᴀᴘᴘ|🚀 Open Mini App)$") & filters.private)
+@Client.on_message(filters.regex("^(🚀 ᴏᴘᴇɴ ᴍɪɴɪ ᴀᴘᴘ|🚀 Open Mini App|🚀 मिनी ऐप खोलें)$") & filters.private)
 async def miniapp_button_handler(client, message):
-    text = (
-        "🚀 <b>ᴍɪɴɪ sᴛᴏʀᴇ ᴀᴘᴘ</b>\n\n"
-        "ᴄʟɪᴄᴋ ᴛʜᴇ ʙᴜᴛᴛᴏɴ ʙᴇʟᴏᴡ ᴛᴏ ᴏᴘᴇɴ ᴏᴜʀ ᴏғғɪᴄɪᴀʟ ᴍɪɴɪ ᴀᴘᴘ ᴀɴᴅ ᴇxᴘʟᴏʀᴇ ᴀʟʟ sᴛᴏʀɪᴇs!"
-    )
+    user_id = message.from_user.id
+    text = get_text(user_id, "mini_app_desc")
     inner_kb = InlineKeyboardMarkup([
-        [InlineKeyboardButton("🚀 ʟᴀᴜɴᴄʜ ᴍɪɴɪ ᴀᴘᴘ", web_app=WebAppInfo(url=WEB_APP_URL))]
+        [InlineKeyboardButton(get_text(user_id, "btn_launch_miniapp"), web_app=WebAppInfo(url=WEB_APP_URL))]
     ])
     await message.reply_text(text, reply_markup=inner_kb, quote=True)
 
 # 3. 💼 MY WALLET Handler
-@Client.on_message(filters.regex("^(💼 ᴍʏ ᴡᴀʟʟᴇᴛ|💼 My Wallet)$") & filters.private)
+@Client.on_message(filters.regex("^(💼 ᴍʏ ᴡᴀʟʟᴇᴛ|💼 My Wallet|💼 मेरा वॉलेट)$") & filters.private)
 async def wallet_handler(client, message):
     user_id = message.from_user.id
     balance = await get_user_wallet(user_id)
     
-    text = (
-        f"<b>👛 ʏᴏᴜʀ ᴡᴀʟʟᴇᴛ ᴅᴇᴛᴀɪʟs</b>\n"
-        f"━━━━━━━━━━━━━━━━━━━\n"
-        f"<b>💳 ᴄᴜʀʀᴇɴᴛ ʙᴀʟᴀɴᴄᴇ:</b> ₹{balance}\n"
-        f"━━━━━━━━━━━━━━━━━━━\n\n"
-        f"💡 <i>Use wallet balance for 1-click instant purchases inside Mini App or Bot.</i>"
-    )
+    text = get_text(user_id, "wallet_details_card").format(bal=balance)
     kb = InlineKeyboardMarkup([
-        [InlineKeyboardButton("➕ ᴀᴅᴅ ᴍᴏɴᴇʏ / ᴛᴏᴘ-ᴜᴘ", callback_data="add_wallet_funds")]
+        [InlineKeyboardButton(get_text(user_id, "btn_add_wallet_funds"), callback_data="add_wallet_funds")]
     ])
     await message.reply_text(text, reply_markup=kb, quote=True)
 
 # 4. Pocket FM / Pratilipi FM Category Handler
-@Client.on_message(filters.regex("^(📻 ᴘᴏᴄᴋᴇᴛ ғᴍ|📚 ᴘʀᴀᴛɪʟɪᴘɪ ғᴍ|📻 Pocket FM|📚 Pratilipi FM)$") & filters.private)
+@Client.on_message(filters.regex("^(📻 ᴘᴏᴄᴋᴇᴛ ғᴍ|📚 ᴘʀᴀᴛɪʟɪᴘɪ ғᴍ|📻 Pocket FM|📚 Pratilipi FM|📻 पॉकेट एफएम|📚 प्रतिलिपि एफएम)$") & filters.private)
 async def category_handler(client, message):
-    cat_map = {
-        "📻 ᴘᴏᴄᴋᴇᴛ ғᴍ": "pocket_fm", "📻 Pocket FM": "pocket_fm",
-        "📚 ᴘʀᴀᴛɪʟɪᴘɪ ғᴍ": "pratilipi_fm", "📚 Pratilipi FM": "pratilipi_fm"
-    }
-    cat_key = cat_map[message.text]
+    user_id = message.from_user.id
+    msg_text = message.text
+    
+    # Map all translated button strings to category keys
+    if "Pocket" in msg_text or "ᴘᴏᴄᴋᴇᴛ" in msg_text or "पॉकेट" in msg_text:
+        cat_key = "pocket_fm"
+    else:
+        cat_key = "pratilipi_fm"
+        
     stories, total_pages = await get_stories_by_cat(cat_key, page=1, limit=50)
+    main_menu_kb = get_main_menu(user_id)
     
     if not stories:
-        return await message.reply_text(f"❌ <b>ɴᴏ sᴛᴏʀɪᴇs ᴀᴠᴀɪʟᴀʙʟᴇ ɪɴ {message.text}.</b>", reply_markup=MAIN_MENU, quote=True)
+        no_stories_txt = get_text(user_id, "no_stories_in_cat").format(cat=msg_text)
+        return await message.reply_text(no_stories_txt, reply_markup=main_menu_kb, quote=True)
         
     keyboard_buttons = [[KeyboardButton(f"📖 {s['title'].strip().splitlines()[0]}")] for s in stories]
-    keyboard_buttons.append([KeyboardButton("🔙 ʙᴀᴄᴋ ᴛᴏ ᴍᴀɪɴ ᴍᴇɴᴜ")])
+    keyboard_buttons.append([KeyboardButton(get_text(user_id, "btn_back_main_menu"))])
     
     category_keyboard = ReplyKeyboardMarkup(keyboard_buttons, resize_keyboard=True)
-    await message.reply_text(f"<b>📚 ᴀᴠᴀɪʟᴀʙʟᴇ sᴛᴏʀɪᴇs ({message.text}):</b>\n\nsᴇʟᴇᴄᴛ ʏᴏᴜʀ sᴛᴏʀʏ ғᴏʀ ᴅᴇᴛᴀɪʟs:", reply_markup=category_keyboard, quote=True)
+    avail_txt = get_text(user_id, "available_stories_cat_title").format(cat=msg_text)
+    await message.reply_text(avail_txt, reply_markup=category_keyboard, quote=True)
 
 # 5. Back to Main Menu Handler
-@Client.on_message(filters.regex("^(🔙 ʙᴀᴄᴋ ᴛᴏ ᴍᴀɪɴ ᴍᴇɴᴜ|🔙 Back to Main Menu)$") & filters.private)
+@Client.on_message(filters.regex("^(🔙 ʙᴀᴄᴋ ᴛᴏ ᴍᴀɪɴ ᴍᴇɴᴜ|🔙 Back to Main Menu|🔙 मुख्य मेनू)$") & filters.private)
 async def back_to_main_menu(client, message):
     user_id = message.from_user.id
     SEARCH_WAITING.pop(user_id, None)
-    await message.reply_text("<b>🌟 ᴍᴀɪɴ ᴍᴇɴᴜ:</b>", reply_markup=MAIN_MENU, quote=True)
+    await message.reply_text(get_text(user_id, "main_menu_title"), reply_markup=get_main_menu(user_id), quote=True)
 
 # 6. Story Selection Click Handler
 @Client.on_message(filters.regex("^📖 ") & filters.private)
@@ -104,7 +105,7 @@ async def story_selected_handler(client, message):
     story = await get_story_by_title(story_title)
     
     if not story:
-        return await message.reply_text("❌ <b>ᴛʜɪs sᴛᴏʀʏ ɪs ɴᴏᴛ ᴀᴠᴀɪʟᴀʙʟᴇ.</b>", quote=True)
+        return await message.reply_text(get_text(user_id, "story_not_available_err"), quote=True)
         
     clean_title = story['title'].strip().splitlines()[0]
     encoded_title = clean_title.replace(" ", "_")
@@ -113,23 +114,22 @@ async def story_selected_handler(client, message):
     inline_buttons = []
     
     if story.get('demo_enabled', False):
-        inline_buttons.append([InlineKeyboardButton("🎬 ᴅᴇᴍᴏ / ᴘʀᴇᴠɪᴇᴡ", callback_data=f"viewdemo_{encoded_title}")])
+        inline_buttons.append([InlineKeyboardButton(get_text(user_id, "btn_demo_preview"), callback_data=f"viewdemo_{encoded_title}")])
         
     inline_buttons.extend([
-        [InlineKeyboardButton(f"💳 ᴅɪʀᴇᴄᴛ ᴘᴀʏ (₹{story['price']})", callback_data=f"buy_{encoded_title}_{story['price']}")],
-        [InlineKeyboardButton(f"👛 ᴘᴀʏ ᴠɪᴀ ᴡᴀʟʟᴇᴛ (Bal: ₹{wallet_bal})", callback_data=f"walletpay_{encoded_title}_{story['price']}")]
+        [InlineKeyboardButton(get_text(user_id, "btn_direct_pay").format(price=story['price']), callback_data=f"buy_{encoded_title}_{story['price']}")],
+        [InlineKeyboardButton(get_text(user_id, "btn_pay_via_wallet").format(bal=wallet_bal), callback_data=f"walletpay_{encoded_title}_{story['price']}")]
     ])
     
     btn = InlineKeyboardMarkup(inline_buttons)
     photo_url = story.get('photo', 'https://picsum.photos/400/200')
-    desc = story.get('desc', 'ɴᴏ ᴅᴇsᴄʀɪᴘᴛɪᴏɴ ᴀᴠᴀɪʟᴀʙʟᴇ.')
+    desc = story.get('desc', get_text(user_id, "no_desc"))
     
-    caption_text = (
-        f"📖 <b>ᴛɪᴛʟᴇ:</b> {clean_title}\n"
-        f"💰 <b>ᴘʀɪᴄᴇ:</b> ₹{story['price']}\n"
-        f"👛 <b>ʏᴏᴜʀ ᴡᴀʟʟᴇᴛ:</b> ₹{wallet_bal}\n"
-        f"📝 <b>ᴅᴇsᴄ:</b> {desc}\n\n"
-        f"<i>Select payment method below:</i>"
+    caption_text = get_text(user_id, "story_details_card").format(
+        title=clean_title,
+        price=story['price'],
+        bal=wallet_bal,
+        desc=desc
     )
     
     try:
@@ -140,27 +140,24 @@ async def story_selected_handler(client, message):
 # 6.1 View Demo Callback Handler
 @Client.on_callback_query(filters.regex(r"^viewdemo_"))
 async def view_demo_callback(client: Client, callback_query: CallbackQuery):
+    user_id = callback_query.from_user.id
     try:
         encoded_title = callback_query.data.split("viewdemo_")[1]
         story_title = encoded_title.replace("_", " ")
         
         story = await get_story_by_title(story_title)
         if not story or not story.get("demo_enabled"):
-            return await callback_query.answer("⚠️ Demo is not available for this story!", show_alert=True)
+            return await callback_query.answer(get_text(user_id, "demo_not_available_alert"), show_alert=True)
             
         demo_ids = story.get("demo_msg_ids", [])
         if not demo_ids:
-            return await callback_query.answer("❌ No Demo files available!", show_alert=True)
+            return await callback_query.answer(get_text(user_id, "no_demo_files_alert"), show_alert=True)
             
-        await callback_query.answer("🎬 Sending Demo files... Please check your chat!")
-        user_id = callback_query.from_user.id
+        await callback_query.answer(get_text(user_id, "sending_demo_alert"))
         sent_messages = []
         
-        header_msg = await client.send_message(
-            chat_id=user_id,
-            text=f"🎬 <b>ᴅᴇᴍᴏ / ᴘʀᴇᴠɪᴇᴡ ғᴏʀ:</b> <code>{story['title']}</code>\n\n"
-                 f"⏰ <i>This demo preview will automatically delete in 10 minutes!</i>"
-        )
+        header_txt = get_text(user_id, "demo_header_msg").format(title=story['title'])
+        header_msg = await client.send_message(chat_id=user_id, text=header_txt)
         sent_messages.append(header_msg)
         
         for msg_id in demo_ids:
@@ -192,6 +189,7 @@ async def view_demo_callback(client: Client, callback_query: CallbackQuery):
 # 7. Wallet Deduction Payment Callback Handler
 @Client.on_callback_query(filters.regex(r"^walletpay_"))
 async def process_wallet_payment(client, callback_query):
+    user_id = callback_query.from_user.id
     try:
         data_parts = callback_query.data.split("_")
         price = float(data_parts[-1])
@@ -199,16 +197,13 @@ async def process_wallet_payment(client, callback_query):
 
         story = await get_story_by_title(story_title)
         if not story:
-            return await callback_query.answer("❌ Story not found!", show_alert=True)
+            return await callback_query.answer(get_text(user_id, "story_not_found"), show_alert=True)
 
-        user_id = callback_query.from_user.id
         current_balance = await get_user_wallet(user_id)
 
         if current_balance < price:
-            return await callback_query.answer(
-                f"❌ Insufficient Balance!\nRequired: ₹{price}\nAvailable: ₹{current_balance}\n\nPlease top-up your wallet.",
-                show_alert=True
-            )
+            insufficient_txt = get_text(user_id, "insufficient_balance_alert").format(price=price, bal=current_balance)
+            return await callback_query.answer(insufficient_txt, show_alert=True)
 
         clean_title = story['title'].strip().splitlines()[0]
         encoded_title = clean_title.replace(" ", "_")
@@ -218,18 +213,16 @@ async def process_wallet_payment(client, callback_query):
         await update_user_wallet(user_id, new_balance)
         await add_user_purchase(user_id, clean_title, story_link=delivery_link)
 
-        await callback_query.answer("🎉 Purchase successful!", show_alert=True)
+        await callback_query.answer(get_text(user_id, "purchase_success_alert"), show_alert=True)
         
-        success_text = (
-            f"✅ <b>ᴘᴜʀᴄʜᴀsᴇ sᴜᴄᴄᴇssғᴜʟ!</b>\n\n"
-            f"📖 <b>sᴛᴏʀʏ:</b> {clean_title}\n"
-            f"💸 <b>ᴅᴇᴅᴜᴄᴛᴇᴅ:</b> ₹{price}\n"
-            f"👛 <b>ʀᴇᴍᴀɪɴɪɴɢ ʙᴀʟᴀɴᴄᴇ:</b> ₹{new_balance}\n\n"
-            f"👇 Click below to access your story:"
+        success_text = get_text(user_id, "wallet_purchase_success_card").format(
+            title=clean_title,
+            price=price,
+            bal=new_balance
         )
         
         access_btn = InlineKeyboardMarkup([
-            [InlineKeyboardButton("📂 ɢᴇᴛ ғɪʟᴇs (Unlocked)", url=delivery_link)]
+            [InlineKeyboardButton(get_text(user_id, "btn_get_files_unlocked"), url=delivery_link)]
         ])
         
         await callback_query.message.edit_text(success_text, reply_markup=access_btn)
@@ -239,16 +232,14 @@ async def process_wallet_payment(client, callback_query):
         await callback_query.answer("❌ Error processing wallet payment!", show_alert=True)
 
 # 8. Search Prompt Handler
-@Client.on_message(filters.regex("^(🔎 sᴇᴀʀᴄʜ sᴛᴏʀʏ|🔎 Search Story)$") & filters.private)
+@Client.on_message(filters.regex("^(🔎 sᴇᴀʀᴄʜ sᴛᴏʀʏ|🔎 Search Story|🔎 कहानी खोजें)$") & filters.private)
 async def search_prompt(client, message):
     user_id = message.from_user.id
     SEARCH_WAITING[user_id] = True
     
     await message.reply_text(
-        "<b>ɴᴏᴡ ʏᴏᴜ ᴄᴀɴ sᴇᴀʀᴄʜ ʏᴏᴜʀ sᴛᴏʀʏ!</b> 🔍\n\n"
-        "ᴛʏᴘᴇ ᴀɴᴅ sᴇɴᴅ ᴛʜᴇ sᴛᴏʀʏ ɴᴀᴍᴇ:\n"
-        "<i>(स्पेलिंग थोड़ी गलत होने पर भी बॉट सही रिजल्ट ढूंढ लेगा)</i>",
-        reply_markup=ForceReply(selective=True, placeholder="ᴛʏᴘᴇ sᴛᴏʀʏ ɴᴀᴍᴇ ʜᴇʀᴇ..."),
+        get_text(user_id, "search_prompt_msg"),
+        reply_markup=ForceReply(selective=True, placeholder=get_text(user_id, "search_placeholder")),
         quote=True
     )
 
@@ -257,7 +248,8 @@ async def search_prompt(client, message):
     filters.private 
     & filters.text 
     & ~filters.command(["start", "addstory", "deletestory", "allstories", "cancel", "addmoney"]) 
-    & ~filters.regex("^(🚀 ᴏᴘᴇɴ ᴍɪɴɪ ᴀᴘᴘ|💼 ᴍʏ ᴡᴀʟʟᴇᴛ|📢 ᴜᴘᴅᴀᴛᴇs ᴄʜᴀɴɴᴇʟ|👤 ᴍʏ ᴀᴄᴄᴏᴜɴᴛ|📞 sᴜᴘᴘᴏʀᴛ|📻 ᴘᴏᴄᴋᴇᴛ ғᴍ|📚 ᴘʀᴀᴛɪʟɪᴘɪ ғᴍ|🔙 ʙᴀᴄᴋ ᴛᴏ ᴍᴀɪɴ ᴍᴇɴᴜ|📖 |🔎 sᴇᴀʀᴄʜ sᴛᴏʀʏ|🚀 Open Mini App|💼 My Wallet|📢 Updates Channel|👤 My Account|📞 Support|📻 Pocket FM|📚 Pratilipi FM|🔙 Back to Main Menu|🔎 Search Story)"),
+    & ~filters.regex(MENU_BUTTON_REGEX)
+    & ~filters.regex("^📖 "),
     group=2
 )
 async def process_search(client, message):
@@ -289,11 +281,14 @@ async def process_search(client, message):
         db_stories, _ = await search_stories_db(query, page=1, limit=50)
         matched_stories = db_stories or []
     
+    main_menu_kb = get_main_menu(user_id)
     if not matched_stories:
-        return await message.reply_text(f"❌ <b>ɴᴏ sᴛᴏʀʏ ғᴏᴜɴᴅ ᴡɪᴛʜ ɴᴀᴍᴇ '{query}'!</b>", reply_markup=MAIN_MENU, quote=True)
+        no_found_txt = get_text(user_id, "no_story_found_err").format(query=query)
+        return await message.reply_text(no_found_txt, reply_markup=main_menu_kb, quote=True)
         
     keyboard_buttons = [[KeyboardButton(f"📖 {s['title'].strip().splitlines()[0]}")] for s in matched_stories]
-    keyboard_buttons.append([KeyboardButton("🔙 ʙᴀᴄᴋ ᴛᴏ ᴍᴀɪɴ ᴍᴇɴᴜ")])
+    keyboard_buttons.append([KeyboardButton(get_text(user_id, "btn_back_main_menu"))])
     
     search_keyboard = ReplyKeyboardMarkup(keyboard_buttons, resize_keyboard=True)
-    await message.reply_text(f"🔍 <b>ғᴏᴜɴᴅ sᴛᴏʀɪᴇs ᴍᴀᴛᴄʜɪɴɢ '{query}':</b>", reply_markup=search_keyboard, quote=True)
+    found_txt = get_text(user_id, "found_stories_title").format(query=query)
+    await message.reply_text(found_txt, reply_markup=search_keyboard, quote=True)
