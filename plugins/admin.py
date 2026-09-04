@@ -102,10 +102,12 @@ async def list_stories(client, message):
         l_id = s.get('last_msg_id', 'N/A')
         demo_status = "✅ Enabled" if s.get('demo_enabled', False) else "❌ Disabled"
         demo_files = s.get('demo_msg_ids', [])
+        ranges_count = len(s.get('custom_ranges', []))
         
         text += (
             f"{idx}. <b>{s['title']}</b> | ₹{s['price']} | <i>{s['category']}</i>\n"
             f"   📦 <b>Batch Range:</b> Message {f_id} to {l_id}\n"
+            f"   🎯 <b>Custom Buttons:</b> {ranges_count} Ranges Configured\n"
             f"   🎬 <b>Demo Status:</b> {demo_status} (Auto-Picked IDs: {demo_files})\n"
             f"   🔗 <b>sʜᴀʀᴇ ʟɪɴᴋ:</b> <code>{bot_link}</code>\n\n"
         )
@@ -180,6 +182,85 @@ async def demo_option_selected(client, callback):
     await callback.message.reply_text("<b>[sᴛᴇᴘ 7/8]</b> DB Channel से स्टोरी की <b>FIRST Message ID / Link</b> भेजें:", reply_markup=ForceReply(True))
     await callback.answer()
 
+# 6.1 Range Selection Callbacks (> 100 Files)
+@Client.on_callback_query(filters.regex("^(setrange_|add_more_range|finish_ranges)") & filters.user(ADMIN_ID))
+async def range_callbacks(client, callback):
+    user_id = callback.from_user.id
+    data = callback.data
+
+    if user_id not in ADD_STATE:
+        return await callback.answer("Session Expired!", show_alert=True)
+
+    if data in ["setrange_yes", "add_more_range"]:
+        ADD_STATE[user_id]['step'] = 'RANGE_NAME'
+        await callback.message.reply_text(
+            "✏️ <b>Button Name दर्ज करें:</b>\n"
+            "<i>(उदाहरण: Ep 1 to 50, Part 1, या Episode 51-100)</i>",
+            reply_markup=ForceReply(True)
+        )
+        await callback.answer()
+
+    elif data in ["setrange_no", "finish_ranges"]:
+        story_data = ADD_STATE[user_id]
+        await finalize_add_story(client, callback.message, story_data)
+        await callback.answer()
+
+# Helper Function: Finalize & Save Story to Database
+async def finalize_add_story(client, message, data):
+    user_id = message.from_user.id
+    first = data['first_msg_id']
+    last = data['last_msg_id']
+    demo_msg_ids = []
+
+    if data.get('demo_enabled', False):
+        middle_range = list(range(first + 1, last))
+        if len(middle_range) >= 2:
+            demo_msg_ids = random.sample(middle_range, 2)
+        elif len(middle_range) == 1:
+            demo_msg_ids = middle_range
+        else:
+            demo_msg_ids = [first, last]
+            
+    data['demo_msg_ids'] = demo_msg_ids
+    clean_title = data['title'].strip().split("\n")[0].replace(" ", "_")
+    data['link'] = f"https://t.me/{BOT_USERNAME}?start=get_{clean_title}"
+
+    await add_story_db(data)
+    
+    bot_share_link = f"https://t.me/{BOT_USERNAME}?start=story_{clean_title}"
+    total_files = data['last_msg_id'] - data['first_msg_id'] + 1
+    demo_status = "✅ Yes" if data.get('demo_enabled', False) else "❌ No"
+    ranges_count = len(data.get('custom_ranges', []))
+
+    log_msg = (
+        f"<b>➕ ɴᴇᴡ sᴛᴏʀʏ ᴀᴅᴅᴇᴅ!</b>\n\n"
+        f"<b>📌 ᴛɪᴛʟᴇ:</b> {data['title']}\n"
+        f"<b>📂 ᴄᴀᴛᴇɢᴏʀʏ:</b> {data['category']}\n"
+        f"<b>💰 ᴘʀɪᴄᴇ:</b> ₹{data['price']}\n"
+        f"<b>🎬 ᴅᴇᴍᴏ ᴇɴᴀʙʟᴇᴅ:</b> {demo_status}\n"
+        f"<b>🎧 ᴅᴇᴍᴏ ᴀᴜᴛᴏ-ᴘɪᴄᴋᴇᴅ ɪᴅs:</b> {demo_msg_ids}\n"
+        f"<b>📦 ғɪʟᴇs:</b> {total_files} (Msg {data['first_msg_id']} to {data['last_msg_id']})\n"
+        f"<b>🎯 ᴄᴜsᴛᴏᴍ ʀᴀɴɢᴇs:</b> {ranges_count} Configured\n\n"
+        f"🔗 <b>sʜᴀʀᴇᴀʙʟᴇ ʟɪɴᴋ:</b>\n<code>{bot_share_link}</code>"
+    )
+    try:
+        await send_log(client, log_msg)
+    except Exception:
+        pass
+    
+    await message.reply_text(
+        f"✅ <b>sᴛᴏʀʏ ᴀᴅᴅᴇᴅ sᴜᴄᴄᴇssғᴜʟʟʏ!</b>\n\n"
+        f"<b>ᴛɪᴛʟᴇ:</b> {data['title']}\n"
+        f"<b>ᴘʀɪᴄᴇ:</b> ₹{data['price']}\n"
+        f"<b>ᴅᴇᴍᴏ ᴇɴᴀʙʟᴇᴅ:</b> {demo_status}\n"
+        f"<b>🎬 ᴅᴇᴍᴏ ɪᴅs:</b> {demo_msg_ids}\n"
+        f"<b>ᴛᴏᴛᴀʟ ғɪʟᴇs:</b> {total_files}\n"
+        f"<b>🎯 ᴄᴜsᴛᴏᴍ ʙᴜᴛᴛᴏɴs:</b> {ranges_count} Configured\n\n"
+        f"🔗 <b>sʜᴀʀᴇᴀʙʟᴇ ʟɪɴᴋ:</b>\n<code>{bot_share_link}</code>",
+        disable_web_page_preview=True
+    )
+    ADD_STATE.pop(user_id, None)
+
 # 7. Admin Add Story Input Wizard
 @Client.on_message(filters.private & filters.user(ADMIN_ID) & ~filters.command(["start", "addstory", "deletestory", "allstories", "cancel", "addmoney"]), group=1)
 async def wizard_inputs(client, message):
@@ -202,7 +283,7 @@ async def wizard_inputs(client, message):
         elif message.text and (message.text.startswith("http://") or message.text.startswith("https://")):
             ADD_STATE[user_id]['photo'] = message.text.strip()
         else:
-            return await message.reply_text("❌ ᴘʟᴇᴀsᴇ sᴇɴᴅ ᴀ ᴠᴀﻟɪᴅ ᴘʜᴏᴛᴏ ᴏʀ ɪᴍᴀɢᴇ ᴜʀʟ:")
+            return await message.reply_text("❌ ᴘʟᴇᴀsᴇ sᴇɴᴅ ᴀ ᴠᴀʟɪᴅ ᴘʜᴏᴛᴏ ᴏʀ ɪᴍᴀɢᴇ ᴜʀʟ:")
             
         ADD_STATE[user_id]['step'] = 'PRICE'
         await message.reply_text("<b>[sᴛᴇᴘ 4/8]</b> ᴇɴᴛᴇʀ ᴛʜᴇ ᴘʀɪᴄᴇ (₹):", reply_markup=ForceReply(True))
@@ -246,53 +327,66 @@ async def wizard_inputs(client, message):
         if data['last_msg_id'] < data['first_msg_id']:
             return await message.reply_text("❌ Last Message ID, First Message ID से छोटी नहीं हो सकती। फिर से सही Last ID भेजें:")
 
-        first = data['first_msg_id']
-        last = data['last_msg_id']
-        demo_msg_ids = []
+        total_files = (data['last_msg_id'] - data['first_msg_id']) + 1
 
-        if data.get('demo_enabled', False):
-            middle_range = list(range(first + 1, last))
-            if len(middle_range) >= 2:
-                demo_msg_ids = random.sample(middle_range, 2)
-            elif len(middle_range) == 1:
-                demo_msg_ids = middle_range
-            else:
-                demo_msg_ids = [first, last]
-                
-        data['demo_msg_ids'] = demo_msg_ids
+        # 100 से अधिक फाइल होने पर Dynamic Buttons का ऑप्शन
+        if total_files > 100:
+            data['custom_ranges'] = []
+            kb = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton("✅ Yes (Custom Buttons)", callback_data="setrange_yes"),
+                    InlineKeyboardButton("❌ No (Single Delivery)", callback_data="setrange_no")
+                ]
+            ])
+            return await message.reply_text(
+                f"📦 <b>ᴛᴏᴛᴀʟ ғɪʟᴇs: {total_files}</b> (100 से ज़्यादा)\n\n"
+                f"क्या आप इस स्टोरी के लिए Custom Range Buttons (जैसे Ep 1-50, Ep 51-100) बनाना चाहते हैं?",
+                reply_markup=kb
+            )
+        else:
+            data['custom_ranges'] = []
+            await finalize_add_story(client, message, data)
 
-        clean_title = data['title'].strip().split("\n")[0].replace(" ", "_")
-        data['link'] = f"https://t.me/{BOT_USERNAME}?start=get_{clean_title}"
+    # ------------------ Dynamic Range Steps ------------------
+    elif step == 'RANGE_NAME':
+        ADD_STATE[user_id]['temp_range_name'] = message.text.strip()
+        ADD_STATE[user_id]['step'] = 'RANGE_FIRST'
+        await message.reply_text("🔢 इस Button के लिए <b>First Message ID / Link</b> भेजें:", reply_markup=ForceReply(True))
 
-        await add_story_db(data)
+    elif step == 'RANGE_FIRST':
+        f_id = extract_msg_id(message.text)
+        if not f_id:
+            return await message.reply_text("❌ Invalid ID/Link! Valid Link send karein:")
         
-        bot_share_link = f"https://t.me/{BOT_USERNAME}?start=story_{clean_title}"
-        total_files = data['last_msg_id'] - data['first_msg_id'] + 1
-        demo_status = "✅ Yes" if data.get('demo_enabled', False) else "❌ No"
+        ADD_STATE[user_id]['temp_range_first'] = f_id
+        ADD_STATE[user_id]['step'] = 'RANGE_LAST'
+        await message.reply_text("🔢 इस Button के लिए <b>Last Message ID / Link</b> भेजें:", reply_markup=ForceReply(True))
+
+    elif step == 'RANGE_LAST':
+        l_id = extract_msg_id(message.text)
+        if not l_id:
+            return await message.reply_text("❌ Invalid ID/Link! Valid Link send karein:")
         
-        log_msg = (
-            f"<b>➕ ɴᴇᴡ sᴛᴏʀʏ ᴀᴅᴅᴇᴅ!</b>\n\n"
-            f"<b>📌 ᴛɪᴛʟᴇ:</b> {data['title']}\n"
-            f"<b>📂 ᴄᴀᴛᴇɢᴏʀʏ:</b> {data['category']}\n"
-            f"<b>💰 ᴘʀɪᴄᴇ:</b> ₹{data['price']}\n"
-            f"<b>🎬 ᴅᴇᴍᴏ ᴇɴᴀʙʟᴇᴅ:</b> {demo_status}\n"
-            f"<b>🎧 ᴅᴇᴍᴏ ᴀᴜᴛᴏ-ᴘɪᴄᴋᴇᴅ ɪᴅs:</b> {demo_msg_ids}\n"
-            f"<b>📦 ғɪʟᴇs:</b> {total_files} (Msg {data['first_msg_id']} to {data['last_msg_id']})\n\n"
-            f"🔗 <b>sʜᴀʀᴇᴀʙʟᴇ ʟɪɴᴋ:</b>\n<code>{bot_share_link}</code>"
-        )
-        try:
-            await send_log(client, log_msg)
-        except Exception:
-            pass
-        
+        f_id = ADD_STATE[user_id]['temp_range_first']
+        name = ADD_STATE[user_id]['temp_range_name']
+
+        if l_id < f_id:
+            return await message.reply_text("❌ Last Message ID, First ID से छोटी नहीं हो सकती। दोबारा सही Last Link भेजें:")
+
+        ADD_STATE[user_id]['custom_ranges'].append({
+            "name": name,
+            "first_id": f_id,
+            "last_id": l_id
+        })
+
+        kb = InlineKeyboardMarkup([
+            [
+                InlineKeyboardButton("➕ Add One More Range", callback_data="add_more_range"),
+                InlineKeyboardButton("✅ Done & Save Story", callback_data="finish_ranges")
+            ]
+        ])
         await message.reply_text(
-            f"✅ <b>sᴛᴏʀʏ ᴀᴅᴅᴇᴅ sᴜᴄᴄᴇssғᴜʟʟʏ!</b>\n\n"
-            f"<b>ᴛɪᴛʟᴇ:</b> {data['title']}\n"
-            f"<b>ᴘʀɪᴄᴇ:</b> ₹{data['price']}\n"
-            f"<b>ᴅᴇᴍᴏ ᴇɴᴀʙʟᴇᴅ:</b> {demo_status}\n"
-            f"<b>🎬 ᴅᴇᴍᴏ ɪᴅs:</b> {demo_msg_ids}\n"
-            f"<b>ᴛᴏᴛᴀʟ ғɪʟᴇs:</b> {total_files}\n\n"
-            f"🔗 <b>sʜᴀʀᴇᴀʙʟᴇ ʟɪɴᴋ:</b>\n<code>{bot_share_link}</code>",
-            disable_web_page_preview=True
+            f"✅ <b>Range Added:</b> <code>{name}</code> (Msg {f_id} to {l_id})\n\n"
+            f"क्या आप एक और Button/Range ऐड करना चाहते हैं या सेव करें?",
+            reply_markup=kb
         )
-        ADD_STATE.pop(user_id, None)
