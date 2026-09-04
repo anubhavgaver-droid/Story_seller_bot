@@ -1,10 +1,13 @@
+import re
+import sys
+import os
 from motor.motor_asyncio import AsyncIOMotorClient
 from config import MONGO_URL, LOG_CHANNEL
 
 client = AsyncIOMotorClient(MONGO_URL)
 db = client["story_seller_db"]
 stories_col = db["stories"]
-users_col = db["users"]        # Collection for User Registration & Wallet
+users_col = db["users"]        # Collection for User Registration, Wallet & Language
 purchases_col = db["purchases"]  # Collection for Purchased Stories
 
 # -------------------- LOG HELPER FUNCTION --------------------
@@ -16,7 +19,70 @@ async def send_log(client_bot, text: str):
         except Exception as e:
             print(f"Log Error: {e}")
 
-# -------------------- USER REGISTRATION FUNCTIONS --------------------
+# -------------------- EPISODE EXTRACTION HELPERS --------------------
+def extract_ep_from_file_or_caption(message) -> int:
+    """
+    कैप्शन या असली File Name से Regex द्वारा Episode Number निकालता है।
+    """
+    if not message:
+        return None
+        
+    caption_text = message.caption or message.text or ""
+    
+    file_name = ""
+    if message.document and message.document.file_name:
+        file_name = message.document.file_name
+    elif message.audio and message.audio.file_name:
+        file_name = message.audio.file_name
+    elif message.video and message.video.file_name:
+        file_name = message.video.file_name
+
+    # Pattern for Ep, Episode, Eps, etc.
+    pattern = r'(?:ep|episode|eps|episodes)\b[\s._-]*(\d+)'
+    
+    # 1. First check caption
+    match = re.search(pattern, caption_text, re.IGNORECASE)
+    if match:
+        return int(match.group(1))
+
+    # 2. Check File Name if caption didn't match
+    if file_name:
+        match_file = re.search(pattern, file_name, re.IGNORECASE)
+        if match_file:
+            return int(match_file.group(1))
+
+    # 3. Fallback: Search for first standalone number
+    text_to_search = f"{caption_text} {file_name}"
+    numbers = re.findall(r'\b\d+\b', text_to_search)
+    if numbers:
+        return int(numbers[0])
+
+    return None
+
+def get_exact_episode_range(fetched_messages) -> str:
+    """
+    फ़ाइलों की लिस्ट से Start Episode और End Episode की सटीक रेंज बनाता है (e.g. Episode 1 to 100)
+    """
+    if not fetched_messages:
+        return "No Files"
+        
+    start_msg = fetched_messages[0]
+    end_msg = fetched_messages[-1]
+
+    first_ep = extract_ep_from_file_or_caption(start_msg)
+    last_ep = extract_ep_from_file_or_caption(end_msg)
+
+    if first_ep is not None and last_ep is not None:
+        if first_ep == last_ep:
+            return f"Episode {first_ep}"
+        return f"Episode {first_ep} to {last_ep}"
+
+    # Fallback to Message IDs if no numbers found in title/filename
+    start_id = getattr(start_msg, 'id', getattr(start_msg, 'message_id', 0))
+    end_id = getattr(end_msg, 'id', getattr(end_msg, 'message_id', 0))
+    return f"Files {start_id} to {end_id}"
+
+# -------------------- USER REGISTRATION & LANGUAGE --------------------
 async def is_user_registered(user_id: int) -> bool:
     """चेक करेगा कि यूज़र पहले से रजिस्टर्ड है या नहीं (Returns True or False)"""
     user = await users_col.find_one({"user_id": user_id})
@@ -36,9 +102,25 @@ async def register_user(user_id: int, first_name: str, username: str = None):
                 "is_registered": True
             },
             "$setOnInsert": {
-                "wallet_balance": 0.0
+                "wallet_balance": 0.0,
+                "lang_code": "en"
             }
         },
+        upsert=True
+    )
+
+async def get_user_lang_db(user_id: int) -> str:
+    """यूज़र की सिलेक्टेड भाषा ढूँढता है (Default 'en')"""
+    user = await users_col.find_one({"user_id": user_id})
+    if user:
+        return user.get("lang_code", "en")
+    return "en"
+
+async def set_user_lang_db(user_id: int, lang_code: str):
+    """यूज़र की भाषा डेटाबेस में अपडेट करता है"""
+    await users_col.update_one(
+        {"user_id": user_id},
+        {"$set": {"lang_code": lang_code}},
         upsert=True
     )
 
@@ -98,7 +180,6 @@ async def add_story_db(data: dict):
     if "title" in data:
         data["title"] = data["title"].strip().split("\n")[0]
     
-    # Defaults for Demo System, Message IDs, and Custom Ranges
     demo_enabled = data.get("demo_enabled", False)
     demo_msg_ids = data.get("demo_msg_ids", [])
     first_msg_id = data.get("first_msg_id", 0)
@@ -119,7 +200,6 @@ async def add_story_db(data: dict):
         "link": data.get("link", "")
     }
 
-    # Duplicate से बचने के लिए update_one with upsert=True
     await stories_col.update_one(
         {"title": data["title"]},
         {"$set": story_doc},
