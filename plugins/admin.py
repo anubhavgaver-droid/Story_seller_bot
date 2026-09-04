@@ -10,7 +10,6 @@ from database.db import (
     send_log,
     add_wallet_balance
 )
-from strings import get_text # Translation engine
 
 ADD_STATE = {}
 DELETE_STATE = {}
@@ -55,12 +54,12 @@ async def add_money_handler(client, message):
     )
     await message.reply_text(success_msg)
 
-    # Dynamic Multilingual User Notification using strings.py
-    user_notify_text = get_text(target_user_id, "admin_wallet_credited_notify").format(
-        amount=amount,
-        bal=new_balance
+    user_notify_text = (
+        f"🎉 <b>ᴡᴀʟʟᴇᴛ ᴄʀᴇᴅɪᴛᴇᴅ!</b>\n\n"
+        f"💰 <b>ᴀᴍᴏᴜɴᴛ ᴀᴅᴅᴇᴅ:</b> ₹{amount}\n"
+        f"👛 <b>Total ʙᴀʟᴀɴᴄᴇ:</b> ₹{new_balance}\n\n"
+        f"<i>Now you can buy any story using your wallet in Mini App or Bot!</i>"
     )
-    
     try:
         await client.send_message(chat_id=target_user_id, text=user_notify_text)
     except Exception as e:
@@ -203,6 +202,7 @@ async def range_callbacks(client, callback):
 
     elif data in ["setrange_no", "finish_ranges"]:
         story_data = ADD_STATE[user_id]
+        # Finish करने से पहले State Reset करना आवश्यक है
         ADD_STATE.pop(user_id, None)
         await finalize_add_story(client, callback.message, story_data)
         await callback.answer()

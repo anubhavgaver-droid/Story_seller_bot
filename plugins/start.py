@@ -25,36 +25,22 @@ from database.db import (
     is_story_unlocked
 )
 from config import BOT_USERNAME, WEB_APP_URL, CHANNEL_ID
-from strings import get_text, USER_LANG  # Language Engine Imported
 
 # Storage Dictionaries for Clean Chat & Range Input
 CLEAN_CHAT_STORAGE = {}
 START_RANGE_WAITING = {}
 
-# ------------------ Dynamic Main Menu Generator ------------------
-def get_main_menu(user_id: int):
-    return ReplyKeyboardMarkup(
-        [
-            [KeyboardButton(get_text(user_id, "btn_miniapp"))],
-            [
-                KeyboardButton(get_text(user_id, "btn_wallet"), style=enums.ButtonStyle.SUCCESS), 
-                KeyboardButton(get_text(user_id, "btn_account"), style=enums.ButtonStyle.PRIMARY)
-            ],
-            [
-                KeyboardButton(get_text(user_id, "btn_search"), style=enums.ButtonStyle.SUCCESS), 
-                KeyboardButton(get_text(user_id, "btn_pocket"), style=enums.ButtonStyle.DANGER)
-            ],
-            [
-                KeyboardButton(get_text(user_id, "btn_pratilipi"), style=enums.ButtonStyle.DANGER), 
-                KeyboardButton(get_text(user_id, "btn_updates"), style=enums.ButtonStyle.PRIMARY)
-            ],
-            [
-                KeyboardButton(get_text(user_id, "btn_support"), style=enums.ButtonStyle.SUCCESS),
-                KeyboardButton(get_text(user_id, "btn_lang"), style=enums.ButtonStyle.PRIMARY)
-            ]
-        ],
-        resize_keyboard=True
-    )
+# 1. Main Menu Keyboard Layout (Wallet Button Included)
+MAIN_MENU = ReplyKeyboardMarkup(
+    [
+        [KeyboardButton("🚀 ᴏᴘᴇɴ ᴍɪɴɪ ᴀᴘᴘ")],
+        [KeyboardButton("💼 ᴍʏ ᴡᴀʟʟᴇᴛ", style=enums.ButtonStyle.SUCCESS), KeyboardButton("👤 ᴍʏ ᴀᴄᴄᴏᴜɴᴛ", style=enums.ButtonStyle.PRIMARY)],
+        [KeyboardButton("🔎 sᴇᴀʀᴄʜ sᴛᴏʀʏ", style=enums.ButtonStyle.SUCCESS), KeyboardButton("📻 ᴘᴏᴄᴋᴇᴛ ғᴍ", style=enums.ButtonStyle.DANGER)],
+        [KeyboardButton("📚 ᴘʀᴀᴛɪʟɪᴘɪ ғᴍ", style=enums.ButtonStyle.DANGER), KeyboardButton("📢 ᴜᴘᴅᴀᴛᴇs ᴄʜᴀɴɴᴇʟ", style=enums.ButtonStyle.PRIMARY)],
+        [KeyboardButton("📞 sᴜᴘᴘᴏʀᴛ", style=enums.ButtonStyle.SUCCESS)]
+    ],
+    resize_keyboard=True
+)
 
 # Custom Filter for WebApp Data
 async def web_app_filter(_, __, message):
@@ -68,8 +54,10 @@ async def send_story_files_start(client, user_id, story, first_id, last_id, clea
     success_count = 0
     total_files = (last_id - first_id) + 1
 
-    fetching_text = get_text(user_id, "fetching_files").format(range_text=custom_range_text)
-    status_msg = await client.send_message(user_id, fetching_text)
+    status_msg = await client.send_message(
+        user_id, 
+        f"⏳ <b>ғᴇᴛᴄʜɪɴɢ ғɪʟᴇs {custom_range_text}...</b>\n<i>ᴘʟᴇᴀsᴇ ᴡᴀɪᴛ...</i>"
+    )
     
     for msg_id in range(first_id, last_id + 1):
         try:
@@ -85,57 +73,31 @@ async def send_story_files_start(client, user_id, story, first_id, last_id, clea
         except Exception as e:
             print(f"Error copying message {msg_id}: {e}")
 
+    # Track status message for clean action
     sent_message_ids.append(status_msg.id)
     
+    # Store IDs for clean button
     delivery_key = f"{user_id}_{int(time.time())}"
     CLEAN_CHAT_STORAGE[delivery_key] = sent_message_ids
 
+    # One-Click Delete Button
     clean_kb = InlineKeyboardMarkup([
-        [InlineKeyboardButton(get_text(user_id, "btn_cleanchat"), callback_data=f"cleanchat_{delivery_key}")]
+        [InlineKeyboardButton("🧹 ᴄʟᴇᴀɴ / ᴅᴇʟᴇᴛᴇ ᴀʟʟ ғɪʟᴇs", callback_data=f"cleanchat_{delivery_key}")]
     ])
-
-    delivered_msg = get_text(user_id, "files_delivered").format(
-        range_text=custom_range_text,
-        title=clean_title,
-        success=success_count,
-        total=total_files
-    )
 
     await client.send_message(
         chat_id=user_id,
-        text=delivered_msg,
+        text=f"🎉 <b>ғɪʟᴇs ᴅᴇʟɪᴠᴇʀᴇᴅ sᴜᴄᴄᴇssғᴜʟʟʏ!</b> {custom_range_text}\n\n"
+             f"📖 <b>sᴛᴏʀʏ:</b> {clean_title}\n"
+             f"📦 <b>ᴅᴇʟɪᴠᴇʀᴇᴅ:</b> {success_count} / {total_files} Files\n\n"
+             f"👇 <i>सुनने के बाद चैट साफ़ करने के लिए नीचे बटन पर क्लिक करें:</i>",
         reply_markup=clean_kb
-    )
-
-# ------------------ Language Change System Handlers ------------------
-@Client.on_message(filters.regex(r"^(🌐 Change Language|🌐 भाषा बदलें)$") & filters.private)
-async def language_menu_handler(client, message):
-    user_id = message.from_user.id
-    kb = InlineKeyboardMarkup([
-        [
-            InlineKeyboardButton("🇮🇳 हिंदी (Hindi)", callback_data="setlang_hi"),
-            InlineKeyboardButton("🇬🇧 English", callback_data="setlang_en")
-        ]
-    ])
-    await message.reply_text(get_text(user_id, "choose_language"), reply_markup=kb, quote=True)
-
-@Client.on_callback_query(filters.regex(r"^setlang_"))
-async def save_language_callback(client, callback_query):
-    user_id = callback_query.from_user.id
-    selected_lang = callback_query.data.split("setlang_")[1]
-    USER_LANG[user_id] = selected_lang
-
-    await callback_query.answer(get_text(user_id, "lang_updated_alert"), show_alert=True)
-    await callback_query.message.reply_text(
-        get_text(user_id, "lang_saved_msg"),
-        reply_markup=get_main_menu(user_id)
     )
 
 # ------------------ Mini App Web Data Receiver ------------------
 @Client.on_message(filters.service & filter_webapp & filters.private)
 async def web_app_data_handler(client, message):
     try:
-        user_id = message.from_user.id
         data = json.loads(message.web_app_data.data)
         action = data.get("action")
         story_title = data.get("title")
@@ -144,34 +106,33 @@ async def web_app_data_handler(client, message):
         if action == "buy_story":
             story = await get_story_by_title(story_title)
             if not story:
-                return await message.reply_text(get_text(user_id, "story_not_found"), quote=True)
+                return await message.reply_text("❌ <b>sᴛᴏʀʏ ɴᴏᴛ ғᴏᴜɴᴅ.</b>", quote=True)
 
             clean_title = story_title.strip().split("\n")[0]
             encoded_title = clean_title.replace(" ", "_")
-            wallet_bal = await get_user_wallet(user_id)
+            wallet_bal = await get_user_wallet(message.from_user.id)
             
             inline_buttons = []
             
             if story.get('demo_enabled', False):
-                inline_buttons.append([InlineKeyboardButton(get_text(user_id, "btn_demo"), callback_data=f"viewdemo_{encoded_title}")])
-
-            direct_pay_txt = get_text(user_id, "btn_direct_pay").format(price=price)
-            wallet_pay_txt = get_text(user_id, "btn_wallet_pay").format(bal=wallet_bal)
+                inline_buttons.append([InlineKeyboardButton("🎬 ᴅᴇᴍᴏ / ᴘʀᴇᴠɪᴇᴡ", callback_data=f"viewdemo_{encoded_title}")])
 
             inline_buttons.extend([
-                [InlineKeyboardButton(direct_pay_txt, callback_data=f"buy_{encoded_title}_{price}")],
-                [InlineKeyboardButton(wallet_pay_txt, callback_data=f"walletpay_{encoded_title}_{price}")]
+                [InlineKeyboardButton(f"💳 ᴅɪʀᴇᴄᴛ ᴘᴀʏ (₹{price})", callback_data=f"buy_{encoded_title}_{price}")],
+                [InlineKeyboardButton(f"👛 ᴘᴀʏ ᴠɪᴀ ᴡᴀʟʟᴇᴛ (Bal: ₹{wallet_bal})", callback_data=f"walletpay_{encoded_title}_{price}")]
             ])
             
             btn = InlineKeyboardMarkup(inline_buttons)
             photo_url = story.get('photo', 'https://picsum.photos/400/200')
-            desc = story.get('desc', get_text(user_id, "no_desc"))
+            desc = story.get('desc', 'ɴᴏ ᴅᴇsᴄʀɪᴘᴛɪᴏɴ ᴀᴠᴀɪʟᴀʙʟᴇ.')
 
-            caption_text = get_text(user_id, "order_initiated_card").format(
-                title=clean_title,
-                price=price,
-                bal=wallet_bal,
-                desc=desc
+            caption_text = (
+                f"🛒 <b>ᴏʀᴅᴇʀ ɪɴɪᴛɪᴀᴛᴇᴅ ғʀᴏᴍ ᴍɪɴɪ ᴀᴘᴘ</b>\n\n"
+                f"📖 <b>ᴛɪᴛʟᴇ:</b> {clean_title}\n"
+                f"💰 <b>ᴘʀɪᴄᴇ:</b> ₹{price}\n"
+                f"👛 <b>ʏᴏᴜʀ ᴡᴀʟʟᴇᴛ:</b> ₹{wallet_bal}\n"
+                f"📝 <b>ᴅᴇsᴄ:</b> {desc}\n\n"
+                f"👇 <b>Select payment method to complete purchase:</b>"
             )
             
             try:
@@ -181,27 +142,31 @@ async def web_app_data_handler(client, message):
     except Exception as e:
         print(f"WebApp Data Error: {e}")
 
-# ------------------ View Demo Callback Handler ------------------
+# ------------------ View Demo Callback Handler (10 Min Auto Delete) ------------------
 @Client.on_callback_query(filters.regex(r"^viewdemo_"))
 async def view_demo_callback(client: Client, callback_query: CallbackQuery):
     try:
-        user_id = callback_query.from_user.id
         encoded_title = callback_query.data.split("viewdemo_")[1]
         story_title = encoded_title.replace("_", " ")
         
         story = await get_story_by_title(story_title)
         if not story or not story.get("demo_enabled"):
-            return await callback_query.answer(get_text(user_id, "demo_not_available"), show_alert=True)
+            return await callback_query.answer("⚠️ Demo is not available for this story!", show_alert=True)
             
         demo_ids = story.get("demo_msg_ids", [])
         if not demo_ids:
-            return await callback_query.answer(get_text(user_id, "no_demo_files"), show_alert=True)
+            return await callback_query.answer("❌ No Demo files available!", show_alert=True)
             
-        await callback_query.answer(get_text(user_id, "sending_demo_alert"))
+        await callback_query.answer("🎬 Sending Demo files... Please check your chat!")
         
+        user_id = callback_query.from_user.id
         sent_messages = []
-        header_text = get_text(user_id, "demo_header").format(title=story['title'])
-        header_msg = await client.send_message(chat_id=user_id, text=header_text)
+        
+        header_msg = await client.send_message(
+            chat_id=user_id,
+            text=f"🎬 <b>ᴅᴇᴍᴏ / ᴘʀᴇᴠɪᴇᴡ ғᴏʀ:</b> <code>{story['title']}</code>\n\n"
+                 f"⏰ <i>This demo preview will automatically delete in 10 minutes!</i>"
+        )
         sent_messages.append(header_msg)
         
         for msg_id in demo_ids:
@@ -234,20 +199,20 @@ async def view_demo_callback(client: Client, callback_query: CallbackQuery):
 @Client.on_callback_query(filters.regex(r"^walletpay_"))
 async def process_wallet_payment(client, callback_query):
     try:
-        user_id = callback_query.from_user.id
         data_parts = callback_query.data.split("_")
         price = float(data_parts[-1])
         story_title = " ".join(data_parts[1:-1])
 
         story = await get_story_by_title(story_title)
         if not story:
-            return await callback_query.answer(get_text(user_id, "story_not_found"), show_alert=True)
+            return await callback_query.answer("❌ Story not found!", show_alert=True)
 
+        user_id = callback_query.from_user.id
         current_balance = await get_user_wallet(user_id)
 
         if current_balance < price:
             return await callback_query.answer(
-                get_text(user_id, "insufficient_balance_alert").format(price=price, bal=current_balance),
+                f"❌ Insufficient Balance!\nRequired: ₹{price}\nAvailable: ₹{current_balance}\n\nPlease top-up your wallet.",
                 show_alert=True
             )
 
@@ -259,16 +224,18 @@ async def process_wallet_payment(client, callback_query):
         await update_user_wallet(user_id, new_balance)
         await add_user_purchase(user_id, clean_title, story_link=delivery_link)
 
-        await callback_query.answer(get_text(user_id, "purchase_success_alert"), show_alert=True)
+        await callback_query.answer("🎉 Purchase successful! Story unlocked.", show_alert=True)
         
-        success_text = get_text(user_id, "purchase_success_msg").format(
-            title=clean_title,
-            price=price,
-            bal=new_balance
+        success_text = (
+            f"✅ <b>ᴘᴜʀᴄʜᴀsᴇ sᴜᴄᴄᴇssғᴜʟ!</b>\n\n"
+            f"📖 <b>sᴛᴏʀʏ:</b> {clean_title}\n"
+            f"💸 <b>ᴅᴇᴅᴜᴄᴛᴇᴅ:</b> ₹{price}\n"
+            f"👛 <b>ʀᴇᴍᴀɪɴɪɴɢ ʙᴀʟᴀɴᴄᴇ:</b> ₹{new_balance}\n\n"
+            f"👇 Click below to access your story files:"
         )
         
         access_btn = InlineKeyboardMarkup([
-            [InlineKeyboardButton(get_text(user_id, "btn_get_files_unlocked"), url=delivery_link)]
+            [InlineKeyboardButton("📂 ɢᴇᴛ ғɪʟᴇs (Unlocked)", url=delivery_link)]
         ])
         
         await callback_query.message.edit_text(success_text, reply_markup=access_btn)
@@ -283,18 +250,20 @@ async def start_batch_callback_router(client, callback_query):
     data = callback_query.data
     user_id = callback_query.from_user.id
     
+    # 1. Send All Episodes Option
     if data.startswith("sendall_"):
         encoded_title = data.split("sendall_")[1]
         story_title = encoded_title.replace("_", " ")
         story = await get_story_by_title(story_title)
         if not story:
-            return await callback_query.answer(get_text(user_id, "story_not_found"), show_alert=True)
+            return await callback_query.answer("❌ Story not found!", show_alert=True)
             
-        await callback_query.message.edit_text(get_text(user_id, "preparing_files"))
+        await callback_query.message.edit_text("⏳ <b>Preparing to send all files... Please wait!</b>")
         clean_title = story['title'].strip().split("\n")[0]
         await send_story_files_start(client, user_id, story, story['first_msg_id'], story['last_msg_id'], clean_title)
         await callback_query.answer()
 
+    # 2. Dynamic Custom Range Selection
     elif data.startswith("sendcustom_"):
         parts = data.split(":")
         encoded_title = parts[0].replace("sendcustom_", "")
@@ -303,7 +272,7 @@ async def start_batch_callback_router(client, callback_query):
         story_title = encoded_title.replace("_", " ")
         story = await get_story_by_title(story_title)
         if not story:
-            return await callback_query.answer(get_text(user_id, "story_not_found"), show_alert=True)
+            return await callback_query.answer("❌ Story not found!", show_alert=True)
 
         custom_ranges = story.get('custom_ranges', [])
         if range_idx >= len(custom_ranges):
@@ -314,17 +283,18 @@ async def start_batch_callback_router(client, callback_query):
         f_id = selected_range['first_id']
         l_id = selected_range['last_id']
 
-        await callback_query.message.edit_text(get_text(user_id, "fetching_range_files").format(range_name=range_name))
+        await callback_query.message.edit_text(f"⏳ <b>Fetching files for '{range_name}'... Please wait!</b>")
         clean_title = story['title'].strip().split("\n")[0]
         await send_story_files_start(client, user_id, story, f_id, l_id, clean_title, custom_range_text=f"({range_name})")
         await callback_query.answer()
         
+    # 3. Ask Custom Range Option (Manual Input)
     elif data.startswith("askrange_"):
         encoded_title = data.split("askrange_")[1]
         story_title = encoded_title.replace("_", " ")
         story = await get_story_by_title(story_title)
         if not story:
-            return await callback_query.answer(get_text(user_id, "story_not_found"), show_alert=True)
+            return await callback_query.answer("❌ Story not found!", show_alert=True)
         
         START_RANGE_WAITING[user_id] = {
             "story": story,
@@ -334,19 +304,22 @@ async def start_batch_callback_router(client, callback_query):
         total_episodes = (story['last_msg_id'] - story['first_msg_id']) + 1
         
         await callback_query.message.reply_text(
-            get_text(user_id, "enter_range_prompt").format(total=total_episodes),
+            f"🔢 <b>Enter Episode Range (1 - {total_episodes}):</b>\n\n"
+            f"कृपया रेंज दर्ज करें कि आपको कहाँ से कहाँ तक एपिसोड चाहिए।\n"
+            f"<i>(उदाहरण के लिए लिखें: <code>110-120</code> या <code>1-50</code>)</i>",
             reply_markup=ForceReply(selective=True)
         )
         await callback_query.answer()
 
+    # 4. One-Click Clean / Delete Chat
     elif data.startswith("cleanchat_"):
         key = data.split("cleanchat_")[1]
         msg_ids = CLEAN_CHAT_STORAGE.get(key, [])
 
         if not msg_ids:
-            return await callback_query.answer(get_text(user_id, "already_cleaned"), show_alert=True)
+            return await callback_query.answer("⚠️ चैट पहले ही साफ़ की जा चुकी है!", show_alert=True)
 
-        await callback_query.answer(get_text(user_id, "cleaning_files"))
+        await callback_query.answer("🧹 Cleaning files... Please wait!")
 
         for m_id in msg_ids:
             try:
@@ -356,7 +329,7 @@ async def start_batch_callback_router(client, callback_query):
                 pass
 
         try:
-            await callback_query.message.edit_text(get_text(user_id, "clean_success"))
+            await callback_query.message.edit_text("✅ <b>चैट सफलतापूर्वक साफ़ कर दी गई है!</b> 🗑️")
         except Exception:
             pass
 
@@ -371,12 +344,12 @@ async def process_start_range_input(client, message):
         
     text = message.text.strip()
     if "-" not in text:
-        return await message.reply_text(get_text(user_id, "invalid_range_format"), quote=True)
+        return await message.reply_text("❌ <b>गलत फॉर्मेट!</b> कृपया सही फॉर्मेट में लिखें, जैसे: <code>110-120</code>", quote=True)
         
     try:
         start_ep, end_ep = map(int, text.split("-"))
     except ValueError:
-        return await message.reply_text(get_text(user_id, "numbers_only_range"), quote=True)
+        return await message.reply_text("❌ <b>केवल नंबर लिखें</b> (जैसे <code>110-120</code>)।", quote=True)
         
     data = START_RANGE_WAITING.get(user_id)
     story = data['story']
@@ -385,12 +358,15 @@ async def process_start_range_input(client, message):
     db_last = story['last_msg_id']
     total_story_episodes = (db_last - db_first) + 1
     
+    # Range Checks
     if start_ep < 1 or start_ep > end_ep:
-        return await message.reply_text(get_text(user_id, "invalid_range_bounds"), quote=True)
+        return await message.reply_text("❌ <b>अमान्य रेंज!</b> शुरुआत का नंबर 1 से कम या अंत वाले नंबर से बड़ा नहीं हो सकता।", quote=True)
         
     if start_ep > total_story_episodes or end_ep > total_story_episodes:
         return await message.reply_text(
-            get_text(user_id, "range_out_of_bounds").format(total=total_story_episodes),
+            f"❌ <b>रेंज सीमा से बाहर है!</b>\n\n"
+            f"इस स्टोरी में केवल <b>{total_story_episodes}</b> एपिसोड्स उपलब्ध हैं।\n"
+            f"कृपया <code>1</code> से <code>{total_story_episodes}</code> के बीच की सीमा दर्ज करें।",
             quote=True
         )
 
@@ -398,6 +374,7 @@ async def process_start_range_input(client, message):
 
     target_first = db_first + (start_ep - 1)
     target_last = db_first + (end_ep - 1)
+    
     clean_title = story['title'].strip().split("\n")[0]
     
     await send_story_files_start(
@@ -414,17 +391,17 @@ async def process_start_range_input(client, message):
 @Client.on_message(filters.command("start") & filters.private)
 async def start_handler(client, message):
     user = message.from_user
-    user_id = user.id
     
+    # 1. Registration Logic
     try:
-        registered = await is_user_registered(user_id)
+        registered = await is_user_registered(user.id)
         if not registered:
-            await register_user(user_id, user.first_name, user.username)
+            await register_user(user.id, user.first_name, user.username)
             try:
                 log_text = (
                     f"<b>🆕 ɴᴇᴡ ᴜsᴇʀ ʀᴇɢɪsᴛᴇʀᴇᴅ!</b>\n"
                     f"<b>ɴᴀᴍᴇ:</b> {user.first_name}\n"
-                    f"<b>ᴜsᴇʀ ɪᴅ:</b> <code>{user_id}</code>\n"
+                    f"<b>ᴜsᴇʀ ɪᴅ:</b> <code>{user.id}</code>\n"
                     f"<b>ᴜsᴇʀɴᴀᴍᴇ:</b> @{user.username if user.username else 'None'}"
                 )
                 await send_log(client, log_text)
@@ -435,6 +412,7 @@ async def start_handler(client, message):
 
     args = message.text.split(maxsplit=1)
     
+    # 2. BATCH DELIVERY MECHANISM (get_ENCODED_TITLE)
     if len(args) > 1 and args[1].startswith("get_"):
         raw_param = args[1]
         try:
@@ -445,17 +423,20 @@ async def start_handler(client, message):
 
         story = await get_story_by_title(story_title)
         if not story:
-            return await message.reply_text(get_text(user_id, "story_not_found"), quote=True)
+            return await message.reply_text("❌ <b>sᴛᴏʀʏ ɴᴏᴛ ғᴏᴜɴᴅ ɪɴ ᴅᴀᴛᴀʙᴀsᴇ!</b>", quote=True)
 
         clean_title = story['title'].strip().split("\n")[0]
 
-        unlocked = await is_story_unlocked(user_id, clean_title)
+        # Purchase Verification
+        unlocked = await is_story_unlocked(user.id, clean_title)
         if not unlocked:
             buy_btn = InlineKeyboardMarkup([
-                [InlineKeyboardButton(get_text(user_id, "btn_buy_now"), callback_data=f"buy_{encoded_title}_{story['price']}")]
+                [InlineKeyboardButton("💳 ʙᴜʏ ɴᴏᴡ", callback_data=f"buy_{encoded_title}_{story['price']}")]
             ])
             return await message.reply_text(
-                get_text(user_id, "access_denied").format(title=clean_title),
+                f"🔒 <b>ᴀᴄᴄᴇss ᴅᴇɴɪᴇᴅ!</b>\n\n"
+                f"You haven't purchased <b>{clean_title}</b> yet.\n"
+                f"Please buy it first to unlock access.",
                 reply_markup=buy_btn,
                 quote=True
             )
@@ -469,35 +450,43 @@ async def start_handler(client, message):
         total_files = (last_id - first_id) + 1
         custom_ranges = story.get('custom_ranges', [])
 
+        # Interactive Dynamic Range Buttons Option if Admin Created Custom Buttons
         if custom_ranges:
             buttons = []
             for idx, r in enumerate(custom_ranges):
                 buttons.append([InlineKeyboardButton(f"📁 {r['name']}", callback_data=f"sendcustom_{encoded_title}:{idx}")])
             
-            buttons.append([InlineKeyboardButton(get_text(user_id, "btn_all_episodes").format(total=total_files), callback_data=f"sendall_{encoded_title}")])
-            buttons.append([InlineKeyboardButton(get_text(user_id, "btn_custom_range_input"), callback_data=f"askrange_{encoded_title}")])
+            buttons.append([InlineKeyboardButton(f"📦 All Episodes ({total_files} Files)", callback_data=f"sendall_{encoded_title}")])
+            buttons.append([InlineKeyboardButton("🔢 Custom Range (e.g. 110-120)", callback_data=f"askrange_{encoded_title}")])
 
             choice_kb = InlineKeyboardMarkup(buttons)
             return await message.reply_text(
-                get_text(user_id, "story_options_prompt").format(title=clean_title, total=total_files),
+                f"📚 <b>{clean_title}</b>\n\n"
+                f"⚠️ इस स्टोरी में कुल <b>{total_files}</b> एपिसोड्स हैं।\n"
+                f"कृपया अपना पसंदीदा भाग चुनें या इच्छित रेंज टाइप करें:",
                 reply_markup=choice_kb,
                 quote=True
             )
 
+        # Fallback if > 100 Files but no Custom Ranges configured
         if total_files > 100:
             choice_kb = InlineKeyboardMarkup([
-                [InlineKeyboardButton(get_text(user_id, "btn_all_episodes").format(total=total_files), callback_data=f"sendall_{encoded_title}")],
-                [InlineKeyboardButton(get_text(user_id, "btn_custom_range_input"), callback_data=f"askrange_{encoded_title}")]
+                [InlineKeyboardButton(f"📦 All Episodes ({total_files} Files)", callback_data=f"sendall_{encoded_title}")],
+                [InlineKeyboardButton("🔢 Custom Range (e.g. 110-120)", callback_data=f"askrange_{encoded_title}")]
             ])
             return await message.reply_text(
-                get_text(user_id, "story_options_prompt").format(title=clean_title, total=total_files),
+                f"📚 <b>{clean_title}</b>\n\n"
+                f"⚠️ इस स्टोरी में कुल <b>{total_files}</b> एपिसोड्स हैं।\n"
+                f"आप सभी एपिसोड्स एक साथ पाना चाहते हैं या कुछ खास रेंज?",
                 reply_markup=choice_kb,
                 quote=True
             )
 
-        await send_story_files_start(client, user_id, story, first_id, last_id, clean_title)
+        # Directly send files if <= 100
+        await send_story_files_start(client, user.id, story, first_id, last_id, clean_title)
         return
 
+    # 3. DIRECT STORY VIEW FROM DEEP LINK (story_ENCODED_TITLE)
     if len(args) > 1 and args[1].startswith("story_"):
         raw_param = args[1]
         story_title = raw_param.replace("story_", "").replace("_", " ")
@@ -507,36 +496,44 @@ async def start_handler(client, message):
             clean_title = story['title'].strip().split("\n")[0]
             encoded_title = clean_title.replace(" ", "_")
             photo_url = story.get('photo', 'https://picsum.photos/400/200')
-            desc = story.get('desc', get_text(user_id, "no_desc"))
-            wallet_bal = await get_user_wallet(user_id)
+            desc = story.get('desc', 'ɴᴏ ᴅᴇsᴄʀɪᴘᴛɪᴏɴ ᴀᴠᴀɪʟᴀʙʟᴇ.')
+            wallet_bal = await get_user_wallet(user.id)
             
             miniapp_direct_url = f"{WEB_APP_URL}?tgWebAppStartParam={raw_param}"
             
             buttons = [
                 [
                     InlineKeyboardButton(
-                        get_text(user_id, "btn_open_miniapp_direct"), 
+                        "🚀 ᴏᴘᴇɴ ᴅɪʀᴇᴄᴛ sᴛᴏʀʏ ᴍɪɴɪ ᴀᴘᴘ", 
                         web_app=WebAppInfo(url=miniapp_direct_url)
                     )
                 ]
             ]
             
             if story.get('demo_enabled', False):
-                buttons.append([InlineKeyboardButton(get_text(user_id, "btn_demo"), callback_data=f"viewdemo_{encoded_title}")])
+                buttons.append([InlineKeyboardButton("🎬 ᴅᴇᴍᴏ / ᴘʀᴇᴠɪᴇᴡ", callback_data=f"viewdemo_{encoded_title}")])
 
-            direct_pay_txt = get_text(user_id, "btn_direct_pay").format(price=story['price'])
-            wallet_pay_txt = get_text(user_id, "btn_wallet_pay").format(bal=wallet_bal)
-
-            buttons.append([InlineKeyboardButton(direct_pay_txt, callback_data=f"buy_{encoded_title}_{story['price']}")])
-            buttons.append([InlineKeyboardButton(wallet_pay_txt, callback_data=f"walletpay_{encoded_title}_{story['price']}")])
+            buttons.append([
+                InlineKeyboardButton(
+                    f"💳 ᴅɪʀᴇᴄᴛ ʙᴜʏ (₹{story['price']})", 
+                    callback_data=f"buy_{encoded_title}_{story['price']}"
+                )
+            ])
+            buttons.append([
+                InlineKeyboardButton(
+                    f"👛 ᴘᴀʏ ᴠɪᴀ ᴡᴀʟʟᴇᴛ (Bal: ₹{wallet_bal})", 
+                    callback_data=f"walletpay_{encoded_title}_{story['price']}"
+                )
+            ])
             
             btn = InlineKeyboardMarkup(buttons)
             
-            caption_text = get_text(user_id, "story_details_card").format(
-                title=clean_title,
-                price=story['price'],
-                bal=wallet_bal,
-                desc=desc
+            caption_text = (
+                f"📖 <b>ᴛɪᴛʟᴇ:</b> {clean_title}\n"
+                f"💰 <b>ᴘʀɪᴄᴇ:</b> ₹{story['price']}\n"
+                f"👛 <b>ʏᴏᴜʀ ᴡᴀʟʟᴇᴛ:</b> ₹{wallet_bal}\n"
+                f"📝 <b>ᴅᴇsᴄ:</b> {desc}\n\n"
+                f"<i>👇 Choose an option below to view or purchase:</i>"
             )
             
             try:
@@ -544,8 +541,110 @@ async def start_handler(client, message):
             except Exception:
                 return await message.reply_text(caption_text, reply_markup=btn, quote=True)
         else:
-            return await message.reply_text(get_text(user_id, "story_not_found"), reply_markup=get_main_menu(user_id), quote=True)
+            return await message.reply_text("❌ <b>ᴛʜɪs sᴛᴏʀʏ ɪs ɴᴏᴛ ᴀᴠᴀɪʟᴀʙʟᴇ.</b>", reply_markup=MAIN_MENU, quote=True)
 
-    # Welcome message with dynamic menu
-    welcome_text = get_text(user_id, "welcome_msg").format(name=user.first_name)
-    await message.reply_text(welcome_text, reply_markup=get_main_menu(user_id), quote=True)
+    # 4. NORMAL /START WELCOME MESSAGE
+    welcome_text = (
+        f"<b>━━━━━━━━━━━━━━━━━━━━━━</b>\n"
+        f"🌟 <b>STORY SELLER BOT</b> 🌟\n"
+        f"<b>━━━━━━━━━━━━━━━━━━━━━━</b>\n\n"
+        f"<b>HELLO {user.first_name}! 👋</b>\n\n"
+        f"<b>USE THE BUTTONS BELOW TO SEARCH OR PURCHASE YOUR FAVORITE STORIES.</b>"
+    )
+    await message.reply_text(welcome_text, reply_markup=MAIN_MENU, quote=True)
+
+# ------------------ Wallet System Handlers ------------------
+
+@Client.on_message(filters.regex("^(💼 ᴍʏ ᴡᴀʟʟᴇᴛ|💼 My Wallet)$") & filters.private)
+async def wallet_handler(client, message):
+    user_id = message.from_user.id
+    balance = await get_user_wallet(user_id)
+    
+    text = (
+        f"<b>👛 ʏᴏᴜʀ ᴡᴀʟʟᴇᴛ ᴅᴇᴛᴀɪʟs</b>\n"
+        f"━━━━━━━━━━━━━━━━━━━\n"
+        f"<b>💳 ᴄᴜʀʀᴇɴᴛ ʙᴀʟᴀɴᴄᴇ:</b> ₹{balance}\n"
+        f"━━━━━━━━━━━━━━━━━━━\n\n"
+        f"💡 <i>Use wallet balance for 1-click instant purchases inside Mini App or Bot.</i>"
+    )
+    
+    kb = InlineKeyboardMarkup([
+        [InlineKeyboardButton("➕ ᴀᴅᴅ ᴍᴏɴᴇʏ / ᴛᴏᴘ-ᴜᴘ", callback_data="add_wallet_funds")]
+    ])
+    
+    await message.reply_text(text, reply_markup=kb, quote=True)
+
+@Client.on_callback_query(filters.regex("^add_wallet_funds$"))
+async def add_funds_callback(client, callback_query):
+    text = (
+        "<b>➕ ᴀᴅᴅ ᴍᴏɴᴇʏ ᴛᴏ ᴡᴀʟʟᴇᴛ</b>\n\n"
+        "Contact admin or send payment screenshot to top-up your wallet balance automatically."
+    )
+    kb = InlineKeyboardMarkup([
+        [InlineKeyboardButton("💬 ᴄᴏɴᴛᴀᴄᴛ ᴀᴅᴍɪɴ ғᴏʀ ᴛᴏᴘᴜᴘ", url="https://t.me/kaluu_help_bot")]
+    ])
+    await callback_query.message.edit_text(text, reply_markup=kb)
+
+# ------------------ Dynamic Button Handlers ------------------
+
+@Client.on_message(filters.regex("^(🚀 ᴏᴘᴇɴ ᴍɪɴɪ ᴀᴘᴘ|🚀 Open Mini App)$") & filters.private)
+async def open_miniapp_handler(client, message):
+    text = (
+        "🚀 <b>ᴍɪɴɪ sᴛᴏʀᴇ ᴀᴘᴘ</b>\n\n"
+        "ᴄʟɪᴄᴋ ᴛʜᴇ ʙᴜᴛᴛᴏɴ ʙᴇʟᴏᴡ ᴛᴏ ᴏᴘᴇɴ ᴏᴜʀ ᴏғғɪᴄɪᴀʟ ᴍɪɴɪ ᴀᴘᴘ ᴀɴᴅ ᴇxᴘʟᴏʀᴇ ᴀʟʟ sᴛᴏʀɪᴇs!"
+    )
+    btn = InlineKeyboardMarkup([
+        [InlineKeyboardButton("🚀 ʟᴀᴜɴᴄʜ ᴍɪɴɪ ᴀᴘᴘ", web_app=WebAppInfo(url=WEB_APP_URL))]
+    ])
+    await message.reply_text(text, reply_markup=btn, quote=True)
+
+@Client.on_message(filters.regex("^(📢 ᴜᴘᴅᴀᴛᴇs ᴄʜᴀɴɴᴇʟ|📢 Updates Channel)$") & filters.private)
+async def updates_handler(client, message):
+    kb = InlineKeyboardMarkup([
+        [InlineKeyboardButton("📢 ᴊᴏɪɴ ᴄʜᴀɴɴᴇʟ", url="https://t.me/freestoryhubMR")]
+    ])
+    await message.reply_text("<b>📢 ᴜᴘᴅᴀᴛᴇs ᴄʜᴀɴɴᴇʟ:</b>\n\nᴊᴏɪɴ ᴏᴜʀ ᴄʜᴀɴɴᴇʟ ғᴏʀ ᴛʜᴇ ʟᴀᴛᴇsᴛ ᴜᴘᴅᴀᴛᴇs ᴀɴᴅ ɴᴇᴡ sᴛᴏʀɪᴇs!", reply_markup=kb, quote=True)
+
+@Client.on_message(filters.regex("^(👤 ᴍʏ ᴀᴄᴄᴏᴜɴᴛ|👤 My Account)$") & filters.private)
+async def account_handler(client, message):
+    user = message.from_user
+    purchases = await get_user_purchases(user.id)
+    balance = await get_user_wallet(user.id)
+    
+    acc_text = (
+        f"<b>👤 ᴀᴄᴄᴏᴜɴᴛ ᴅᴇᴛᴀɪʟs:</b>\n"
+        f"━━━━━━━━━━━━━━━━━━━\n"
+        f"<b>ɴᴀᴍᴇ:</b> {user.first_name}\n"
+        f"<b>ᴜsᴇʀ ɪᴅ:</b> <code>{user.id}</code>\n"
+        f"<b>ᴜsᴇʀɴᴀᴍᴇ:</b> @{user.username if user.username else 'N/A'}\n"
+        f"<b>👛 ᴡᴀʟʟᴇᴛ ʙᴀʟᴀɴᴄᴇ:</b> ₹{balance}\n"
+        f"<b>sᴛᴀᴛᴜs:</b> ᴀᴄᴛɪᴠᴇ ᴜsᴇʀ ⚡\n"
+        f"━━━━━━━━━━━━━━━━━━━\n\n"
+    )
+    
+    if not purchases:
+        acc_text += "❌ <b>ʏᴏᴜ ʜᴀᴠᴇɴ'ᴛ ᴘᴜʀᴄʜᴀsᴇᴅ ᴀɴʏ sᴛᴏʀɪᴇs ʏᴇᴛ.</b>"
+        return await message.reply_text(acc_text, quote=True)
+    
+    acc_text += "📖 <b>ʏᴏᴜʀ ᴘᴜʀᴄʜᴀsᴇᴅ sᴛᴏʀɪᴇs:</b>\n\n"
+    buttons = []
+    
+    for item in purchases:
+        story = await get_story_by_title(item['story_title'])
+        if story:
+            clean_title = story['title'].strip().split("\n")[0]
+            encoded_title = clean_title.replace(" ", "_")
+            delivery_link = f"https://t.me/{BOT_USERNAME}?start=get_{encoded_title}"
+            
+            acc_text += f"• <b>{clean_title}</b>\n"
+            buttons.append([InlineKeyboardButton(f"🚀 ᴀᴄᴄᴇss {clean_title}", url=delivery_link)])
+            
+    reply_markup = InlineKeyboardMarkup(buttons) if buttons else None
+    await message.reply_text(acc_text, reply_markup=reply_markup, quote=True)
+
+@Client.on_message(filters.regex("^(📞 sᴜᴘᴘᴏʀᴛ|📞 Support)$") & filters.private)
+async def support_handler(client, message):
+    kb = InlineKeyboardMarkup([
+        [InlineKeyboardButton("💬 ᴄᴏɴᴛᴀᴄᴛ sᴜᴘᴘᴏʀᴛ", url="https://t.me/pratilipifm0900")]
+    ])
+    await message.reply_text("<b>📞 ᴄᴜsᴛᴏᴍᴇʀ sᴜᴘᴘᴏʀᴛ:</b>\n\nɪғ ʏᴏᴜ ғᴀᴄᴇ ᴀɴʏ ɪssᴜᴇs, ғᴇᴇʟ ғʀᴇᴇ ᴛᴏ ᴄᴏɴᴛᴀᴄᴛ support.", reply_markup=kb, quote=True)
