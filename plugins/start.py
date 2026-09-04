@@ -50,7 +50,7 @@ def get_main_menu(user_id: int):
             ],
             [
                 KeyboardButton(get_text(user_id, "btn_support"), style=enums.ButtonStyle.SUCCESS),
-                KeyboardButton(get_text(user_id, "btn_lang"), style=enums.ButtonStyle.SECONDARY)
+                KeyboardButton(get_text(user_id, "btn_lang"), style=enums.ButtonStyle.PRIMARY)
             ]
         ],
         resize_keyboard=True
