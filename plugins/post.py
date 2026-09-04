@@ -17,16 +17,20 @@ async def send_story_to_channel(client: Client, story_data: dict):
     try:
         title = story_data.get('title', 'New Story')
         price = story_data.get('price', 0)
-        desc = story_data.get('desc', 'No Description Available.')
         photo = story_data.get('photo', None)
+        
+        # New Schema Fields Extraction
+        status = story_data.get('status', 'Completed')
+        platform = story_data.get('category', 'Pocket FM')
+        genre = story_data.get('genre', 'Drama')
+        episodes = story_data.get('episodes', 'N/A')
 
-        clean_title = title.strip().split("\n")[0].replace(" ", "_")
-        clean_title = re.sub(r'[^\w\s_]', '', clean_title)
+        clean_title = title.strip().split("\n")[0]
+        encoded_title = clean_title.replace(" ", "_")
 
         # Telegram Mini App Direct Link Format
-        # Example: http://t.me/storysellerbyACbot/Store?startapp=story_Test
-        miniapp_url = f"https://t.me/{BOT_USERNAME}/Store?startapp=story_{clean_title}"
-        bot_direct_url = f"https://t.me/{BOT_USERNAME}?start=story_{clean_title}"
+        miniapp_url = f"https://t.me/{BOT_USERNAME}/Store?startapp=story_{encoded_title}"
+        bot_direct_url = f"https://t.me/{BOT_USERNAME}?start=story_{encoded_title}"
 
         # Buttons Setup
         buttons = InlineKeyboardMarkup([
@@ -39,12 +43,14 @@ async def send_story_to_channel(client: Client, story_data: dict):
             ]
         ])
 
-        # Post Caption Layout
+        # Post Caption Layout with New Schema
         post_caption = (
-            f"🔥 <b>ɴᴇᴡ sᴛᴏʀʏ ᴀʟᴇʀᴛ!</b> 🔥\n\n"
-            f"📖 <b>ᴛɪᴛʟᴇ:</b> {title}\n"
-            f"💰 <b>ᴘʀɪᴄᴇ:</b> ₹{price}\n\n"
-            f"📝 <b>ᴅᴇsᴄʀɪᴘᴛɪᴏɴ:</b>\n{desc}\n\n"
+            f"♨️ <b>Story :</b> {clean_title}\n"
+            f"🔰 <b>Status :</b> {status}\n"
+            f"🖥️ <b>Platform :</b> {platform}\n"
+            f"🧩 <b>Genre :</b> {genre}\n"
+            f"🎬 <b>Episodes :</b> {episodes}\n\n"
+            f"░▒▓█ PRICE - ₹{price} █▓▒░\n\n"
             f"👇 <i>नीचे दिए गए बटन पर क्लिक करके स्टोरी अनलॉक करें:</i>"
         )
 
