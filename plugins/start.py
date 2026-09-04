@@ -245,7 +245,7 @@ async def process_wallet_payment(client, callback_query):
         await callback_query.answer("❌ Error processing wallet payment!", show_alert=True)
 
 # ------------------ Start Batch Callback Router ------------------
-@Client.on_callback_query(filters.regex(r"^(sendall_|askrange_|cleanchat_)"))
+@Client.on_callback_query(filters.regex(r"^(sendall_|sendcustom_|askrange_|cleanchat_)"))
 async def start_batch_callback_router(client, callback_query):
     data = callback_query.data
     user_id = callback_query.from_user.id
@@ -262,8 +262,33 @@ async def start_batch_callback_router(client, callback_query):
         clean_title = story['title'].strip().split("\n")[0]
         await send_story_files_start(client, user_id, story, story['first_msg_id'], story['last_msg_id'], clean_title)
         await callback_query.answer()
+
+    # 2. Dynamic Custom Range Selection
+    elif data.startswith("sendcustom_"):
+        parts = data.split(":")
+        encoded_title = parts[0].replace("sendcustom_", "")
+        range_idx = int(parts[1])
+
+        story_title = encoded_title.replace("_", " ")
+        story = await get_story_by_title(story_title)
+        if not story:
+            return await callback_query.answer("❌ Story not found!", show_alert=True)
+
+        custom_ranges = story.get('custom_ranges', [])
+        if range_idx >= len(custom_ranges):
+            return await callback_query.answer("❌ Invalid Range Selected!", show_alert=True)
+
+        selected_range = custom_ranges[range_idx]
+        range_name = selected_range['name']
+        f_id = selected_range['first_id']
+        l_id = selected_range['last_id']
+
+        await callback_query.message.edit_text(f"⏳ <b>Fetching files for '{range_name}'... Please wait!</b>")
+        clean_title = story['title'].strip().split("\n")[0]
+        await send_story_files_start(client, user_id, story, f_id, l_id, clean_title, custom_range_text=f"({range_name})")
+        await callback_query.answer()
         
-    # 2. Ask Custom Range Option
+    # 3. Ask Custom Range Option (Manual Input)
     elif data.startswith("askrange_"):
         encoded_title = data.split("askrange_")[1]
         story_title = encoded_title.replace("_", " ")
@@ -286,7 +311,7 @@ async def start_batch_callback_router(client, callback_query):
         )
         await callback_query.answer()
 
-    # 3. One-Click Clean / Delete Chat
+    # 4. One-Click Clean / Delete Chat
     elif data.startswith("cleanchat_"):
         key = data.split("cleanchat_")[1]
         msg_ids = CLEAN_CHAT_STORAGE.get(key, [])
@@ -367,7 +392,7 @@ async def process_start_range_input(client, message):
 async def start_handler(client, message):
     user = message.from_user
     
-    # 1. Registration Logic (Wrapped in Try-Except to prevent blocking)
+    # 1. Registration Logic
     try:
         registered = await is_user_registered(user.id)
         if not registered:
@@ -423,8 +448,27 @@ async def start_handler(client, message):
             return await message.reply_text("⚠️ <b>ɴᴏ ғɪʟᴇs ᴀssᴏᴄɪᴀᴛᴇᴅ ᴡɪᴛʜ ᴛʜɪs sᴛᴏʀʏ!</b>\nPlease contact support.", quote=True)
 
         total_files = (last_id - first_id) + 1
+        custom_ranges = story.get('custom_ranges', [])
 
-        # Interactive Choice Range Dialog if > 100 Files
+        # Interactive Dynamic Range Buttons Option if Admin Created Custom Buttons
+        if custom_ranges:
+            buttons = []
+            for idx, r in enumerate(custom_ranges):
+                buttons.append([InlineKeyboardButton(f"📁 {r['name']}", callback_data=f"sendcustom_{encoded_title}:{idx}")])
+            
+            buttons.append([InlineKeyboardButton(f"📦 All Episodes ({total_files} Files)", callback_data=f"sendall_{encoded_title}")])
+            buttons.append([InlineKeyboardButton("🔢 Custom Range (e.g. 110-120)", callback_data=f"askrange_{encoded_title}")])
+
+            choice_kb = InlineKeyboardMarkup(buttons)
+            return await message.reply_text(
+                f"📚 <b>{clean_title}</b>\n\n"
+                f"⚠️ इस स्टोरी में कुल <b>{total_files}</b> एपिसोड्स हैं।\n"
+                f"कृपया अपना पसंदीदा भाग चुनें या इच्छित रेंज टाइप करें:",
+                reply_markup=choice_kb,
+                quote=True
+            )
+
+        # Fallback if > 100 Files but no Custom Ranges configured
         if total_files > 100:
             choice_kb = InlineKeyboardMarkup([
                 [InlineKeyboardButton(f"📦 All Episodes ({total_files} Files)", callback_data=f"sendall_{encoded_title}")],
@@ -499,7 +543,7 @@ async def start_handler(client, message):
         else:
             return await message.reply_text("❌ <b>ᴛʜɪs sᴛᴏʀʏ ɪs ɴᴏᴛ ᴀᴠᴀɪʟᴀʙʟᴇ.</b>", reply_markup=MAIN_MENU, quote=True)
 
-    # 4. NORMAL /START WELCOME MESSAGE (Screenshot Exact Layout with Reply Quote)
+    # 4. NORMAL /START WELCOME MESSAGE
     welcome_text = (
         f"<b>━━━━━━━━━━━━━━━━━━━━━━</b>\n"
         f"🌟 <b>STORY SELLER BOT</b> 🌟\n"
