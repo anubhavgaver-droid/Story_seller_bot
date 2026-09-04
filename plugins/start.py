@@ -26,7 +26,14 @@ from database.db import (
     is_story_unlocked,
     get_exact_episode_range
 )
-from config import BOT_USERNAME, WEB_APP_URL, CHANNEL_ID
+# Config file imports (Added Stickers Config)
+from config import (
+    BOT_USERNAME, 
+    WEB_APP_URL, 
+    CHANNEL_ID, 
+    DELIVERY_STICKER_ID, 
+    SEARCH_RANGE_STICKER_ID
+)
 
 # Storage Dictionaries for Clean Chat & Range Input
 CLEAN_CHAT_STORAGE = {}
@@ -52,19 +59,15 @@ filter_webapp = filters.create(web_app_filter)
 
 # ------------------ Helper: Extract Episode Number from Text/Title ------------------
 def extract_episode_number(text: str) -> int:
-    """
-    Extracts episode integer from text, caption, title, or filename using regex patterns.
-    Matches formats like: Episode 1, Ep 01, Ep-1, Episode - 10, #1, 01, etc.
-    """
     if not text:
         return None
     
     patterns = [
-        r'(?:episode|ep|episodes)\s*[-:]?\s*(\d+)',  # Episode 1, Ep-01, Ep 1
-        r'#\s*(\d+)',                                 # #1, #01
-        r'(?:part|pt)\s*[-:]?\s*(\d+)',              # Part 1, Pt 01
-        r'\bep\s*(\d+)\b',                            # ep1
-        r'\b(\d+)\b'                                  # Standalone number fallback
+        r'(?:episode|ep|episodes)\s*[-:]?\s*(\d+)',
+        r'#\s*(\d+)',
+        r'(?:part|pt)\s*[-:]?\s*(\d+)',
+        r'\bep\s*(\d+)\b',
+        r'\b(\d+)\b'
     ]
     
     for pattern in patterns:
@@ -78,21 +81,16 @@ def extract_episode_number(text: str) -> int:
 
 # ------------------ Helper: Extract Title/Metadata from Message ------------------
 def get_message_searchable_text(msg) -> str:
-    """
-    Extracts all possible searchable text from caption, document name, audio title, or video title.
-    """
     if not msg:
         return ""
     
     combined_texts = []
     
-    # 1. Caption / Message Text
     if msg.caption:
         combined_texts.append(msg.caption)
     if msg.text:
         combined_texts.append(msg.text)
         
-    # 2. Audio Title / Performer / File Name
     if msg.audio:
         if msg.audio.title:
             combined_texts.append(msg.audio.title)
@@ -101,15 +99,12 @@ def get_message_searchable_text(msg) -> str:
         if msg.audio.performer:
             combined_texts.append(msg.audio.performer)
 
-    # 3. Document File Name
     if msg.document and msg.document.file_name:
         combined_texts.append(msg.document.file_name)
 
-    # 4. Video File Name
     if msg.video and msg.video.file_name:
         combined_texts.append(msg.video.file_name)
 
-    # 5. Voice / Audio Caption Fallback
     if msg.voice and msg.caption:
         combined_texts.append(msg.caption)
 
@@ -121,15 +116,16 @@ async def send_story_files_start(client, user_id, story, first_id, last_id, clea
     sent_message_ids = []
     success_count = 0
 
-    # 1. केवल SINGLE 🔍 EMOJI MESSAGE
-    status_msg = await client.send_message(
+    # เลือก Sticker ตาม Condition (Range Search या Normal Delivery)
+    chosen_sticker = SEARCH_RANGE_STICKER_ID if target_start_ep is not None else DELIVERY_STICKER_ID
+
+    # 1. Sticker Message भेजें
+    status_msg = await client.send_sticker(
         chat_id=user_id,
-        text="🔍"
+        sticker=chosen_sticker
     )
 
     msg_ids_to_fetch = list(range(first_id, last_id + 1))
-    
-    # Process in chunks of 20 to avoid memory issues
     chunk_size = 20
     matching_messages = []
 
@@ -144,11 +140,9 @@ async def send_story_files_start(client, user_id, story, first_id, last_id, clea
                 if not msg or msg.empty:
                     continue
                 
-                # Fetch text from Caption + Audio Title + Document/File Name
                 searchable_text = get_message_searchable_text(msg)
                 ep_num = extract_episode_number(searchable_text)
 
-                # Filter based on Target Episode Range if provided
                 if target_start_ep is not None and target_end_ep is not None:
                     if ep_num is not None and target_start_ep <= ep_num <= target_end_ep:
                         matching_messages.append((ep_num, msg))
@@ -157,7 +151,6 @@ async def send_story_files_start(client, user_id, story, first_id, last_id, clea
         except Exception as e:
             print(f"Error fetching channel messages batch: {e}")
 
-    # Sort matched messages by actual episode number
     if target_start_ep is not None and target_end_ep is not None:
         matching_messages.sort(key=lambda x: x[0])
         messages_to_send = [item[1] for item in matching_messages]
@@ -167,13 +160,18 @@ async def send_story_files_start(client, user_id, story, first_id, last_id, clea
     total_files = len(messages_to_send)
 
     if total_files == 0:
-        await status_msg.edit_text(
-            f"❌ <b>ɴᴏ ᴍᴀᴛᴄʜɪɴɢ ᴇᴘɪsᴏᴅᴇs ғᴏᴜɴᴅ!</b>\n\n"
-            f"रेंज <b>{custom_range_text}</b> के एपिसोड्स उपलब्ध नहीं हैं।"
-        )
-        return
+        try:
+            await status_msg.delete()
+        except Exception:
+            pass
 
-    # Deliver matched files to user
+        return await client.send_message(
+            chat_id=user_id,
+            text=f"❌ <b>ɴᴏ ᴍᴀᴛᴄʜɪɴɢ ᴇᴘɪsᴏᴅᴇs ғᴏᴜɴᴅ!</b>\n\n"
+                 f"रेंज <b>{custom_range_text}</b> के एपिसोड्स उपलब्ध नहीं हैं।"
+        )
+
+    # Deliver files
     for msg in messages_to_send:
         try:
             sent_msg = await client.copy_message(
@@ -185,17 +183,16 @@ async def send_story_files_start(client, user_id, story, first_id, last_id, clea
             sent_messages_obj.append(sent_msg)
             sent_message_ids.append(sent_msg.id)
             success_count += 1
-            await asyncio.sleep(0.4)  # Avoid FloodWait
+            await asyncio.sleep(0.4)
         except Exception as e:
             print(f"Error copying message {msg.id}: {e}")
 
-    # 2. 🔍 इमोजी वाले मैसेज को डिलीट करें
+    # 2. डिलीवर होने के बाद Sticker डिलीट करें
     try:
         await status_msg.delete()
     except Exception:
         pass
 
-    # Extract exact Episode Range text from delivered files
     ep_range = get_exact_episode_range(sent_messages_obj) if sent_messages_obj else f"Files Range"
 
     delivery_key = f"{user_id}_{int(time.time())}"
@@ -371,7 +368,6 @@ async def start_batch_callback_router(client, callback_query):
     data = callback_query.data
     user_id = callback_query.from_user.id
     
-    # 1. Send All Episodes Option
     if data.startswith("sendall_"):
         encoded_title = data.split("sendall_")[1]
         story_title = encoded_title.replace("_", " ")
@@ -384,7 +380,6 @@ async def start_batch_callback_router(client, callback_query):
         await send_story_files_start(client, user_id, story, story['first_msg_id'], story['last_msg_id'], clean_title)
         await callback_query.answer()
 
-    # 2. Dynamic Custom Range Selection
     elif data.startswith("sendcustom_"):
         parts = data.split(":")
         encoded_title = parts[0].replace("sendcustom_", "")
@@ -409,7 +404,6 @@ async def start_batch_callback_router(client, callback_query):
         await send_story_files_start(client, user_id, story, f_id, l_id, clean_title, custom_range_text=f"({range_name})")
         await callback_query.answer()
         
-    # 3. Ask Custom Range Option (Manual Input)
     elif data.startswith("askrange_"):
         encoded_title = data.split("askrange_")[1]
         story_title = encoded_title.replace("_", " ")
@@ -432,7 +426,6 @@ async def start_batch_callback_router(client, callback_query):
         )
         await callback_query.answer()
 
-    # 4. One-Click Clean / Delete Chat
     elif data.startswith("cleanchat_"):
         key = data.split("cleanchat_")[1]
         msg_ids = CLEAN_CHAT_STORAGE.get(key, [])
@@ -485,7 +478,7 @@ async def process_start_range_input(client, message):
 
     clean_title = story['title'].strip().split("\n")[0]
     
-    # Directly sends files with Single 🔍 Emoji search status
+    # Trigger send_story_files_start using Search Range Sticker ID
     await send_story_files_start(
         client=client, 
         user_id=user_id, 
@@ -503,7 +496,6 @@ async def process_start_range_input(client, message):
 async def start_handler(client, message):
     user = message.from_user
     
-    # 1. Registration Logic
     try:
         registered = await is_user_registered(user.id)
         if not registered:
@@ -523,7 +515,6 @@ async def start_handler(client, message):
 
     args = message.text.split(maxsplit=1)
     
-    # 2. BATCH DELIVERY MECHANISM (get_ENCODED_TITLE)
     if len(args) > 1 and args[1].startswith("get_"):
         raw_param = args[1]
         try:
@@ -538,7 +529,6 @@ async def start_handler(client, message):
 
         clean_title = story['title'].strip().split("\n")[0]
 
-        # Purchase Verification
         unlocked = await is_story_unlocked(user.id, clean_title)
         if not unlocked:
             buy_btn = InlineKeyboardMarkup([
@@ -561,7 +551,6 @@ async def start_handler(client, message):
         total_files = (last_id - first_id) + 1
         custom_ranges = story.get('custom_ranges', [])
 
-        # Interactive Dynamic Range Buttons Option if Admin Created Custom Buttons
         if custom_ranges:
             buttons = []
             for idx, r in enumerate(custom_ranges):
@@ -579,7 +568,6 @@ async def start_handler(client, message):
                 quote=True
             )
 
-        # Fallback if > 100 Files but no Custom Ranges configured
         if total_files > 100:
             choice_kb = InlineKeyboardMarkup([
                 [InlineKeyboardButton(f"📦 All Episodes ({total_files} Files)", callback_data=f"sendall_{encoded_title}")],
@@ -593,11 +581,9 @@ async def start_handler(client, message):
                 quote=True
             )
 
-        # Directly send files if <= 100
         await send_story_files_start(client, user.id, story, first_id, last_id, clean_title)
         return
 
-    # 3. DIRECT STORY VIEW FROM DEEP LINK (story_ENCODED_TITLE)
     if len(args) > 1 and args[1].startswith("story_"):
         raw_param = args[1]
         story_title = raw_param.replace("story_", "").replace("_", " ")
@@ -654,7 +640,6 @@ async def start_handler(client, message):
         else:
             return await message.reply_text("❌ <b>ᴛʜɪs sᴛᴏʀʏ ɪs ɴᴏᴛ ᴀᴠᴀɪʟᴀʙʟᴇ.</b>", reply_markup=MAIN_MENU, quote=True)
 
-    # 4. NORMAL /START WELCOME MESSAGE
     welcome_text = (
         f"<b>━━━━━━━━━━━━━━━━━━━━━━</b>\n"
         f"🌟 <b>STORY SELLER BOT</b> 🌟\n"
