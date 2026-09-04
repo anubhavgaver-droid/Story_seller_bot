@@ -10,6 +10,7 @@ from database.db import (
     send_log,
     add_wallet_balance
 )
+from plugins.post import send_story_to_channel
 
 ADD_STATE = {}
 DELETE_STATE = {}
@@ -226,8 +227,15 @@ async def finalize_add_story(client, message, data):
     clean_title = data['title'].strip().split("\n")[0].replace(" ", "_")
     data['link'] = f"https://t.me/{BOT_USERNAME}?start=get_{clean_title}"
 
+    # Database updates
     await add_story_db(data)
     
+    # Auto-Post Trigger to Channel
+    try:
+        await send_story_to_channel(client, data)
+    except Exception as e:
+        print(f"⚠️ Auto post failed: {e}")
+
     bot_share_link = f"https://t.me/{BOT_USERNAME}?start=story_{clean_title}"
     total_files = data['last_msg_id'] - data['first_msg_id'] + 1
     demo_status = "✅ Yes" if data.get('demo_enabled', False) else "❌ No"
