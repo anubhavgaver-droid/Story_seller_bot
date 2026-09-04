@@ -24,7 +24,7 @@ from database.db import (
     is_story_unlocked
 )
 from config import WEB_APP_URL, BOT_USERNAME, CHANNEL_ID
-from strings import get_text, get_main_menu  # Import Language System
+from strings import get_text  # Import Language System
 
 # State and Storage Dictionaries
 SEARCH_WAITING = {}
