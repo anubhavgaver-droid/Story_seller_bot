@@ -1,4 +1,8 @@
-# - Translation dictionary for English and Hindi
+from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from db import get_user_lang_db
+
+# Store user session languages in memory for quick access
+USER_LANG = {}
 
 LANG = {
     "en": {
@@ -10,6 +14,12 @@ LANG = {
         "close_btn": "❌ Close",
         "next_btn": "Next ➡️",
         "prev_btn": "⬅️ Prev",
+        "btn_pocket": "📻 Pocket FM",
+        "btn_pratilipi": "📚 Pratilipi FM",
+        "btn_search": "🔎 Search Story",
+        "btn_wallet": "💼 My Wallet",
+        "btn_lang": "🌐 Change Language",
+        "btn_support": "📞 Support",
         
         # --- User Registration & Main Menu ---
         "must_register": "⚠️ You need to register first before using the bot.",
@@ -49,6 +59,12 @@ LANG = {
         "close_btn": "❌ बंद करें",
         "next_btn": "आगे ➡️",
         "prev_btn": "⬅️ पीछे",
+        "btn_pocket": "📻 पॉकेट एफएम",
+        "btn_pratilipi": "📚 प्रतिलिपि एफएम",
+        "btn_search": "🔎 स्टोरी खोजें",
+        "btn_wallet": "💼 मेरा वॉलेट",
+        "btn_lang": "🌐 भाषा बदलें",
+        "btn_support": "📞 सहायता",
         
         # --- User Registration & Main Menu ---
         "must_register": "⚠️ बॉट का उपयोग करने से पहले आपको रजिस्ट्रेशन करना होगा।",
@@ -80,8 +96,38 @@ LANG = {
     }
 }
 
-# Helper Function to safely fetch strings
-def get_text(lang_code: str, key: str) -> str:
-    """भाषा कोड के आधार पर टेक्स्ट निकालता है। अगर भाषा न मिले तो Default English यूज़ करता है।"""
+def get_text(user_or_lang, key: str) -> str:
+    """
+    यूजर ID (int) या भाषा कोड (str) दोनों स्वीकार करता है और सही टेक्स्ट रिटर्न करता है।
+    """
+    if isinstance(user_or_lang, int):
+        lang_code = USER_LANG.get(user_or_lang, "en")
+    else:
+        lang_code = str(user_or_lang) if user_or_lang in LANG else "en"
+        
     user_lang = LANG.get(lang_code, LANG["en"])
     return user_lang.get(key, LANG["en"].get(key, f"[{key}]"))
+
+async def get_main_menu(user_id: int):
+    """
+    यूज़र के लिए मेनू कीबोर्ड जनरेट करता है। (NameError को फ़िक्स करता है)
+    """
+    lang_code = USER_LANG.get(user_id)
+    if not lang_code:
+        lang_code = await get_user_lang_db(user_id)
+        USER_LANG[user_id] = lang_code or "en"
+
+    return InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton(get_text(user_id, "btn_pocket"), callback_data="cat_pocket"),
+            InlineKeyboardButton(get_text(user_id, "btn_pratilipi"), callback_data="cat_pratilipi")
+        ],
+        [
+            InlineKeyboardButton(get_text(user_id, "btn_search"), callback_data="search_story"),
+            InlineKeyboardButton(get_text(user_id, "btn_wallet"), callback_data="my_wallet")
+        ],
+        [
+            InlineKeyboardButton(get_text(user_id, "btn_lang"), callback_data="change_lang"),
+            InlineKeyboardButton(get_text(user_id, "btn_support"), callback_data="support_info")
+        ]
+    ])
