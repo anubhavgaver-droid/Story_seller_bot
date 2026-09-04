@@ -14,9 +14,12 @@ PORT = int(os.environ.get("PORT", "8080"))
 BOT_USERNAME = os.environ.get("BOT_USERNAME", "YourStorySellerBot")
 MONGO_URL = os.environ.get("MONGO_URL", "mongodb://localhost:27017")
 
-WEB_APP_URL = "https://story-seller-bot-0jtb.onrender.com" # Apni hosted web app ka HTTPS link
+WEB_APP_URL = os.environ.get("WEB_APP_URL", "https://story-seller-bot-0jtb.onrender.com")
 
+# Auto-Post Tutorial Button Link
+TUTORIAL_VIDEO_URL = os.environ.get("TUTORIAL_VIDEO_URL", "https://t.me/telegram")
+CHANNEL = int(os.environ.get("CHANNEL", "-1003525105249"))
 
 # Stickers Config
-DELIVERY_STICKER_ID = "CAACAgUAAxkBAAIekGqafK19rMDCkWo-XnCakyhwR7iEAAJaBAAC-qSxV4gJ0UQKykTsHgQ..."    # Normal/All Delivery Sticker File ID
-SEARCH_RANGE_STICKER_ID = "CAACAgUAAxkBAAIelGqafXZJIuQ2k4lt3yiWGNsF8S3vAAKuCAAChKlgVvuWgEYIQg75HgQ..." # Custom Range Search Sticker File ID
+DELIVERY_STICKER_ID = os.environ.get("DELIVERY_STICKER_ID", "CAACAgUAAxkBAAIekGqafK19rMDCkWo-XnCakyhwR7iEAAJaBAAC-qSxV4gJ0UQKykTsHgQ...")
+SEARCH_RANGE_STICKER_ID = os.environ.get("SEARCH_RANGE_STICKER_ID", "CAACAgUAAxkBAAIelGqafXZJIuQ2k4lt3yiWGNsF8S3vAAKuCAAChKlgVvuWgEYIQg75HgQ...")
