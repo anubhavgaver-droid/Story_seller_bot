@@ -26,7 +26,7 @@ from database.db import (
     is_story_unlocked,
     get_exact_episode_range
 )
-# Config file imports (Added Stickers Config)
+# Config file imports
 from config import (
     BOT_USERNAME, 
     WEB_APP_URL, 
@@ -39,7 +39,7 @@ from config import (
 CLEAN_CHAT_STORAGE = {}
 START_RANGE_WAITING = {}
 
-# 1. Main Menu Keyboard Layout (Wallet Button Included)
+# 1. Main Menu Keyboard Layout
 MAIN_MENU = ReplyKeyboardMarkup(
     [
         [KeyboardButton("🚀 ᴏᴘᴇɴ ᴍɪɴɪ ᴀᴘᴘ")],
@@ -57,7 +57,7 @@ async def web_app_filter(_, __, message):
 
 filter_webapp = filters.create(web_app_filter)
 
-# ------------------ Helper: Extract Episode Number from Text/Title ------------------
+# ------------------ Helper: Extract Episode Number ------------------
 def extract_episode_number(text: str) -> int:
     if not text:
         return None
@@ -79,7 +79,7 @@ def extract_episode_number(text: str) -> int:
                 continue
     return None
 
-# ------------------ Helper: Extract Title/Metadata from Message ------------------
+# ------------------ Helper: Extract Text from Message ------------------
 def get_message_searchable_text(msg) -> str:
     if not msg:
         return ""
@@ -116,10 +116,8 @@ async def send_story_files_start(client, user_id, story, first_id, last_id, clea
     sent_message_ids = []
     success_count = 0
 
-    # เลือก Sticker ตาม Condition (Range Search या Normal Delivery)
     chosen_sticker = SEARCH_RANGE_STICKER_ID if target_start_ep is not None else DELIVERY_STICKER_ID
 
-    # 1. Sticker Message भेजें
     status_msg = await client.send_sticker(
         chat_id=user_id,
         sticker=chosen_sticker
@@ -171,7 +169,6 @@ async def send_story_files_start(client, user_id, story, first_id, last_id, clea
                  f"रेंज <b>{custom_range_text}</b> के एपिसोड्स उपलब्ध नहीं हैं।"
         )
 
-    # Deliver files
     for msg in messages_to_send:
         try:
             sent_msg = await client.copy_message(
@@ -187,7 +184,6 @@ async def send_story_files_start(client, user_id, story, first_id, last_id, clea
         except Exception as e:
             print(f"Error copying message {msg.id}: {e}")
 
-    # 2. डिलीवर होने के बाद Sticker डिलीट करें
     try:
         await status_msg.delete()
     except Exception:
@@ -242,14 +238,16 @@ async def web_app_data_handler(client, message):
             
             btn = InlineKeyboardMarkup(inline_buttons)
             photo_url = story.get('photo', 'https://picsum.photos/400/200')
-            desc = story.get('desc', 'ɴᴏ ᴅᴇsᴄʀɪᴘᴛɪᴏɴ ᴀᴠᴀɪʟᴀʙʟᴇ.')
 
             caption_text = (
                 f"🛒 <b>ᴏʀᴅᴇʀ ɪɴɪᴛɪᴀᴛᴇᴅ ғʀᴏᴍ ᴍɪɴɪ ᴀᴘᴘ</b>\n\n"
-                f"📖 <b>ᴛɪᴛʟᴇ:</b> {clean_title}\n"
-                f"💰 <b>ᴘʀɪᴄᴇ:</b> ₹{price}\n"
-                f"👛 <b>ʏᴏᴜʀ ᴡᴀʟʟᴇᴛ:</b> ₹{wallet_bal}\n"
-                f"📝 <b>ᴅᴇsᴄ:</b> {desc}\n\n"
+                f"♨️ <b>Story :</b> {clean_title}\n"
+                f"🔰 <b>Status :</b> {story.get('status', 'Completed')}\n"
+                f"🖥️ <b>Platform :</b> {story.get('category', 'Pocket FM')}\n"
+                f"🧩 <b>Genre :</b> {story.get('genre', 'Drama')}\n"
+                f"🎬 <b>Episodes :</b> {story.get('episodes', 'N/A')}\n\n"
+                f"░▒▓█ PRICE - ₹{price} █▓▒░\n\n"
+                f"👛 <b>ʏᴏᴜʀ ᴡᴀʟʟᴇᴛ:</b> ₹{wallet_bal}\n\n"
                 f"👇 <b>Select payment method to complete purchase:</b>"
             )
             
@@ -478,7 +476,6 @@ async def process_start_range_input(client, message):
 
     clean_title = story['title'].strip().split("\n")[0]
     
-    # Trigger send_story_files_start using Search Range Sticker ID
     await send_story_files_start(
         client=client, 
         user_id=user_id, 
@@ -593,7 +590,6 @@ async def start_handler(client, message):
             clean_title = story['title'].strip().split("\n")[0]
             encoded_title = clean_title.replace(" ", "_")
             photo_url = story.get('photo', 'https://picsum.photos/400/200')
-            desc = story.get('desc', 'ɴᴏ ᴅᴇsᴄʀɪᴘᴛɪᴏɴ ᴀᴠᴀɪʟᴀʙʟᴇ.')
             wallet_bal = await get_user_wallet(user.id)
             
             miniapp_direct_url = f"{WEB_APP_URL}?tgWebAppStartParam={raw_param}"
@@ -626,10 +622,13 @@ async def start_handler(client, message):
             btn = InlineKeyboardMarkup(buttons)
             
             caption_text = (
-                f"📖 <b>ᴛɪᴛʟᴇ:</b> {clean_title}\n"
-                f"💰 <b>ᴘʀɪᴄᴇ:</b> ₹{story['price']}\n"
-                f"👛 <b>ʏᴏᴜʀ ᴡᴀʟʟᴇᴛ:</b> ₹{wallet_bal}\n"
-                f"📝 <b>ᴅᴇsᴄ:</b> {desc}\n\n"
+                f"♨️ <b>Story :</b> {clean_title}\n"
+                f"🔰 <b>Status :</b> {story.get('status', 'Completed')}\n"
+                f"🖥️ <b>Platform :</b> {story.get('category', 'Pocket FM')}\n"
+                f"🧩 <b>Genre :</b> {story.get('genre', 'Drama')}\n"
+                f"🎬 <b>Episodes :</b> {story.get('episodes', 'N/A')}\n\n"
+                f"░▒▓█ PRICE - ₹{story['price']} █▓▒░\n\n"
+                f"👛 <b>ʏᴏᴜʀ ᴡᴀʟʟᴇᴛ:</b> ₹{wallet_bal}\n\n"
                 f"<i>👇 Choose an option below to view or purchase:</i>"
             )
             
