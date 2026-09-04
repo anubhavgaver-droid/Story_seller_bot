@@ -175,7 +175,7 @@ async def get_user_purchases(user_id: int):
 async def add_story_db(data: dict):
     """
     स्टोरी जोड़ते या अपडेट करते समय Title की केवल पहली लाइन को ही Clean Title बनाएगा।
-    demo_enabled (Yes/No), demo_msg_ids, custom_ranges (Multiple dynamic buttons) सपोर्ट करता है।
+    Status, Platform, Genre, Episodes काउंट, demo_enabled, demo_msg_ids और custom_ranges सपोर्ट करता है।
     """
     if "title" in data:
         data["title"] = data["title"].strip().split("\n")[0]
@@ -186,9 +186,20 @@ async def add_story_db(data: dict):
     last_msg_id = data.get("last_msg_id", 0)
     custom_ranges = data.get("custom_ranges", [])
 
+    # ऑटो-एपिसोड्स कैलकुलेशन
+    episodes = data.get("episodes")
+    if not episodes and first_msg_id and last_msg_id:
+        episodes = (last_msg_id - first_msg_id + 1)
+    elif not episodes:
+        episodes = "N/A"
+
     story_doc = {
         "title": data["title"],
-        "category": data.get("category", ""),
+        "category": data.get("category", "Pocket FM"),
+        "platform": data.get("platform", data.get("category", "Pocket FM")),
+        "status": data.get("status", "Completed"),
+        "genre": data.get("genre", "Drama"),
+        "episodes": episodes,
         "photo": data.get("photo", ""),
         "price": data.get("price", 0),
         "desc": data.get("desc", ""),
