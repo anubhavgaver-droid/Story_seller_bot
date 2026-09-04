@@ -96,7 +96,7 @@ async def back_to_main_menu(client, message):
     SEARCH_WAITING.pop(user_id, None)
     await message.reply_text("<b>🌟 ᴍᴀɪɴ ᴍᴇɴᴜ:</b>", reply_markup=MAIN_MENU, quote=True)
 
-# 6. Story Selection Click Handler
+# 6. Story Selection Click Handler (Updated with Schema Fields)
 @Client.on_message(filters.regex("^📖 ") & filters.private)
 async def story_selected_handler(client, message):
     user_id = message.from_user.id
@@ -122,13 +122,15 @@ async def story_selected_handler(client, message):
     
     btn = InlineKeyboardMarkup(inline_buttons)
     photo_url = story.get('photo', 'https://picsum.photos/400/200')
-    desc = story.get('desc', 'ɴᴏ ᴅᴇsᴄʀɪᴘᴛɪᴏɴ ᴀᴠᴀɪʟᴀʙʟᴇ.')
     
     caption_text = (
-        f"📖 <b>ᴛɪᴛʟᴇ:</b> {clean_title}\n"
-        f"💰 <b>ᴘʀɪᴄᴇ:</b> ₹{story['price']}\n"
-        f"👛 <b>ʏᴏᴜʀ ᴡᴀʟʟᴇᴛ:</b> ₹{wallet_bal}\n"
-        f"📝 <b>ᴅᴇsᴄ:</b> {desc}\n\n"
+        f"♨️ <b>Story :</b> {clean_title}\n"
+        f"🔰 <b>Status :</b> {story.get('status', 'Completed')}\n"
+        f"🖥️ <b>Platform :</b> {story.get('category', 'Pocket FM')}\n"
+        f"🧩 <b>Genre :</b> {story.get('genre', 'Drama')}\n"
+        f"🎬 <b>Episodes :</b> {story.get('episodes', 'N/A')}\n\n"
+        f"░▒▓█ PRICE - ₹{story['price']} █▓▒░\n\n"
+        f"👛 <b>ʏᴏᴜʀ ᴡᴀʟʟᴇᴛ:</b> ₹{wallet_bal}\n\n"
         f"<i>Select payment method below:</i>"
     )
     
