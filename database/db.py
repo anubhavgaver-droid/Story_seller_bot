@@ -4,8 +4,11 @@ from config import MONGO_URL, LOG_CHANNEL
 client = AsyncIOMotorClient(MONGO_URL)
 db = client["story_seller_db"]
 stories_col = db["stories"]
-users_col = db["users"]        # Collection for User Registration & Wallet
+users_col = db["users"]        # Collection for User Registration, Wallet & Language
 purchases_col = db["purchases"]  # Collection for Purchased Stories
+
+# --- FAST IN-MEMORY CACHE FOR LANGUAGE ---
+USER_LANG = {}
 
 # -------------------- LOG HELPER FUNCTION --------------------
 async def send_log(client_bot, text: str):
@@ -16,6 +19,33 @@ async def send_log(client_bot, text: str):
         except Exception as e:
             print(f"Log Error: {e}")
 
+# -------------------- LANGUAGE DATABASE FUNCTIONS --------------------
+async def set_user_lang_db(user_id: int, lang_code: str):
+    """यूज़र की चुनी हुई भाषा को Database और Cache दोनों में अपडेट करता है"""
+    USER_LANG[user_id] = lang_code
+    await users_col.update_one(
+        {"user_id": user_id},
+        {"$set": {"language": lang_code}},
+        upsert=True
+    )
+
+async def get_user_lang_db(user_id: int) -> str:
+    """यूज़र की भाषा सबसे पहले Cache से, वरना Database से निकालता है (By Default: 'en')"""
+    # 1. पहले RAM/Cache में चेक करो
+    if user_id in USER_LANG:
+        return USER_LANG[user_id]
+    
+    # 2. अगर Cache में नहीं है तो DB से निकालो
+    user = await users_col.find_one({"user_id": user_id})
+    if user and "language" in user:
+        lang = user["language"]
+    else:
+        lang = "en"  # डिफॉल्ट इंग्लिश
+        
+    # 3. भविष्य के तेज एक्सेस के लिए Cache में स्टोर कर लो
+    USER_LANG[user_id] = lang
+    return lang
+
 # -------------------- USER REGISTRATION FUNCTIONS --------------------
 async def is_user_registered(user_id: int) -> bool:
     """चेक करेगा कि यूज़र पहले से रजिस्टर्ड है या नहीं (Returns True or False)"""
@@ -25,7 +55,7 @@ async def is_user_registered(user_id: int) -> bool:
     return False
 
 async def register_user(user_id: int, first_name: str, username: str = None):
-    """नए यूज़र को रजिस्टर करेगा और Default Wallet Balance (0.0) सेट करेगा"""
+    """नए यूज़र को रजिस्टर करेगा और Default Wallet Balance (0.0) व Default Language ('en') सेट करेगा"""
     await users_col.update_one(
         {"user_id": user_id},
         {
@@ -36,7 +66,8 @@ async def register_user(user_id: int, first_name: str, username: str = None):
                 "is_registered": True
             },
             "$setOnInsert": {
-                "wallet_balance": 0.0
+                "wallet_balance": 0.0,
+                "language": "en"
             }
         },
         upsert=True
