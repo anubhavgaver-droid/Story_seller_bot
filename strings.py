@@ -1,5 +1,5 @@
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-from db import get_user_lang_db
+from database.db import get_user_lang_db
 
 USER_LANG = {}
 
