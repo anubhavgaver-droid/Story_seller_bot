@@ -1,23 +1,13 @@
 from motor.motor_asyncio import AsyncIOMotorClient
-from pymongo import ReturnDocument
 from config import MONGO_URL, LOG_CHANNEL
 
 client = AsyncIOMotorClient(MONGO_URL)
 db = client["story_seller_db"]
 stories_col = db["stories"]
-users_col = db["users"]        # Collection for User Registration, Wallet & Language
+users_col = db["users"]        # Collection for User Registration & Wallet
 purchases_col = db["purchases"]  # Collection for Purchased Stories
 
-# --- FAST IN-MEMORY CACHE FOR LANGUAGE ---
-USER_LANG = {}
-
-# -------------------- HELPER FUNCTIONS --------------------
-def clean_title(title: str) -> str:
-    """टाइटल की केवल पहली लाइन निकालता है"""
-    if not title:
-        return ""
-    return str(title).strip().split("\n")[0]
-
+# -------------------- LOG HELPER FUNCTION --------------------
 async def send_log(client_bot, text: str):
     """Log Channel में मैसेज भेजने के लिए Helper फ़ंक्शन"""
     if LOG_CHANNEL and LOG_CHANNEL != 0:
@@ -26,37 +16,16 @@ async def send_log(client_bot, text: str):
         except Exception as e:
             print(f"Log Error: {e}")
 
-# -------------------- LANGUAGE DATABASE FUNCTIONS --------------------
-async def set_user_lang_db(user_id: int, lang_code: str):
-    """यूज़र की चुनी हुई भाषा को Database और Cache दोनों में अपडेट करता है"""
-    USER_LANG[user_id] = lang_code
-    await users_col.update_one(
-        {"user_id": user_id},
-        {"$set": {"language": lang_code}},
-        upsert=True
-    )
-
-async def get_user_lang_db(user_id: int) -> str:
-    """यूज़र की भाषा सबसे पहले Cache से, वरना Database से निकालता है (By Default: 'en')"""
-    if user_id in USER_LANG:
-        return USER_LANG[user_id]
-    
-    user = await users_col.find_one({"user_id": user_id})
-    lang = user.get("language", "en") if user else "en"
-        
-    USER_LANG[user_id] = lang
-    return lang
-
 # -------------------- USER REGISTRATION FUNCTIONS --------------------
 async def is_user_registered(user_id: int) -> bool:
-    """चेक करेगा कि यूज़र पहले से रजिस्टर्ड है या नहीं"""
+    """चेक करेगा कि यूज़र पहले से रजिस्टर्ड है या नहीं (Returns True or False)"""
     user = await users_col.find_one({"user_id": user_id})
     if user:
         return user.get("is_registered", False)
     return False
 
 async def register_user(user_id: int, first_name: str, username: str = None):
-    """नए यूज़र को रजिस्टर करेगा और Default Wallet Balance (0.0) व Language ('en') सेट करेगा"""
+    """नए यूज़र को रजिस्टर करेगा और Default Wallet Balance (0.0) सेट करेगा"""
     await users_col.update_one(
         {"user_id": user_id},
         {
@@ -67,8 +36,7 @@ async def register_user(user_id: int, first_name: str, username: str = None):
                 "is_registered": True
             },
             "$setOnInsert": {
-                "wallet_balance": 0.0,
-                "language": "en"
+                "wallet_balance": 0.0
             }
         },
         upsert=True
@@ -96,26 +64,24 @@ async def add_wallet_balance(user_id: int, amount: float) -> float:
         {"user_id": user_id},
         {"$inc": {"wallet_balance": round(float(amount), 2)}},
         upsert=True,
-        return_document=ReturnDocument.AFTER
+        return_document=True
     )
-    if user:
-        return float(user.get("wallet_balance", 0.0))
-    return 0.0
+    return float(user.get("wallet_balance", 0.0))
 
 # -------------------- USER PURCHASES & ACCESS CHECK --------------------
 async def add_user_purchase(user_id: int, story_title: str, story_link: str = "#"):
-    """खरीदे गए टाइटल की पहली लाइन सेव करेगा"""
-    title_clean = clean_title(story_title)
+    """ऑटो-पेमेंट या Wallet deduction कन्फर्म होने पर खरीदे गए टाइटल की पहली लाइन सेव करेगा"""
+    clean_title = story_title.strip().split("\n")[0]
     await purchases_col.update_one(
-        {"user_id": user_id, "story_title": title_clean},
-        {"$set": {"user_id": user_id, "story_title": title_clean, "link": story_link}},
+        {"user_id": user_id, "story_title": clean_title},
+        {"$set": {"user_id": user_id, "story_title": clean_title, "link": story_link}},
         upsert=True
     )
 
 async def is_story_unlocked(user_id: int, story_title: str) -> bool:
     """चेक करता है कि यूज़र ने स्टोरी खरीदी है या नहीं"""
-    title_clean = clean_title(story_title)
-    purchase = await purchases_col.find_one({"user_id": user_id, "story_title": title_clean})
+    clean_title = story_title.strip().split("\n")[0]
+    purchase = await purchases_col.find_one({"user_id": user_id, "story_title": clean_title})
     return bool(purchase)
 
 async def get_user_purchases(user_id: int):
@@ -125,24 +91,35 @@ async def get_user_purchases(user_id: int):
 
 # -------------------- STORY DATABASE FUNCTIONS --------------------
 async def add_story_db(data: dict):
-    """स्टोरी जोड़ते या अपडेट करते समय Title की केवल पहली लाइन ही स्टोर होगी"""
+    """
+    स्टोरी जोड़ते या अपडेट करते समय Title की केवल पहली लाइन को ही Clean Title बनाएगा।
+    demo_enabled (Yes/No), demo_msg_ids, custom_ranges (Multiple dynamic buttons) सपोर्ट करता है।
+    """
     if "title" in data:
-        data["title"] = clean_title(data["title"])
+        data["title"] = data["title"].strip().split("\n")[0]
     
+    # Defaults for Demo System, Message IDs, and Custom Ranges
+    demo_enabled = data.get("demo_enabled", False)
+    demo_msg_ids = data.get("demo_msg_ids", [])
+    first_msg_id = data.get("first_msg_id", 0)
+    last_msg_id = data.get("last_msg_id", 0)
+    custom_ranges = data.get("custom_ranges", [])
+
     story_doc = {
         "title": data["title"],
         "category": data.get("category", ""),
         "photo": data.get("photo", ""),
         "price": data.get("price", 0),
         "desc": data.get("desc", ""),
-        "demo_enabled": data.get("demo_enabled", False),
-        "demo_msg_ids": data.get("demo_msg_ids", []),
-        "first_msg_id": data.get("first_msg_id", 0),
-        "last_msg_id": data.get("last_msg_id", 0),
-        "custom_ranges": data.get("custom_ranges", []),
+        "demo_enabled": demo_enabled,
+        "demo_msg_ids": demo_msg_ids,
+        "first_msg_id": first_msg_id,
+        "last_msg_id": last_msg_id,
+        "custom_ranges": custom_ranges,
         "link": data.get("link", "")
     }
 
+    # Duplicate से बचने के लिए update_one with upsert=True
     await stories_col.update_one(
         {"title": data["title"]},
         {"$set": story_doc},
@@ -152,32 +129,32 @@ async def add_story_db(data: dict):
 
 async def update_story_demo_status(title: str, is_enabled: bool) -> bool:
     """किसी स्टोरी के लिए Demo (Yes/No) टॉगल करने का फ़ंक्शन"""
-    title_clean = clean_title(title)
+    clean_title = title.strip().split("\n")[0]
     res = await stories_col.update_one(
-        {"title": title_clean},
+        {"title": clean_title},
         {"$set": {"demo_enabled": is_enabled}}
     )
     return res.modified_count > 0
 
 async def update_story_range(title: str, first_msg_id: int, last_msg_id: int) -> bool:
     """किसी स्टोरी के लिए First और Last Message ID सेट करने का फ़ंक्शन"""
-    title_clean = clean_title(title)
+    clean_title = title.strip().split("\n")[0]
     res = await stories_col.update_one(
-        {"title": title_clean},
+        {"title": clean_title},
         {"$set": {"first_msg_id": int(first_msg_id), "last_msg_id": int(last_msg_id)}}
     )
     return res.modified_count > 0
 
 async def delete_story_db(title: str) -> bool:
     """स्टोरी डिलीट करने का फ़ंक्शन - Main List और Purchase List दोनों से डिलीट करता है"""
-    title_clean = clean_title(title)
-    res = await stories_col.delete_one({"title": title_clean})
+    clean_title = title.strip().split("\n")[0]
+    res = await stories_col.delete_one({"title": clean_title})
     
     if res.deleted_count > 0:
         await purchases_col.delete_many({
             "$or": [
-                {"story_title": title_clean},
-                {"title": title_clean}
+                {"story_title": clean_title},
+                {"title": clean_title}
             ]
         })
         return True
@@ -206,5 +183,5 @@ async def search_stories_db(query, page=1, limit=10):
     return stories, total_pages
 
 async def get_story_by_title(title: str):
-    title_clean = clean_title(title)
-    return await stories_col.find_one({"title": title_clean})
+    clean_title = title.strip().split("\n")[0]
+    return await stories_col.find_one({"title": clean_title})
