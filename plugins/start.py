@@ -126,7 +126,7 @@ async def send_story_files_start(client, user_id, story, first_id, last_id, clea
     )
 
     msg_ids_to_fetch = list(range(first_id, last_id + 1))
-    chunk_size = 20
+    chunk_size = 200
     matching_messages = []
 
     for i in range(0, len(msg_ids_to_fetch), chunk_size):
