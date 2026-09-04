@@ -19,11 +19,25 @@ async def view_story(client, callback):
     clean_title = story['title'].strip().split("\n")[0]
     encoded_title = clean_title.replace(" ", "_")
     btn = InlineKeyboardMarkup([[InlineKeyboardButton("💳 ʙᴜʏ ɴᴏᴡ", callback_data=f"buy_{encoded_title}_{story['price']}")]])
-    await callback.message.reply_photo(
-        photo=story.get('photo', 'https://picsum.photos/400/200'),
-        caption=f"📖 <b>ᴛɪᴛʟᴇ:</b> {clean_title}\n💰 <b>ᴘʀɪᴄᴇ:</b> ₹{story['price']}\n📝 <b>ᴅᴇsᴄ:</b> {story.get('desc', 'N/A')}",
-        reply_markup=btn
+    
+    caption_text = (
+        f"♨️ <b>Story :</b> {clean_title}\n"
+        f"🔰 <b>Status :</b> {story.get('status', 'Completed')}\n"
+        f"🖥️ <b>Platform :</b> {story.get('category', 'Pocket FM')}\n"
+        f"🧩 <b>Genre :</b> {story.get('genre', 'Drama')}\n"
+        f"🎬 <b>Episodes :</b> {story.get('episodes', 'N/A')}\n\n"
+        f"░▒▓█ PRICE - ₹{story['price']} █▓▒░"
     )
+    
+    try:
+        await callback.message.reply_photo(
+            photo=story.get('photo', 'https://picsum.photos/400/200'),
+            caption=caption_text,
+            reply_markup=btn
+        )
+    except Exception:
+        await callback.message.reply_text(caption_text, reply_markup=btn)
+        
     await callback.answer()
 
 # 2. Generate QR Code for Story Purchase
