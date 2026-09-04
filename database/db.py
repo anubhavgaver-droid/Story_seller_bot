@@ -93,16 +93,17 @@ async def get_user_purchases(user_id: int):
 async def add_story_db(data: dict):
     """
     स्टोरी जोड़ते या अपडेट करते समय Title की केवल पहली लाइन को ही Clean Title बनाएगा।
-    demo_enabled (Yes/No), demo_msg_ids (Auto Picked Random IDs) और Range सपोर्ट करता है।
+    demo_enabled (Yes/No), demo_msg_ids, custom_ranges (Multiple dynamic buttons) सपोर्ट करता है।
     """
     if "title" in data:
         data["title"] = data["title"].strip().split("\n")[0]
     
-    # Defaults for Demo System & Message IDs
+    # Defaults for Demo System, Message IDs, and Custom Ranges
     demo_enabled = data.get("demo_enabled", False)
     demo_msg_ids = data.get("demo_msg_ids", [])
     first_msg_id = data.get("first_msg_id", 0)
     last_msg_id = data.get("last_msg_id", 0)
+    custom_ranges = data.get("custom_ranges", [])
 
     story_doc = {
         "title": data["title"],
@@ -114,6 +115,7 @@ async def add_story_db(data: dict):
         "demo_msg_ids": demo_msg_ids,
         "first_msg_id": first_msg_id,
         "last_msg_id": last_msg_id,
+        "custom_ranges": custom_ranges,
         "link": data.get("link", "")
     }
 
