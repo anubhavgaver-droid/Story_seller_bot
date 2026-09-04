@@ -1,6 +1,7 @@
 import json
 import asyncio
 import time
+import re
 from pyrogram import Client, filters, enums
 from pyrogram.types import (
     ReplyKeyboardMarkup, 
@@ -49,24 +50,98 @@ async def web_app_filter(_, __, message):
 
 filter_webapp = filters.create(web_app_filter)
 
-# ------------------ Helper: File Delivery Function ------------------
-async def send_story_files_start(client, user_id, story, first_id, last_id, clean_title, custom_range_text=""):
+# ------------------ Helper: Extract Episode Number from Caption ------------------
+def extract_episode_number(text: str) -> int:
+    """
+    Extracts episode integer from text or caption using regex patterns.
+    Matches formats like: Episode 1, Ep 01, Ep-1, Episode - 10, #1, etc.
+    """
+    if not text:
+        return None
+    
+    patterns = [
+        r'(?:episode|ep|episodes)\s*[-:]?\s*(\d+)',  # Episode 1, Ep-01, Ep 1
+        r'#\s*(\d+)',                                 # #1, #01
+        r'(?:part|pt)\s*[-:]?\s*(\d+)',              # Part 1, Pt 01
+        r'\bep\s*(\d+)\b',                            # ep1
+        r'\b(\d+)\b'                                  # Fallback: standalone number
+    ]
+    
+    for pattern in patterns:
+        match = re.search(pattern, text, re.IGNORECASE)
+        if match:
+            try:
+                return int(match.group(1))
+            except ValueError:
+                continue
+    return None
+
+# ------------------ Helper: Advanced Smart File Delivery Function ------------------
+async def send_story_files_start(client, user_id, story, first_id, last_id, clean_title, custom_range_text="", target_start_ep=None, target_end_ep=None):
     sent_messages_obj = []
     sent_message_ids = []
     success_count = 0
-    total_files = (last_id - first_id) + 1
 
     status_msg = await client.send_message(
         user_id, 
-        f"⏳ <b>ғᴇᴛᴄʜɪɴɢ ғɪʟᴇs {custom_range_text}...</b>\n<i>ᴘʟᴇᴀsᴇ ᴡᴀɪᴛ...</i>"
+        f"⏳ <b>🔍 sᴇᴀʀᴄʜɪɴɢ & ғᴇᴛᴄʜɪɴɢ ᴇᴘɪsᴏᴅᴇs {custom_range_text}...</b>\n<i>ᴘʟᴇᴀsᴇ ᴡᴀɪᴛ...</i>"
     )
+
+    # Batch fetch messages from channel to inspect captions
+    msg_ids_to_fetch = list(range(first_id, last_id + 1))
     
-    for msg_id in range(first_id, last_id + 1):
+    # Process in chunks of 20 to avoid memory limit or timeout
+    chunk_size = 20
+    matching_messages = []
+
+    for i in range(0, len(msg_ids_to_fetch), chunk_size):
+        chunk = msg_ids_to_fetch[i:i + chunk_size]
+        try:
+            channel_msgs = await client.get_messages(chat_id=CHANNEL_ID, message_ids=chunk)
+            if not isinstance(channel_msgs, list):
+                channel_msgs = [channel_msgs]
+
+            for msg in channel_msgs:
+                if not msg or msg.empty:
+                    continue
+                
+                # Extract caption or text
+                caption = msg.caption or msg.text or ""
+                ep_num = extract_episode_number(caption)
+
+                # Filter based on Target Episode Range if provided
+                if target_start_ep is not None and target_end_ep is not None:
+                    if ep_num is not None and target_start_ep <= ep_num <= target_end_ep:
+                        matching_messages.append((ep_num, msg))
+                else:
+                    matching_messages.append((ep_num or 0, msg))
+        except Exception as e:
+            print(f"Error fetching channel messages batch: {e}")
+
+    # If Smart Caption Search was active but found specific matches
+    if target_start_ep is not None and target_end_ep is not None:
+        # Sort matched messages by actual episode number
+        matching_messages.sort(key=lambda x: x[0])
+        messages_to_send = [item[1] for item in matching_messages]
+    else:
+        messages_to_send = [item[1] for item in matching_messages]
+
+    total_files = len(messages_to_send)
+
+    if total_files == 0:
+        await status_msg.edit_text(
+            f"❌ <b>ɴᴏ ᴍᴀᴛᴄʜɪɴɢ ᴇᴘɪsᴏᴅᴇs ғᴏᴜɴᴅ!</b>\n\n"
+            f"रेंज <b>{custom_range_text}</b> के एपिसोड्स चैनल कैप्शन में नहीं मिले।"
+        )
+        return
+
+    # Deliver matched files to user
+    for msg in messages_to_send:
         try:
             sent_msg = await client.copy_message(
                 chat_id=user_id,
                 from_chat_id=CHANNEL_ID,
-                message_id=msg_id,
+                message_id=msg.id,
                 protect_content=True
             )
             sent_messages_obj.append(sent_msg)
@@ -74,13 +149,13 @@ async def send_story_files_start(client, user_id, story, first_id, last_id, clea
             success_count += 1
             await asyncio.sleep(0.4)  # Avoid FloodWait
         except Exception as e:
-            print(f"Error copying message {msg_id}: {e}")
+            print(f"Error copying message {msg.id}: {e}")
 
-    # Track status message for clean action
+    # Track status message ID for clean action
     sent_message_ids.append(status_msg.id)
     
-    # Extract exact Episode Range using file/caption names from database logic
-    ep_range = get_exact_episode_range(sent_messages_obj) if sent_messages_obj else f"Files {first_id} to {last_id}"
+    # Extract exact Episode Range text
+    ep_range = get_exact_episode_range(sent_messages_obj) if sent_messages_obj else f"Files Range"
 
     # Store IDs for clean button
     delivery_key = f"{user_id}_{int(time.time())}"
@@ -313,7 +388,7 @@ async def start_batch_callback_router(client, callback_query):
         await callback_query.message.reply_text(
             f"🔢 <b>Enter Episode Range (1 - {total_episodes}):</b>\n\n"
             f"कृपया रेंज दर्ज करें कि आपको कहाँ से कहाँ तक एपिसोड चाहिए।\n"
-            f"<i>(उदाहरण के लिए लिखें: <code>110-120</code> या <code>1-50</code>)</i>",
+            f"<i>(उदाहरण के लिए लिखें: <code>1-5</code> या <code>110-120</code>)</i>",
             reply_markup=ForceReply(selective=True)
         )
         await callback_query.answer()
@@ -351,47 +426,37 @@ async def process_start_range_input(client, message):
         
     text = message.text.strip()
     if "-" not in text:
-        return await message.reply_text("❌ <b>गलत फॉर्मेट!</b> कृपया सही फॉर्मेट में लिखें, जैसे: <code>110-120</code>", quote=True)
+        return await message.reply_text("❌ <b>गलत फॉर्मेट!</b> कृपया सही फॉर्मेट में लिखें, जैसे: <code>1-5</code>", quote=True)
         
     try:
         start_ep, end_ep = map(int, text.split("-"))
     except ValueError:
-        return await message.reply_text("❌ <b>केवल नंबर लिखें</b> (जैसे <code>110-120</code>)।", quote=True)
+        return await message.reply_text("❌ <b>केवल नंबर लिखें</b> (जैसे <code>1-5</code>)।", quote=True)
         
     data = START_RANGE_WAITING.get(user_id)
     story = data['story']
     
     db_first = story['first_msg_id']
     db_last = story['last_msg_id']
-    total_story_episodes = (db_last - db_first) + 1
     
-    # Range Checks
     if start_ep < 1 or start_ep > end_ep:
         return await message.reply_text("❌ <b>अमान्य रेंज!</b> शुरुआत का नंबर 1 से कम या अंत वाले नंबर से बड़ा नहीं हो सकता।", quote=True)
-        
-    if start_ep > total_story_episodes or end_ep > total_story_episodes:
-        return await message.reply_text(
-            f"❌ <b>रेंज सीमा से बाहर है!</b>\n\n"
-            f"इस स्टोरी में केवल <b>{total_story_episodes}</b> एपिसोड्स उपलब्ध हैं।\n"
-            f"कृपया <code>1</code> से <code>{total_story_episodes}</code> के बीच की सीमा दर्ज करें।",
-            quote=True
-        )
 
     START_RANGE_WAITING.pop(user_id, None)
 
-    target_first = db_first + (start_ep - 1)
-    target_last = db_first + (end_ep - 1)
-    
     clean_title = story['title'].strip().split("\n")[0]
     
+    # Passes target start and end episodes to check inside captions dynamically
     await send_story_files_start(
-        client, 
-        user_id, 
-        story, 
-        target_first, 
-        target_last, 
-        clean_title, 
-        custom_range_text=f"(Episodes {start_ep} - {end_ep})"
+        client=client, 
+        user_id=user_id, 
+        story=story, 
+        first_id=db_first, 
+        last_id=db_last, 
+        clean_title=clean_title, 
+        custom_range_text=f"(Episodes {start_ep} - {end_ep})",
+        target_start_ep=start_ep,
+        target_end_ep=end_ep
     )
 
 # ------------------ Start & Deep-Link Batch Delivery Handler ------------------
@@ -464,12 +529,12 @@ async def start_handler(client, message):
                 buttons.append([InlineKeyboardButton(f"📁 {r['name']}", callback_data=f"sendcustom_{encoded_title}:{idx}")])
             
             buttons.append([InlineKeyboardButton(f"📦 All Episodes ({total_files} Files)", callback_data=f"sendall_{encoded_title}")])
-            buttons.append([InlineKeyboardButton("🔢 Custom Range (e.g. 110-120)", callback_data=f"askrange_{encoded_title}")])
+            buttons.append([InlineKeyboardButton("🔢 Custom Range (e.g. 1-5)", callback_data=f"askrange_{encoded_title}")])
 
             choice_kb = InlineKeyboardMarkup(buttons)
             return await message.reply_text(
                 f"📚 <b>{clean_title}</b>\n\n"
-                f"⚠️ इस स्टोरी में कुल <b>{total_files}</b> एपिसोड्स हैं।\n"
+                f"⚠️ इस स्टोरी में कुल <b>{total_files}</b> फाइल्स उपलब्ध हैं।\n"
                 f"कृपया अपना पसंदीदा भाग चुनें या इच्छित रेंज टाइप करें:",
                 reply_markup=choice_kb,
                 quote=True
@@ -479,11 +544,11 @@ async def start_handler(client, message):
         if total_files > 100:
             choice_kb = InlineKeyboardMarkup([
                 [InlineKeyboardButton(f"📦 All Episodes ({total_files} Files)", callback_data=f"sendall_{encoded_title}")],
-                [InlineKeyboardButton("🔢 Custom Range (e.g. 110-120)", callback_data=f"askrange_{encoded_title}")]
+                [InlineKeyboardButton("🔢 Custom Range (e.g. 1-5)", callback_data=f"askrange_{encoded_title}")]
             ])
             return await message.reply_text(
                 f"📚 <b>{clean_title}</b>\n\n"
-                f"⚠️ इस स्टोरी में कुल <b>{total_files}</b> एपिसोड्स हैं।\n"
+                f"⚠️ इस स्टोरी में कुल <b>{total_files}</b> फाइल्स उपलब्ध हैं।\n"
                 f"आप सभी एपिसोड्स एक साथ पाना चाहते हैं या कुछ खास रेंज?",
                 reply_markup=choice_kb,
                 quote=True
