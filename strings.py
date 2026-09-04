@@ -1,3 +1,6 @@
+from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from db import get_user_lang_db
+
 USER_LANG = {}
 
 STRINGS = {
@@ -164,3 +167,25 @@ def get_text(user_id: int, key: str) -> str:
     """यूजर की चुनी हुई भाषा के अनुसार टेक्स्ट रिटर्न करता है।"""
     lang = USER_LANG.get(user_id, "en")
     return STRINGS.get(lang, STRINGS["en"]).get(key, key)
+
+async def get_main_menu(user_id: int):
+    """यूज़र की भाषा के अनुसार Dynamic Inline Keyboard बनाएगा (Fixes NameError)"""
+    lang = USER_LANG.get(user_id)
+    if not lang:
+        lang = await get_user_lang_db(user_id)
+        USER_LANG[user_id] = lang
+
+    return InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton(get_text(user_id, "btn_pocket"), callback_data="cat_pocket"),
+            InlineKeyboardButton(get_text(user_id, "btn_pratilipi"), callback_data="cat_pratilipi")
+        ],
+        [
+            InlineKeyboardButton(get_text(user_id, "btn_search"), callback_data="search_story"),
+            InlineKeyboardButton(get_text(user_id, "btn_wallet"), callback_data="my_wallet")
+        ],
+        [
+            InlineKeyboardButton(get_text(user_id, "btn_lang"), callback_data="change_lang"),
+            InlineKeyboardButton(get_text(user_id, "btn_support"), callback_data="support_info")
+        ]
+    ])
