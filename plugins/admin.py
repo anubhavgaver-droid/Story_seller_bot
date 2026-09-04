@@ -10,7 +10,7 @@ from database.db import (
     send_log,
     add_wallet_balance
 )
-from strings import get_text, get_main_menu  # Translation engine
+from strings import get_text # Translation engine
 
 ADD_STATE = {}
 DELETE_STATE = {}
