@@ -17,7 +17,7 @@ MONGO_URL = os.environ.get("MONGO_URL", "mongodb://localhost:27017")
 WEB_APP_URL = os.environ.get("WEB_APP_URL", "https://story-seller-bot-0jtb.onrender.com")
 
 # Auto-Post Tutorial Button Link
-TUTORIAL_VIDEO_URL = os.environ.get("TUTORIAL_VIDEO_URL", "https://t.me/telegram")
+TUTORIAL_VIDEO_URL = os.environ.get("TUTORIAL_VIDEO_URL", "https://t.me/howanubhav/23")
 CHANNEL = int(os.environ.get("CHANNEL", "-1003525105249"))
 
 # Stickers Config
