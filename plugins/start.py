@@ -532,7 +532,7 @@ async def start_handler(client, message):
         unlocked = await is_story_unlocked(user.id, clean_title)
         if not unlocked:
             buy_btn = InlineKeyboardMarkup([
-                [InlineKeyboardButton("💳 ʙᴜʏ ɴᴏᴡ", callback_data=f"buy_{encoded_title}_{story['price']}")]
+                [InlineKeyboardButton("🛒 ʙᴜʏ ɴᴏᴡ", callback_data=f"buy_{encoded_title}_{story['price']}")]
             ])
             return await message.reply_text(
                 f"🔒 <b>ᴀᴄᴄᴇss ᴅᴇɴɪᴇᴅ!</b>\n\n"
@@ -612,7 +612,7 @@ async def start_handler(client, message):
 
             buttons.append([
                 InlineKeyboardButton(
-                    f"💳 ᴅɪʀᴇᴄᴛ ʙᴜᴜ (₹{story['price']})", 
+                    f"🛒 ʙᴜʏ ɴᴏᴡ (₹{story['price']})", 
                     callback_data=f"buy_{encoded_title}_{story['price']}"
                 )
             ])
