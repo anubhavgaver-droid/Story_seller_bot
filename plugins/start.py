@@ -121,9 +121,10 @@ async def send_story_files_start(client, user_id, story, first_id, last_id, clea
     sent_message_ids = []
     success_count = 0
 
+    # 1. केवल SINGLE 🔍 EMOJI MESSAGE
     status_msg = await client.send_message(
-        user_id, 
-        f"⏳ <b>🔍 sᴇᴀʀᴄʜɪɴɢ & ғᴇᴛᴄʜɪɴɢ ᴇᴘɪsᴏᴅᴇs {custom_range_text}...</b>\n<i>ᴘʟᴇᴀsᴇ ᴡᴀɪᴛ...</i>"
+        chat_id=user_id,
+        text="🔍"
     )
 
     msg_ids_to_fetch = list(range(first_id, last_id + 1))
@@ -168,7 +169,7 @@ async def send_story_files_start(client, user_id, story, first_id, last_id, clea
     if total_files == 0:
         await status_msg.edit_text(
             f"❌ <b>ɴᴏ ᴍᴀᴛᴄʜɪɴɢ ᴇᴘɪsᴏᴅᴇs ғᴏᴜɴᴅ!</b>\n\n"
-            f"रेंज <b>{custom_range_text}</b> के एपिसोड्स न कैप्शन में मिले और न ही फाइल्स/ऑडियो के टाइटल में।"
+            f"रेंज <b>{custom_range_text}</b> के एपिसोड्स उपलब्ध नहीं हैं।"
         )
         return
 
@@ -188,8 +189,12 @@ async def send_story_files_start(client, user_id, story, first_id, last_id, clea
         except Exception as e:
             print(f"Error copying message {msg.id}: {e}")
 
-    sent_message_ids.append(status_msg.id)
-    
+    # 2. 🔍 इमोजी वाले मैसेज को डिलीट करें
+    try:
+        await status_msg.delete()
+    except Exception:
+        pass
+
     # Extract exact Episode Range text from delivered files
     ep_range = get_exact_episode_range(sent_messages_obj) if sent_messages_obj else f"Files Range"
 
@@ -374,7 +379,7 @@ async def start_batch_callback_router(client, callback_query):
         if not story:
             return await callback_query.answer("❌ Story not found!", show_alert=True)
             
-        await callback_query.message.edit_text("⏳ <b>Preparing to send all files... Please wait!</b>")
+        await callback_query.message.delete()
         clean_title = story['title'].strip().split("\n")[0]
         await send_story_files_start(client, user_id, story, story['first_msg_id'], story['last_msg_id'], clean_title)
         await callback_query.answer()
@@ -399,7 +404,7 @@ async def start_batch_callback_router(client, callback_query):
         f_id = selected_range['first_id']
         l_id = selected_range['last_id']
 
-        await callback_query.message.edit_text(f"⏳ <b>Fetching files for '{range_name}'... Please wait!</b>")
+        await callback_query.message.delete()
         clean_title = story['title'].strip().split("\n")[0]
         await send_story_files_start(client, user_id, story, f_id, l_id, clean_title, custom_range_text=f"({range_name})")
         await callback_query.answer()
@@ -480,7 +485,7 @@ async def process_start_range_input(client, message):
 
     clean_title = story['title'].strip().split("\n")[0]
     
-    # Passes target start and end episodes to check inside captions + file titles dynamically
+    # Directly sends files with Single 🔍 Emoji search status
     await send_story_files_start(
         client=client, 
         user_id=user_id, 
@@ -621,7 +626,7 @@ async def start_handler(client, message):
 
             buttons.append([
                 InlineKeyboardButton(
-                    f"💳 ᴅɪʀᴇᴄᴛ ʙᴜʏ (₹{story['price']})", 
+                    f"💳 ᴅɪʀᴇᴄᴛ ʙᴜᴜ (₹{story['price']})", 
                     callback_data=f"buy_{encoded_title}_{story['price']}"
                 )
             ])
