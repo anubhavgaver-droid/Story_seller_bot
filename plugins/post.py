@@ -1,14 +1,14 @@
 import re
 from pyrogram import Client, filters
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-from config import BOT_USERNAME, WEB_APP_URL, STORE_CHANNEL_ID, TUTORIAL_VIDEO_URL
+from config import BOT_USERNAME, WEB_APP_URL, CHANNEL, TUTORIAL_VIDEO_URL
 
 async def send_story_to_channel(client: Client, story_data: dict):
     """
     जब भी ऐडमिन विजार्ड (/addstory) से नई स्टोरी सेव होगी, 
     यह फ़ंक्शन स्टोरी चैनल पर Buy Now बटन के साथ पोस्ट ऑटो-पब्लिश करेगा।
     """
-    if not STORE_CHANNEL_ID:
+    if not CHANNEL:
         print("⚠️ STORE_CHANNEL_ID config.py में सेट नहीं है!")
         return None
 
@@ -48,14 +48,14 @@ async def send_story_to_channel(client: Client, story_data: dict):
         # 4. Post to Channel
         if photo:
             sent_msg = await client.send_photo(
-                chat_id=STORE_CHANNEL_ID,
+                chat_id=CHANNEL,
                 photo=photo,
                 caption=post_caption,
                 reply_markup=buttons
             )
         else:
             sent_msg = await client.send_message(
-                chat_id=STORE_CHANNEL_ID,
+                chat_id=CHANNEL,
                 text=post_caption,
                 reply_markup=buttons
             )
