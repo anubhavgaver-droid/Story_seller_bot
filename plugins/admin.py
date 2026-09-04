@@ -202,12 +202,13 @@ async def range_callbacks(client, callback):
 
     elif data in ["setrange_no", "finish_ranges"]:
         story_data = ADD_STATE[user_id]
+        # Finish करने से पहले State Reset करना आवश्यक है
+        ADD_STATE.pop(user_id, None)
         await finalize_add_story(client, callback.message, story_data)
         await callback.answer()
 
 # Helper Function: Finalize & Save Story to Database
 async def finalize_add_story(client, message, data):
-    user_id = message.from_user.id
     first = data['first_msg_id']
     last = data['last_msg_id']
     demo_msg_ids = []
@@ -259,7 +260,6 @@ async def finalize_add_story(client, message, data):
         f"🔗 <b>sʜᴀʀᴇᴀʙʟᴇ ʟɪɴᴋ:</b>\n<code>{bot_share_link}</code>",
         disable_web_page_preview=True
     )
-    ADD_STATE.pop(user_id, None)
 
 # 7. Admin Add Story Input Wizard
 @Client.on_message(filters.private & filters.user(ADMIN_ID) & ~filters.command(["start", "addstory", "deletestory", "allstories", "cancel", "addmoney"]), group=1)
@@ -329,7 +329,6 @@ async def wizard_inputs(client, message):
 
         total_files = (data['last_msg_id'] - data['first_msg_id']) + 1
 
-        # 100 से अधिक फाइल होने पर Dynamic Buttons का ऑप्शन
         if total_files > 100:
             data['custom_ranges'] = []
             kb = InlineKeyboardMarkup([
@@ -345,6 +344,7 @@ async def wizard_inputs(client, message):
             )
         else:
             data['custom_ranges'] = []
+            ADD_STATE.pop(user_id, None)
             await finalize_add_story(client, message, data)
 
     # ------------------ Dynamic Range Steps ------------------
