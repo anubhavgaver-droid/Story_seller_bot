@@ -109,6 +109,11 @@ async def register_user(user_id: int, first_name: str, username: str = None):
         upsert=True
     )
 
+async def get_all_users():
+    """ब्रॉडकास्ट के लिए डेटाबेस से सभी रजिस्टर्ड यूज़र्स की लिस्ट निकालता है"""
+    cursor = users_col.find({}, {"user_id": 1, "_id": 0})
+    return await cursor.to_list(length=None)
+
 async def get_user_lang_db(user_id: int) -> str:
     """यूज़र की सिलेक्टेड भाषा ढूँढता है (Default 'en')"""
     user = await users_col.find_one({"user_id": user_id})
