@@ -3,7 +3,7 @@ import os
 from aiohttp import web
 import aiofiles
 from pyrogram import Client, idle, filters
-from config import API_ID, API_HASH, BOT_TOKEN, PORT, ADMIN_ID
+from config import API_ID, API_HASH, BOT_TOKEN, PORT, ADMIN_ID, BOT_USERNAME
 from database.db import stories_col, get_user_purchases, get_story_by_title
 
 # Plugins setup
@@ -35,13 +35,14 @@ async def handle_miniapp(request):
             return web.Response(text=content, content_type="text/html")
     return web.Response(text="<h3>index.html not found in web/ folder!</h3>", content_type="text/html", status=404)
 
-# ------------------ 3. API Endpoint: Fetch Stories (Fixed Episodes & Files) ------------------
+# ------------------ 3. API Endpoint: Fetch Stories (Demo Synced) ------------------
 async def handle_get_stories(request):
     stories = []
     try:
         async for story in stories_col.find():
             raw_title = story.get("title", "Untitled")
             clean_title = raw_title.strip().splitlines()[0] if raw_title else "Untitled"
+            url_clean_title = clean_title.replace(" ", "_")
             
             # Calculate total files accurately from first and last message IDs if available
             first_id = story.get("first_msg_id")
@@ -59,7 +60,11 @@ async def handle_get_stories(request):
                 "episodes": story.get("episodes", "N/A"),
                 "total_files": f"{total_files_count} files",
                 "desc": story.get("desc", story.get("description", "")),
-                "photo": story.get("photo", "https://picsum.photos/200")
+                "photo": story.get("photo", "https://picsum.photos/200"),
+                # Mini App Demo Data Syncing
+                "demo_enabled": story.get("demo_enabled", False),
+                "demo_msg_ids": story.get("demo_msg_ids", []),
+                "demo_link": f"https://t.me/{BOT_USERNAME}?start=demo_{url_clean_title}"
             })
         return web.json_response(stories)
     except Exception as e:
@@ -122,11 +127,16 @@ def register_admin_commands(bot):
             if not story.get("episodes"):
                 update_fields["episodes"] = "30 Episodes"
                 
+            if "demo_enabled" not in story:
+                update_fields["demo_enabled"] = False
+            if "demo_msg_ids" not in story:
+                update_fields["demo_msg_ids"] = []
+
             if update_fields:
                 await stories_col.update_one({"_id": story["_id"]}, {"$set": update_fields})
                 count += 1
                 
-        await message.reply_text(f"✅ <b>Database Refreshed Successfully!</b>\n\n🔄 Updated <b>{count}</b> stories with correct episode & file counts.")
+        await message.reply_text(f"✅ <b>Database Refreshed Successfully!</b>\n\n🔄 Updated <b>{count}</b> stories with correct episode, file counts & demo sync setup.")
 
 # ------------------ Main Execution ------------------
 async def main():
