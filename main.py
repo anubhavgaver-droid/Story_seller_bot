@@ -56,7 +56,7 @@ async def handle_get_stories(request):
                 "title": clean_title,
                 "price": story.get("price", 0),
                 "platform": story.get("platform", story.get("category", "PRATILIPI FM")),
-                "episodes": story.get("episodes", "30 Episodes"),
+                "episodes": story.get("episodes", "N/A"),
                 "total_files": f"{total_files_count} files",
                 "desc": story.get("desc", story.get("description", "")),
                 "photo": story.get("photo", "https://picsum.photos/200")
