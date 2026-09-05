@@ -119,7 +119,7 @@
             text-transform: uppercase;
         }
 
-        /* ---------------- WELCOME SPLASH SCREEN ---------------- */
+        /* ---------------- WELCOME SPLASH SCREEN (HD STACK REPLICA) ---------------- */
         #splash-screen {
             position: fixed;
             top: 0; left: 0;
@@ -129,7 +129,8 @@
             display: flex;
             flex-direction: column;
             align-items: center;
-            justify-content: center;
+            justify-content: space-between;
+            padding: 40px 20px 25px;
             z-index: 9999;
             transition: opacity 0.5s ease, visibility 0.5s ease;
         }
@@ -142,86 +143,81 @@
         .cards-stack-wrapper {
             position: relative;
             width: 280px;
-            height: 220px;
+            height: 360px;
             display: flex;
             justify-content: center;
             align-items: center;
-            margin-bottom: 25px;
+            margin-top: 10px;
             perspective: 1000px;
         }
 
-        .fan-card {
+        .hd-stack-card {
             position: absolute;
-            width: 130px;
-            height: 185px;
-            border-radius: 16px;
-            border: 1.5px solid rgba(255, 255, 255, 0.3);
+            width: 215px; /* बड़ा और HD पोस्टर साइज़ */
+            height: 310px;
+            border-radius: 20px;
             object-fit: cover;
-            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.9);
-            transform-origin: center center;
-            opacity: 0;
-            transform: scale(0.6) translateY(50px);
-            will-change: transform, opacity;
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.95), 0 0 15px rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            transition: all 0.4s cubic-bezier(0.25, 1, 0.5, 1);
             backface-visibility: hidden;
+            will-change: transform, opacity;
         }
 
-        /* SMOOTH SHUFFLE ANIMATION FIX */
-        @keyframes rotateShuffleSmooth {
-            0% {
-                opacity: 0;
-                transform: rotate(-25deg) translate(-120px, 20px) scale(0.6);
-                z-index: 1;
-            }
-            15% {
-                opacity: 1;
-                transform: rotate(-12deg) translate(-50px, -10px) scale(0.85);
-                z-index: 2;
-            }
-            35% {
-                opacity: 1;
-                transform: rotate(0deg) translate(0px, -25px) scale(1.08);
-                z-index: 10;
-            }
-            65% {
-                opacity: 1;
-                transform: rotate(12deg) translate(50px, -10px) scale(0.85);
-                z-index: 3;
-            }
-            85% {
-                opacity: 0.8;
-                transform: rotate(20deg) translate(90px, 15px) scale(0.7);
-                z-index: 1;
-            }
-            100% {
-                opacity: 0;
-                transform: rotate(25deg) translate(120px, 30px) scale(0.5);
-                z-index: 0;
-            }
+        /* EXACT STACK POSITIONS (video directional flow) */
+        .hd-stack-card.pos-front {
+            transform: translate3d(0, 0, 0) rotate(0deg) scale(1);
+            z-index: 5;
+            opacity: 1;
+            filter: brightness(1);
         }
 
-        .cards-stack-wrapper.active .fan-card {
-            animation: rotateShuffleSmooth 4s cubic-bezier(0.25, 1, 0.5, 1) infinite;
+        .hd-stack-card.pos-next-1 {
+            transform: translate3d(22px, 8px, -20px) rotate(6deg) scale(0.96);
+            z-index: 4;
+            opacity: 0.95;
+            filter: brightness(0.9);
         }
 
-        .cards-stack-wrapper.active .card-pos-0 { animation-delay: 0.0s; }
-        .cards-stack-wrapper.active .card-pos-1 { animation-delay: 0.8s; }
-        .cards-stack-wrapper.active .card-pos-2 { animation-delay: 1.6s; }
-        .cards-stack-wrapper.active .card-pos-3 { animation-delay: 2.4s; }
-        .cards-stack-wrapper.active .card-pos-4 { animation-delay: 3.2s; }
+        .hd-stack-card.pos-next-2 {
+            transform: translate3d(40px, 16px, -40px) rotate(11deg) scale(0.92);
+            z-index: 3;
+            opacity: 0.85;
+            filter: brightness(0.8);
+        }
 
-        .splash-title { font-size: 20px; font-weight: 900; letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 8px; text-align: center; color: #ffffff; }
-        .splash-sub { font-size: 12px; opacity: 0.7; max-width: 270px; text-align: center; line-height: 1.4; margin-bottom: 20px; font-weight: 500; color: #d1d5db; }
+        .hd-stack-card.pos-next-3 {
+            transform: translate3d(55px, 24px, -60px) rotate(15deg) scale(0.88);
+            z-index: 2;
+            opacity: 0.7;
+            filter: brightness(0.7);
+        }
+
+        .hd-stack-card.pos-back-slide {
+            transform: translate3d(-15px, 20px, -80px) rotate(-4deg) scale(0.85);
+            z-index: 1;
+            opacity: 0.2;
+        }
+
+        .splash-text-group {
+            text-align: center;
+            max-width: 320px;
+        }
+
+        .splash-title { font-size: 21px; font-weight: 900; letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 8px; text-align: center; color: #ffffff; }
+        .splash-sub { font-size: 12px; opacity: 0.7; text-align: center; line-height: 1.45; font-weight: 500; color: #d1d5db; }
         
         /* DOT SPINNER STYLES */
         .loader-spinner {
-            width: 28px;
-            height: 28px;
+            width: 26px;
+            height: 26px;
             position: relative;
             display: inline-block;
+            margin-bottom: 10px;
         }
 
         .loader-spinner div {
-            transform-origin: 14px 14px;
+            transform-origin: 13px 13px;
             animation: loader-spinner-fade 1.2s linear infinite;
         }
 
@@ -230,9 +226,9 @@
             display: block;
             position: absolute;
             top: 2px;
-            left: 13px;
-            width: 3px;
-            height: 7px;
+            left: 12px;
+            width: 2.5px;
+            height: 6.5px;
             border-radius: 20%;
             background: #ffffff;
         }
@@ -495,8 +491,10 @@
     <!-- WELCOME SPLASH SCREEN ANIMATION -->
     <div id="splash-screen">
         <div class="cards-stack-wrapper" id="cardsWrapper"></div>
-        <div class="splash-title">WELCOME TO AC PREMIUM</div>
-        <div class="splash-sub">Your automated store inside Telegram for premium audio and video story series — delivered instantly to your chat.</div>
+        <div class="splash-text-group">
+            <div class="splash-title">WELCOME TO AC PREMIUM</div>
+            <div class="splash-sub">Your automated store inside Telegram for premium audio and video story series — delivered instantly to your chat.</div>
+        </div>
         <div class="loader-spinner">
             <div></div><div></div><div></div><div></div>
             <div></div><div></div><div></div><div></div>
@@ -672,6 +670,7 @@
 
         let stories = [];
         let userPurchases = [];
+        let splashInterval = null;
 
         function triggerHaptic(type = 'light') {
             try {
@@ -756,6 +755,7 @@
         function runDirectRedirectAnimation(callback) {
             const splash = document.getElementById('splash-screen');
             if(splash) splash.classList.add('hidden');
+            if(splashInterval) clearInterval(splashInterval);
 
             const loader = document.getElementById('redirect-loader');
             const counter = document.getElementById('counterNum');
@@ -814,7 +814,7 @@
             return false;
         }
 
-        /* --- ROTATING SPLASH FAN STACK SCREEN (UPDATED) --- */
+        /* --- HD STACK CAROUSEL ROTATION (EXACT REPLICA) --- */
         function setupSplashScreen(list) {
             const wrapper = document.getElementById('cardsWrapper');
             if(!wrapper) return;
@@ -825,21 +825,39 @@
             
             picked.forEach((story, idx) => {
                 const img = document.createElement('img');
-                img.src = story.photo || 'https://picsum.photos/200';
-                img.className = `fan-card card-pos-${idx}`;
-                img.alt = "Splash Card Image";
+                img.src = story.photo || 'https://picsum.photos/400/600';
+                img.className = 'hd-stack-card';
+                img.alt = "Splash HD Poster";
                 wrapper.appendChild(img);
             });
 
-            // Trigger animation start
-            requestAnimationFrame(() => {
-                wrapper.classList.add('active');
-            });
+            const cards = Array.from(wrapper.querySelectorAll('.hd-stack-card'));
+            let activeIdx = 0;
+
+            function rotateStack() {
+                const total = cards.length;
+                cards.forEach((card, index) => {
+                    card.className = 'hd-stack-card';
+                    const offset = (index - activeIdx + total) % total;
+
+                    if (offset === 0) card.classList.add('pos-front');
+                    else if (offset === 1) card.classList.add('pos-next-1');
+                    else if (offset === 2) card.classList.add('pos-next-2');
+                    else if (offset === 3) card.classList.add('pos-next-3');
+                    else card.classList.add('pos-back-slide');
+                });
+                activeIdx = (activeIdx + 1) % total;
+            }
+
+            rotateStack();
+            // 1.1 सेकंड्स की रफ़्तार में वीडियो जैसा मोशन
+            splashInterval = setInterval(rotateStack, 1100);
             
-            // Auto hide splash after 3.8 seconds
+            // Auto hide splash screen
             setTimeout(() => {
                 const splash = document.getElementById('splash-screen');
                 if(splash) splash.classList.add('hidden');
+                if(splashInterval) clearInterval(splashInterval);
             }, 3800);
         }
 
