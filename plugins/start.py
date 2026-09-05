@@ -29,7 +29,7 @@ from database.db import (
     add_wallet_balance,
     get_referred_users_count,
     users_col,
-    stories_col  # Database Collection for fetching FM lists
+    stories_col
 )
 # Config file imports
 from config import (
@@ -41,74 +41,93 @@ from config import (
 )
 
 REFER_BONUS = 1.0  # ₹1.00 Per Referral
-ITEMS_PER_PAGE = 10
 
-# Storage Dictionary for Range Input
+# Storage Dictionaries
 START_RANGE_WAITING = {}
+USER_PAGE_STATE = {}
 
-# --- Inline Keyboards & Keyboards Setup ---
+# 1. Main Welcome Message Inline Keyboard (Welcome Message के साथ जुड़े Inline Buttons)
+def get_welcome_inline_keyboard():
+    return InlineKeyboardMarkup(
+        [
+            [
+                InlineKeyboardButton("🛒 OPEN MARKET", callback_data="open_market_keyboard")
+            ],
+            [
+                InlineKeyboardButton("🚀 OPEN MINI APP", web_app=WebAppInfo(url=WEB_APP_URL))
+            ],
+            [
+                InlineKeyboardButton("💼 MY WALLET", callback_data="menu_wallet"),
+                InlineKeyboardButton("👤 MY ACCOUNT", callback_data="menu_account")
+            ],
+            [
+                InlineKeyboardButton("🎁 REFER & EARN", callback_data="menu_refer"),
+                InlineKeyboardButton("📢 UPDATES", url="https://t.me/freestoryhubMR")
+            ],
+            [
+                InlineKeyboardButton("📞 SUPPORT", url="https://t.me/pratilipifm0900"),
+                InlineKeyboardButton("❌ CLOSE", callback_data="close_message")
+            ]
+        ]
+    )
 
-# 1. Main Inline Keyboard (Attached with /start message)
-MAIN_MENU_INLINE = InlineKeyboardMarkup([
-    [InlineKeyboardButton("💼 ᴍʏ ᴡᴀʟʟᴇᴛ", callback_data="btn_wallet"), InlineKeyboardButton("👤 ᴍʏ ᴀᴄᴄᴏᴜɴᴛ", callback_data="btn_account")],
-    [InlineKeyboardButton("🎁 ʀᴇғᴇʀ & ᴇᴀʀɴ", callback_data="btn_refer")],
-    [InlineKeyboardButton("📢 ᴜᴘᴅᴀᴛᴇs ᴄʜᴀɴɴᴇʟ", url="https://t.me/freestoryhubMR"), InlineKeyboardButton("📞 sᴜᴘᴘᴏʀᴛ", callback_data="btn_support")],
-    [InlineKeyboardButton("🛒 ᴏᴘᴇɴ ᴍᴀʀᴋᴇᴛᴘʟᴀᴄᴇ", callback_data="open_marketplace_kb")]
-])
+# 2. Market Reply Keyboard (जब "Open Market" इनलाइन बटन दबाया जाएगा तब यह कीबोर्ड खुलेगा)
+def get_market_reply_keyboard():
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton("📚 PRATILIPI FM"), KeyboardButton("📻 POCKET FM")],
+            [KeyboardButton("🔎 SEARCH STORY")],
+            [KeyboardButton("🔙 BACK TO MAIN MENU")]
+        ],
+        resize_keyboard=True
+    )
 
-# 2. Reply Keyboard (Opens on Marketplace Button Click)
-MARKETPLACE_REPLY_KEYBOARD = ReplyKeyboardMarkup(
-    [
-        [KeyboardButton("🔎 sᴇᴀʀᴄʜ sᴛᴏʀʏ")],
-        [KeyboardButton("📻 ᴘᴏᴄᴋᴇᴛ ғᴍ"), KeyboardButton("📚 ᴘʀᴀᴛɪʟɪᴘɪ ғᴍ")]
-    ],
-    resize_keyboard=True
-)
+# 3. Category Pagination Keyboard Generator (कीबोर्ड के अंदर Next/Prev/View All)
+async def get_category_reply_keyboard(category_name: str, page=1, per_page=10):
+    regex_pattern = re.compile(f"^{category_name}$", re.IGNORECASE)
+    all_stories = await stories_col.find({"category": regex_pattern}).to_list(length=1000)
+
+    if not all_stories:
+        return None, 0, 0
+
+    total_stories = len(all_stories)
+    total_pages = (total_stories + per_page - 1) // per_page
+    page = max(1, min(page, total_pages))
+
+    start_idx = (page - 1) * per_page
+    end_idx = start_idx + per_page
+    page_stories = all_stories[start_idx:end_idx]
+
+    buttons = []
+    
+    # Story Buttons
+    for story in page_stories:
+        title = story.get("title", "Untitled Story").strip().split("\n")[0]
+        buttons.append([KeyboardButton(f"📖 {title}")])
+
+    # Navigation Row inside Reply Keyboard
+    nav_row = []
+    prefix = "POCKET" if "pocket" in category_name.lower() else "PRATILIPI"
+    
+    if page > 1:
+        nav_row.append(KeyboardButton(f"⬅️ {prefix} PREV"))
+    
+    nav_row.append(KeyboardButton(f"📄 PAGE {page}/{total_pages}"))
+    
+    if page < total_pages:
+        nav_row.append(KeyboardButton(f"NEXT {prefix} ➡️"))
+
+    buttons.append(nav_row)
+    buttons.append([KeyboardButton("🔙 BACK TO MAIN MENU")])
+
+    return ReplyKeyboardMarkup(keyboard=buttons, resize_keyboard=True), total_stories, total_pages
+
 
 # Custom Filter for WebApp Data
 async def web_app_filter(_, __, message):
     return bool(message.web_app_data)
 
 filter_webapp = filters.create(web_app_filter)
-
-# ------------------ Helper: Pagination Markup Builder ------------------
-def get_fm_paginated_keyboard(category_name, stories_list, page=0):
-    total_items = len(stories_list)
-    total_pages = max(1, (total_items + ITEMS_PER_PAGE - 1) // ITEMS_PER_PAGE)
-    
-    start_idx = page * ITEMS_PER_PAGE
-    end_idx = start_idx + ITEMS_PER_PAGE
-    current_batch = stories_list[start_idx:end_idx]
-    
-    prefix = "prat" if category_name == "Pratilipi FM" else "pock"
-    keyboard = []
-    
-    # Story items buttons
-    for story in current_batch:
-        clean_title = story.get('title', 'Untitled').strip().split('\n')[0]
-        encoded = clean_title.replace(" ", "_")
-        keyboard.append([InlineKeyboardButton(f"📖 {clean_title}", callback_data=f"getstory_{encoded}")])
-        
-    # Navigation row (Prev | Page | Next)
-    nav_row = []
-    if page > 0:
-        nav_row.append(InlineKeyboardButton("⬅️ Prev", callback_data=f"{prefix}_pg_{page - 1}"))
-    
-    nav_row.append(InlineKeyboardButton(f"{page + 1}/{total_pages}", callback_data="noop"))
-    
-    if page < total_pages - 1:
-        nav_row.append(InlineKeyboardButton("Next ➡️", callback_data=f"{prefix}_pg_{page + 1}"))
-        
-    if nav_row:
-        keyboard.append(nav_row)
-        
-    # Bottom Action Buttons
-    keyboard.append([
-        InlineKeyboardButton("👁️ View All", callback_data=f"viewall_{prefix}"),
-        InlineKeyboardButton("🔙 Back to Main Menu", callback_data="back_to_main_menu")
-    ])
-    
-    return InlineKeyboardMarkup(keyboard)
 
 # ------------------ Global Close Callback Handler ------------------
 @Client.on_callback_query(filters.regex("^close_message$"))
@@ -401,7 +420,7 @@ async def web_app_data_handler(client, message):
     except Exception as e:
         print(f"WebApp Data Error: {e}")
 
-# ------------------ View Demo Callback Handler (10 Min Auto Delete) ------------------
+# ------------------ View Demo Callback Handler ------------------
 @Client.on_callback_query(filters.regex(r"^viewdemo_"))
 async def view_demo_callback(client: Client, callback_query: CallbackQuery):
     try:
@@ -681,7 +700,7 @@ async def start_handler(client, message):
     except Exception as db_err:
         print(f"Database Error in /start registration: {db_err}")
 
-    # Deep-Link Logic
+    # Deep-Link Logic (Files Delivery & Story Viewing)
     if len(args) > 1 and args[1].startswith("get_"):
         raw_param = args[1]
         try:
@@ -805,141 +824,55 @@ async def start_handler(client, message):
             except Exception:
                 return await message.reply_text(caption_text, reply_markup=btn, quote=True)
         else:
-            return await message.reply_text("❌ <b>ᴛʜɪs sᴛᴏʀʏ ɪs ɴᴏᴛ ᴀᴠᴀɪʟᴀʙʟᴇ.</b>", reply_markup=MAIN_MENU_INLINE, quote=True)
+            return await message.reply_text("❌ <b>ᴛʜɪs sᴛᴏʀʏ ɪs ɴᴏᴛ ᴀᴠᴀɪʟᴀʙʟᴇ.</b>", reply_markup=get_welcome_inline_keyboard(), quote=True)
 
-    # Normal /start Welcome Message with Attached Inline Buttons
+    # Normal /start Welcome Message (Inlined Buttons Attach)
     welcome_text = (
         f"<b>━━━━━━━━━━━━━━━━━━━━━━</b>\n"
         f"🌟 <b>STORY SELLER BOT</b> 🌟\n"
         f"<b>━━━━━━━━━━━━━━━━━━━━━━</b>\n\n"
         f"<b>HELLO {user.first_name}! 👋</b>\n\n"
-        f"<b>USE THE BUTTONS BELOW TO SEARCH OR PURCHASE YOUR FAVORITE STORIES.</b>"
+        f"नीचे दिए गए बटन्स का उपयोग करके मेनू नेविगेट करें। मार्किट ओपन करने के लिए <b>🛒 OPEN MARKET</b> पर क्लिक करें।"
     )
-    await message.reply_text(welcome_text, reply_markup=MAIN_MENU_INLINE, quote=True)
+    await message.reply_text(welcome_text, reply_markup=get_welcome_inline_keyboard(), quote=True)
 
 
-# ------------------ Open Marketplace Event ------------------
-@Client.on_callback_query(filters.regex("^open_marketplace_kb$"))
-async def open_marketplace_kb_handler(client, callback):
-    await callback.answer("🛒 Marketplace Opened!")
-    await callback.message.reply_text(
-        "🛒 <b>MARKETPLACE SELECTION</b>\n\n"
-        "Neeche diye gaye keyboard se platform choose karein:",
-        reply_markup=MARKETPLACE_REPLY_KEYBOARD
-    )
+# ------------------ Inline Button Callbacks Handler ------------------
+@Client.on_callback_query()
+async def inline_callback_handler(client, callback_query: CallbackQuery):
+    data = callback_query.data
+    user_id = callback_query.from_user.id
+    user = callback_query.from_user
+    msg = callback_query.message
 
-# ------------------ Dynamic Pratilipi & Pocket FM Handlers ------------------
-
-@Client.on_message(filters.regex("^(📚 ᴘʀᴀᴛɪʟɪᴘɪ ғᴍ|📚 Pratilipi FM)$") & filters.private)
-async def pratilipi_fm_handler(client, message):
-    cursor = stories_col.find({"category": re.compile("Pratilipi", re.IGNORECASE)})
-    stories = await cursor.to_list(length=1000)
-    
-    if not stories:
-        return await message.reply_text("❌ **No stories found in Pratilipi FM.**", quote=True)
-        
-    reply_markup = get_fm_paginated_keyboard("Pratilipi FM", stories, page=0)
-    await message.reply_text("📚 **Pratilipi FM Stories (Page 1):**", reply_markup=reply_markup, quote=True)
-
-@Client.on_message(filters.regex("^(📻 ᴘᴏᴄᴋᴇᴛ ғᴍ|📻 Pocket FM)$") & filters.private)
-async def pocket_fm_handler(client, message):
-    cursor = stories_col.find({"category": re.compile("Pocket", re.IGNORECASE)})
-    stories = await cursor.to_list(length=1000)
-    
-    if not stories:
-        return await message.reply_text("❌ **No stories found in Pocket FM.**", quote=True)
-        
-    reply_markup = get_fm_paginated_keyboard("Pocket FM", stories, page=0)
-    await message.reply_text("📻 **Pocket FM Stories (Page 1):**", reply_markup=reply_markup, quote=True)
-
-# Callback for Pagination (Pratilipi & Pocket FM)
-@Client.on_callback_query(filters.regex(r"^(prat|pock)_pg_(\d+)$"))
-async def fm_pagination_callback(client, callback: CallbackQuery):
-    prefix, page = callback.matches[0].group(1), int(callback.matches[0].group(2))
-    category_name = "Pratilipi FM" if prefix == "prat" else "Pocket FM"
-    
-    cursor = stories_col.find({"category": re.compile("Pratilipi" if prefix == "prat" else "Pocket", re.IGNORECASE)})
-    stories = await cursor.to_list(length=1000)
-    
-    reply_markup = get_fm_paginated_keyboard(category_name, stories, page=page)
-    await callback.message.edit_text(f"📖 **{category_name} Stories (Page {page + 1}):**", reply_markup=reply_markup)
-
-# Callback for View All (Pratilipi & Pocket FM)
-@Client.on_callback_query(filters.regex(r"^viewall_(prat|pock)$"))
-async def view_all_callback(client, callback: CallbackQuery):
-    prefix = callback.matches[0].group(1)
-    category_name = "Pratilipi FM" if prefix == "prat" else "Pocket FM"
-    
-    cursor = stories_col.find({"category": re.compile("Pratilipi" if prefix == "prat" else "Pocket", re.IGNORECASE)})
-    stories = await cursor.to_list(length=1000)
-    
-    if not stories:
-        return await callback.answer("❌ No stories found!", show_alert=True)
-        
-    text = f"📚 **All Available {category_name} Stories:**\n\n"
-    for idx, story in enumerate(stories, 1):
-        clean_title = story.get('title', 'Untitled').strip().split('\n')[0]
-        text += f"{idx}. {clean_title}\n"
-        
-    back_kb = InlineKeyboardMarkup([
-        [InlineKeyboardButton("🔙 Back to Main Menu", callback_data="back_to_main_menu")]
-    ])
-    
-    # Message length safety check
-    if len(text) > 4000:
-        text = text[:3900] + "\n\n...[Truncated due to Telegram limit]"
-        
-    await callback.message.edit_text(text, reply_markup=back_kb)
-
-# Back To Main Menu Button Handler
-@Client.on_callback_query(filters.regex("^back_to_main_menu$"))
-async def back_to_main_menu_callback(client, callback: CallbackQuery):
-    user = callback.from_user
-    welcome_text = (
-        f"<b>━━━━━━━━━━━━━━━━━━━━━━</b>\n"
-        f"🌟 <b>STORY SELLER BOT</b> 🌟\n"
-        f"<b>━━━━━━━━━━━━━━━━━━━━━━</b>\n\n"
-        f"<b>HELLO {user.first_name}! 👋</b>\n\n"
-        f"<b>USE THE BUTTONS BELOW TO SEARCH OR PURCHASE YOUR FAVORITE STORIES.</b>"
-    )
-    await callback.message.edit_text(welcome_text, reply_markup=MAIN_MENU_INLINE)
-
-# Inline Callback Button Listeners for Main Menu
-@Client.on_callback_query(filters.regex(r"^btn_(wallet|account|refer|support)$"))
-async def main_inline_buttons_handler(client, callback: CallbackQuery):
-    btn_type = callback.matches[0].group(1)
-    user = callback.from_user
-    
-    if btn_type == "wallet":
-        balance = await get_user_wallet(user.id)
-        text = (
-            f"<b>👛 ʏᴏᴜʀ ᴡᴀʟʟᴇᴛ ᴅᴇᴛᴀɪʟs</b>\n"
-            f"━━━━━━━━━━━━━━━━━━━\n"
-            f"<b>💳 ᴄᴜʀʀᴇɴᴛ ʙᴀʟᴀɴᴄᴇ:</b> ₹{balance}\n"
-            f"━━━━━━━━━━━━━━━━━━━\n\n"
-            f"💡 <i>Use wallet balance for 1-click instant purchases inside Mini App or Bot.</i>"
+    if data == "open_market_keyboard":
+        await callback_query.answer("🛒 Market Keyboard Opened!")
+        await client.send_message(
+            chat_id=user_id,
+            text="👇 <b>Marketplace Open:</b> नीचे दिए गए कीबोर्ड बटन्स से अपनी पसंद का प्लेटफॉर्म या स्टोरी चुनें:",
+            reply_markup=get_market_reply_keyboard()
         )
-        kb = InlineKeyboardMarkup([[InlineKeyboardButton("➕ ᴀᴅᴅ ᴍᴏɴᴇʏ / ᴛᴏᴘ-ᴜᴘ", callback_data="add_wallet_funds")]])
-        await callback.message.reply_text(text, reply_markup=kb)
 
-    elif btn_type == "account":
-        purchases = await get_user_purchases(user.id)
-        balance = await get_user_wallet(user.id)
+    elif data in ["menu_wallet", "menu_account"]:
+        await callback_query.answer()
+        balance = await get_user_wallet(user_id)
+        purchases = await get_user_purchases(user_id)
+        total_refs = await get_referred_users_count(user_id)
+
         acc_text = (
-            f"<b>👤 ᴀᴄᴄᴏᴜɴᴛ ᴅᴇᴛᴀɪʟs:</b>\n"
+            f"<b>👤 ʏᴏᴜʀ ᴀᴄᴄᴏᴜɴᴛ & ᴘᴜʀᴄʜᴀsᴇs:</b>\n"
             f"━━━━━━━━━━━━━━━━━━━\n"
-            f"<b>ɴᴀᴍᴇ:</b> {user.first_name}\n"
-            f"<b>ᴜsᴇʀ ɪᴅ:</b> <code>{user.id}</code>\n"
-            f"<b>ᴜsᴇʀɴᴀᴍᴇ:</b> @{user.username if user.username else 'N/A'}\n"
+            f"<b>👤 ɴᴀᴍᴇ:</b> {user.first_name}\n"
+            f"<b>🆔 ᴜsᴇʀ ɪᴅ:</b> <code>{user.id}</code>\n"
             f"<b>👛 ᴡᴀʟʟᴇᴛ ʙᴀʟᴀɴᴄᴇ:</b> ₹{balance}\n"
-            f"<b>sᴛᴀᴛᴜs:</b> ᴀᴄᴛɪᴠᴇ ᴜsᴇʀ ⚡\n"
+            f"<b>👥 Total Referrals:</b> {total_refs} Users\n"
             f"━━━━━━━━━━━━━━━━━━━\n\n"
+            f"<b>📚 ʏᴏᴜʀ ᴘᴜʀᴄʜᴀsᴇᴅ sᴛᴏʀɪᴇs:</b>\n"
         )
         buttons = []
         if not purchases:
-            acc_text += "❌ <b>ʏᴏᴜ ʜᴀᴠᴇɴ'ᴛ ᴘᴜʀᴄʜᴀsᴇᴅ ᴀɴʏ sᴛᴏʀɪᴇs ʏᴇᴛ.</b>"
+            acc_text += "❌ <i>आपने अभी तक कोई स्टोरी परचेस नहीं की है।</i>"
         else:
-            acc_text += "📖 <b>ʏᴏᴜʀ ᴘᴜʀᴄʜᴀsᴇᴅ sᴛᴏʀɪᴇs:</b>\n\n"
             for item in purchases:
                 story = await get_story_by_title(item['story_title'])
                 if story:
@@ -948,52 +881,118 @@ async def main_inline_buttons_handler(client, callback: CallbackQuery):
                     delivery_link = f"https://t.me/{BOT_USERNAME}?start=get_{encoded_title}"
                     acc_text += f"• <b>{clean_title}</b>\n"
                     buttons.append([InlineKeyboardButton(f"🚀 ᴀᴄᴄᴇss {clean_title}", url=delivery_link)])
-        buttons.append([InlineKeyboardButton("❌ ᴄʟᴏsᴇ", callback_data="close_message")])
-        await callback.message.reply_text(acc_text, reply_markup=InlineKeyboardMarkup(buttons))
 
-    elif btn_type == "refer":
-        refer_link = f"https://t.me/{BOT_USERNAME}?start=ref_{user.id}"
-        wallet = await get_user_wallet(user.id)
-        total_refs = await get_referred_users_count(user.id)
-        text = (
+        buttons.append([InlineKeyboardButton("❌ Close", callback_data="close_message")])
+        await msg.reply_text(acc_text, reply_markup=InlineKeyboardMarkup(buttons), quote=True)
+
+    elif data == "menu_refer":
+        await callback_query.answer()
+        refer_link = f"https://t.me/{BOT_USERNAME}?start=ref_{user_id}"
+        wallet = await get_user_wallet(user_id)
+        total_refs = await get_referred_users_count(user_id)
+        
+        ref_text = (
             f"🎁 <b><u>ʀᴇғᴇʀ & ᴇᴀʀɴ ᴘʀᴏɢʀᴀᴍ</u></b>\n\n"
-            f"अपने दोस्तों को बॉट शेयर करें और हर नए यूज़र के जॉइन करने पर पाएँ <b>₹1.00</b> डायरेक्ट वॉलेट में!\n\n"
-            f"📊 <b>आपकी डिटेल्स:</b>\n"
+            f"अपने दोस्तों को बॉट शेयर करें और हर नए यूज़र पर पाएँ <b>₹1.00</b>!\n\n"
             f"👥 <b>Total Referred:</b> {total_refs} Users\n"
             f"👛 <b>Wallet Balance:</b> ₹{wallet}\n\n"
-            f"🔗 <b>आपका पर्सनल रेफरल लिंक:</b>\n"
-            f"<code>{refer_link}</code>"
+            f"🔗 <b>आपका लिंक:</b>\n<code>{refer_link}</code>"
         )
-        share_text = quote("✨ सुनो! इस बॉट पर ऑडियो स्टोरीज़ और पॉडकास्ट आसानी से मिल जाते हैं। तुरंत जॉइन करो:")
-        share_url = f"https://t.me/share/url?url={quote(refer_link)}&text={share_text}"
-        kb = InlineKeyboardMarkup([
-            [InlineKeyboardButton("🚀 दोस्तों को शेयर करें", url=share_url)],
-            [InlineKeyboardButton("❌ ᴄʟᴏsᴇ", callback_data="close_message")]
-        ])
-        await callback.message.reply_text(text, reply_markup=kb, disable_web_page_preview=True)
+        await msg.reply_text(ref_text, quote=True)
 
-    elif btn_type == "support":
-        kb = InlineKeyboardMarkup([
-            [InlineKeyboardButton("💬 ᴄᴏɴᴛᴀᴄᴛ sᴜᴘᴘᴏʀᴛ", url="https://t.me/pratilipifm0900")],
-            [InlineKeyboardButton("❌ ᴄʟᴏsᴇ", callback_data="close_message")]
-        ])
-        await callback.message.reply_text("<b>📞 ᴄᴜsᴛᴏᴍᴇʀ sᴜᴘᴘᴏʀᴛ:</b>\n\nɪғ ʏᴏᴜ ғᴀᴄᴇ ᴀɴʏ ɪssᴜᴇs, ғᴇᴇʟ ғʀᴇᴇ ᴛᴏ ᴄᴏɴᴛᴀᴄᴛ support.", reply_markup=kb)
 
-    await callback.answer()
+# ------------------ Reply Keyboard Text Handler ------------------
+@Client.on_message(filters.private & filters.text & ~filters.command(["start"]))
+async def reply_keyboard_router(client, message):
+    text = message.text.strip()
+    user_id = message.from_user.id
 
-# No-op callback handler
-@Client.on_callback_query(filters.regex("^noop$"))
-async def noop_handler(client, callback: CallbackQuery):
-    await callback.answer()
+    # 1. Pocket FM Handler
+    if text in ["📻 POCKET FM", "NEXT POCKET ➡️", "⬅️ POCKET PREV"]:
+        current_page = USER_PAGE_STATE.get(user_id, {}).get("pocket_page", 1)
+        if text == "NEXT POCKET ➡️":
+            current_page += 1
+        elif text == "⬅️ POCKET PREV":
+            current_page = max(1, current_page - 1)
+        else:
+            current_page = 1
 
-# ------------------ Wallet System Handlers ------------------
-@Client.on_callback_query(filters.regex("^add_wallet_funds$"))
-async def add_funds_callback(client, callback_query):
-    text = (
-        "<b>➕ ᴀᴅᴅ ᴍᴏɴᴇʏ ᴛᴏ ᴡᴀʟʟᴇᴛ</b>\n\n"
-        "Contact admin or send payment screenshot to top-up your wallet balance automatically."
-    )
-    kb = InlineKeyboardMarkup([
-        [InlineKeyboardButton("💬 ᴄᴏɴᴛᴀᴄᴛ ᴀᴅᴍɪɴ ғᴏᴏʀ ᴛᴏᴘᴜᴘ", url="https://t.me/kaluu_help_bot")]
-    ])
-    await callback_query.message.edit_text(text, reply_markup=kb)
+        USER_PAGE_STATE[user_id] = {"pocket_page": current_page}
+        kb, total, total_pages = await get_category_reply_keyboard("Pocket FM", page=current_page)
+        
+        if not kb:
+            return await message.reply_text("❌ Pocket FM की कोई स्टोरी उपलब्ध नहीं है!")
+        
+        await message.reply_text(
+            f"📻 <b>Pocket FM Stories</b> (Page {current_page}/{total_pages})\nTotal: {total} Stories\n\n👇 अपनी पसंद की स्टोरी चुनें:",
+            reply_markup=kb
+        )
+
+    # 2. Pratilipi FM Handler
+    elif text in ["📚 PRATILIPI FM", "NEXT PRATILIPI ➡️", "⬅️ PRATILIPI PREV"]:
+        current_page = USER_PAGE_STATE.get(user_id, {}).get("pratilipi_page", 1)
+        if text == "NEXT PRATILIPI ➡️":
+            current_page += 1
+        elif text == "⬅️ PRATILIPI PREV":
+            current_page = max(1, current_page - 1)
+        else:
+            current_page = 1
+
+        USER_PAGE_STATE[user_id] = {"pratilipi_page": current_page}
+        kb, total, total_pages = await get_category_reply_keyboard("Pratilipi FM", page=current_page)
+        
+        if not kb:
+            return await message.reply_text("❌ Pratilipi FM की कोई स्टोरी उपलब्ध नहीं है!")
+        
+        await message.reply_text(
+            f"📚 <b>Pratilipi FM Stories</b> (Page {current_page}/{total_pages})\nTotal: {total} Stories\n\n👇 अपनी पसंद की स्टोरी चुनें:",
+            reply_markup=kb
+        )
+
+    # 3. Search Story Handler
+    elif text == "🔎 SEARCH STORY":
+        await message.reply_text("🔎 **स्टोरी सर्च करने के लिए:**\n\nकृपया जिस स्टोरी को खोजना चाहते हैं उसका नाम लिखकर भेजें!")
+
+    # 4. Back to Main Menu
+    elif text == "🔙 BACK TO MAIN MENU":
+        welcome_text = (
+            f"🏠 **मुख्य मेनू:**\n\n"
+            f"मार्किट फिर से खोलने के लिए **🛒 OPEN MARKET** इनलाइन बटन दबाएं।"
+        )
+        await message.reply_text(welcome_text, reply_markup=get_welcome_inline_keyboard())
+
+    # 5. Direct Story Click (📖 Story Title)
+    elif text.startswith("📖 "):
+        story_title = text.replace("📖 ", "").strip()
+        story = await get_story_by_title(story_title)
+
+        if not story:
+            return await message.reply_text("❌ <b>स्टोरी की जानकारी नहीं मिली!</b>", quote=True)
+
+        clean_title = story['title'].strip().split("\n")[0]
+        encoded_title = clean_title.replace(" ", "_")
+        wallet_bal = await get_user_wallet(user_id)
+        photo_url = story.get('photo', 'https://picsum.photos/400/200')
+
+        buttons = []
+        if story.get('demo_enabled', False):
+            buttons.append([InlineKeyboardButton("🎬 ᴅᴇᴍᴏ / ᴘʀᴇᴠɪᴇᴡ", callback_data=f"viewdemo_{encoded_title}")])
+
+        buttons.append([InlineKeyboardButton(f"🛒 ʙᴜʏ ɴᴏᴡ (₹{story.get('price', 0)})", callback_data=f"buy_{encoded_title}_{story.get('price', 0)}")])
+        buttons.append([InlineKeyboardButton(f"👛 ᴘᴀʏ ᴠɪᴀ ᴡᴀʟʟᴇᴛ (Bal: ₹{wallet_bal})", callback_data=f"walletpay_{encoded_title}_{story.get('price', 0)}")])
+
+        caption_text = (
+            f"♨️ <b>Story :</b> {clean_title}\n"
+            f"🔰 <b>Status :</b> {story.get('status', 'Completed')}\n"
+            f"🖥️ <b>Platform :</b> {story.get('category', 'Pocket FM')}\n"
+            f"🧩 <b>Genre :</b> {story.get('genre', 'Drama')}\n"
+            f"🎬 <b>Episodes :</b> {story.get('episodes', 'N/A')}\n\n"
+            f"░▒▓█ PRICE - ₹{story.get('price', 0)} █▓▒░\n\n"
+            f"👛 <b>ʏᴏᴜʀ ᴡᴀʟʟᴇᴛ:</b> ₹{wallet_bal}\n\n"
+            f"<i>👇 खरीद या देखने के लिए नीचे बटन चुनें:</i>"
+        )
+
+        try:
+            await message.reply_photo(photo=photo_url, caption=caption_text, reply_markup=InlineKeyboardMarkup(buttons))
+        except Exception:
+            await message.reply_text(caption_text, reply_markup=InlineKeyboardMarkup(buttons))
