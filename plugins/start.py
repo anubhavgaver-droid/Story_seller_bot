@@ -28,7 +28,8 @@ from database.db import (
     get_exact_episode_range,
     add_wallet_balance,
     get_referred_users_count,
-    users_col
+    users_col,
+    stories_col  # Database Collection for fetching FM lists
 )
 # Config file imports
 from config import (
@@ -40,19 +41,26 @@ from config import (
 )
 
 REFER_BONUS = 1.0  # ₹1.00 Per Referral
+ITEMS_PER_PAGE = 10
 
 # Storage Dictionary for Range Input
 START_RANGE_WAITING = {}
 
-# 1. Main Menu Keyboard Layout (With Refer & Earn Added)
-MAIN_MENU = ReplyKeyboardMarkup(
+# --- Inline Keyboards & Keyboards Setup ---
+
+# 1. Main Inline Keyboard (Attached with /start message)
+MAIN_MENU_INLINE = InlineKeyboardMarkup([
+    [InlineKeyboardButton("💼 ᴍʏ ᴡᴀʟʟᴇᴛ", callback_data="btn_wallet"), InlineKeyboardButton("👤 ᴍʏ ᴀᴄᴄᴏᴜɴᴛ", callback_data="btn_account")],
+    [InlineKeyboardButton("🎁 ʀᴇғᴇʀ & ᴇᴀʀɴ", callback_data="btn_refer")],
+    [InlineKeyboardButton("📢 ᴜᴘᴅᴀᴛᴇs ᴄʜᴀɴɴᴇʟ", url="https://t.me/freestoryhubMR"), InlineKeyboardButton("📞 sᴜᴘᴘᴏʀᴛ", callback_data="btn_support")],
+    [InlineKeyboardButton("🛒 ᴏᴘᴇɴ ᴍᴀʀᴋᴇᴛᴘʟᴀᴄᴇ", callback_data="open_marketplace_kb")]
+])
+
+# 2. Reply Keyboard (Opens on Marketplace Button Click)
+MARKETPLACE_REPLY_KEYBOARD = ReplyKeyboardMarkup(
     [
-        [KeyboardButton("🚀 ᴏᴘᴇɴ ᴍɪɴɪ ᴀᴘᴘ")],
-        [KeyboardButton("💼 ᴍʏ ᴡᴀʟʟᴇᴛ", style=enums.ButtonStyle.SUCCESS), KeyboardButton("👤 ᴍʏ ᴀᴄᴄᴏᴜɴᴛ", style=enums.ButtonStyle.PRIMARY)],
-        [KeyboardButton("🎁 ʀᴇғᴇʀ & ᴇᴀʀɴ", style=enums.ButtonStyle.SUCCESS)],
-        [KeyboardButton("🔎 sᴇᴀʀᴄʜ sᴛᴏʀʏ", style=enums.ButtonStyle.SUCCESS), KeyboardButton("📻 ᴘᴏᴄᴋᴇᴛ ғᴍ", style=enums.ButtonStyle.DANGER)],
-        [KeyboardButton("📚 ᴘʀᴀᴛɪʟɪᴘɪ ғᴍ", style=enums.ButtonStyle.DANGER), KeyboardButton("📢 ᴜᴘᴅᴀᴛᴇs ᴄʜᴀɴɴᴇʟ", style=enums.ButtonStyle.PRIMARY)],
-        [KeyboardButton("📞 sᴜᴘᴘᴏʀᴛ", style=enums.ButtonStyle.SUCCESS)]
+        [KeyboardButton("🔎 sᴇᴀʀᴄʜ sᴛᴏʀʏ")],
+        [KeyboardButton("📻 ᴘᴏᴄᴋᴇᴛ ғᴍ"), KeyboardButton("📚 ᴘʀᴀᴛɪʟɪᴘɪ ғᴍ")]
     ],
     resize_keyboard=True
 )
@@ -62,6 +70,45 @@ async def web_app_filter(_, __, message):
     return bool(message.web_app_data)
 
 filter_webapp = filters.create(web_app_filter)
+
+# ------------------ Helper: Pagination Markup Builder ------------------
+def get_fm_paginated_keyboard(category_name, stories_list, page=0):
+    total_items = len(stories_list)
+    total_pages = max(1, (total_items + ITEMS_PER_PAGE - 1) // ITEMS_PER_PAGE)
+    
+    start_idx = page * ITEMS_PER_PAGE
+    end_idx = start_idx + ITEMS_PER_PAGE
+    current_batch = stories_list[start_idx:end_idx]
+    
+    prefix = "prat" if category_name == "Pratilipi FM" else "pock"
+    keyboard = []
+    
+    # Story items buttons
+    for story in current_batch:
+        clean_title = story.get('title', 'Untitled').strip().split('\n')[0]
+        encoded = clean_title.replace(" ", "_")
+        keyboard.append([InlineKeyboardButton(f"📖 {clean_title}", callback_data=f"getstory_{encoded}")])
+        
+    # Navigation row (Prev | Page | Next)
+    nav_row = []
+    if page > 0:
+        nav_row.append(InlineKeyboardButton("⬅️ Prev", callback_data=f"{prefix}_pg_{page - 1}"))
+    
+    nav_row.append(InlineKeyboardButton(f"{page + 1}/{total_pages}", callback_data="noop"))
+    
+    if page < total_pages - 1:
+        nav_row.append(InlineKeyboardButton("Next ➡️", callback_data=f"{prefix}_pg_{page + 1}"))
+        
+    if nav_row:
+        keyboard.append(nav_row)
+        
+    # Bottom Action Buttons
+    keyboard.append([
+        InlineKeyboardButton("👁️ View All", callback_data=f"viewall_{prefix}"),
+        InlineKeyboardButton("🔙 Back to Main Menu", callback_data="back_to_main_menu")
+    ])
+    
+    return InlineKeyboardMarkup(keyboard)
 
 # ------------------ Global Close Callback Handler ------------------
 @Client.on_callback_query(filters.regex("^close_message$"))
@@ -262,7 +309,7 @@ async def range_clean_chat_handler(client, callback_query):
         print(f"Clean chat error: {e}")
         await callback_query.answer("❌ फाइल्स पहले ही डिलीट हो चुकी हैं!", show_alert=True)
 
-# ------------------ Mini App Web Data Receiver (UPDATED FOR DEMO) ------------------
+# ------------------ Mini App Web Data Receiver ------------------
 @Client.on_message(filters.service & filter_webapp & filters.private)
 async def web_app_data_handler(client, message):
     try:
@@ -271,7 +318,6 @@ async def web_app_data_handler(client, message):
         story_title = data.get("title")
         price = float(data.get("price", 0))
         
-        # 1. Mini App से Demo फ़ाइल माँगने पर
         if action in ["view_demo", "demo", "get_demo"]:
             story = await get_story_by_title(story_title)
             if not story or not story.get("demo_enabled"):
@@ -314,7 +360,6 @@ async def web_app_data_handler(client, message):
             asyncio.create_task(auto_delete_task(sent_messages))
             return
 
-        # 2. Mini App से Buy Story ट्रिगर होने पर
         elif action == "buy_story":
             story = await get_story_by_title(story_title)
             if not story:
@@ -378,7 +423,7 @@ async def view_demo_callback(client: Client, callback_query: CallbackQuery):
         
         header_msg = await client.send_message(
             chat_id=user_id,
-            text=f"🎬 <b>ᴅᴇᴍᴏ / ᴘʀᴇᴠɪᴇᴡ ғᴏʀ:</b> <code>{story['title']}</code>\n\n"
+            text=f"🎬 <b>ᴅᴇᴍᴏ / ᴘʀᴇᴠɪᴇᴡ ғᴏᴏᴛᴀɢᴇ:</b> <code>{story['title']}</code>\n\n"
                  f"⏰ <i>This demo preview will automatically delete in 10 minutes!</i>"
         )
         sent_messages.append(header_msg)
@@ -573,26 +618,22 @@ async def start_handler(client, message):
     try:
         registered = await is_user_registered(user.id)
         
-        # Check if the user used a referral link
         if len(args) > 1 and args[1].startswith("ref_"):
             try:
                 referrer_id = int(args[1].split("_")[1])
                 
-                # 1. Self-Referral Check
                 if referrer_id == user.id:
                     await message.reply_text(
                         "⚠️ <b>Hey dude, don't try to use your own referral link!</b>\n"
                         "<i>Share this link with your friends to earn rewards.</i>", 
                         quote=True
                     )
-                # 2. New User Referral Check
                 elif not registered:
                     await register_user(user.id, user.first_name, user.username)
                     await users_col.update_one({"user_id": user.id}, {"$set": {"referred_by": referrer_id}})
                     
                     new_bal = await add_wallet_balance(referrer_id, REFER_BONUS)
                     
-                    # Notify the Referrer
                     try:
                         await client.send_message(
                             chat_id=referrer_id,
@@ -604,7 +645,6 @@ async def start_handler(client, message):
                     except Exception:
                         pass
                         
-                    # Admin Log for Referral Registration
                     try:
                         log_text = (
                             f"<b>🆕 ɴᴇᴡ ᴜsᴇʀ ʀᴇɢɪsᴛᴇʀᴇᴅ (Vɪᴀ Rᴇғᴇʀʀᴀʟ)!</b>\n"
@@ -616,7 +656,6 @@ async def start_handler(client, message):
                         await send_log(client, log_text)
                     except Exception:
                         pass
-                # 3. Existing User Warning
                 else:
                     await message.reply_text(
                         "⚠️ <b>You are already an existing user of this bot!</b>\n"
@@ -626,7 +665,6 @@ async def start_handler(client, message):
             except Exception as ref_err:
                 print(f"Referral processing error: {ref_err}")
 
-        # Normal Registration (If no referral link was used and user is new)
         elif not registered:
             await register_user(user.id, user.first_name, user.username)
             try:
@@ -643,9 +681,7 @@ async def start_handler(client, message):
     except Exception as db_err:
         print(f"Database Error in /start registration: {db_err}")
 
-    # ==========================
-    # Deep-Link Logic (Files Delivery & Story Viewing)
-    # ==========================
+    # Deep-Link Logic
     if len(args) > 1 and args[1].startswith("get_"):
         raw_param = args[1]
         try:
@@ -769,11 +805,9 @@ async def start_handler(client, message):
             except Exception:
                 return await message.reply_text(caption_text, reply_markup=btn, quote=True)
         else:
-            return await message.reply_text("❌ <b>ᴛʜɪs sᴛᴏʀʏ ɪs ɴᴏᴛ ᴀᴠᴀɪʟᴀʙʟᴇ.</b>", reply_markup=MAIN_MENU, quote=True)
+            return await message.reply_text("❌ <b>ᴛʜɪs sᴛᴏʀʏ ɪs ɴᴏᴛ ᴀᴠᴀɪʟᴀʙʟᴇ.</b>", reply_markup=MAIN_MENU_INLINE, quote=True)
 
-    # ==========================
-    # Normal /start Welcome Message
-    # ==========================
+    # Normal /start Welcome Message with Attached Inline Buttons
     welcome_text = (
         f"<b>━━━━━━━━━━━━━━━━━━━━━━</b>\n"
         f"🌟 <b>STORY SELLER BOT</b> 🌟\n"
@@ -781,29 +815,178 @@ async def start_handler(client, message):
         f"<b>HELLO {user.first_name}! 👋</b>\n\n"
         f"<b>USE THE BUTTONS BELOW TO SEARCH OR PURCHASE YOUR FAVORITE STORIES.</b>"
     )
-    await message.reply_text(welcome_text, reply_markup=MAIN_MENU, quote=True)
+    await message.reply_text(welcome_text, reply_markup=MAIN_MENU_INLINE, quote=True)
 
-# ------------------ Wallet System Handlers ------------------
 
-@Client.on_message(filters.regex("^(💼 ᴍʏ ᴡᴀʟʟᴇᴛ|💼 My Wallet)$") & filters.private)
-async def wallet_handler(client, message):
-    user_id = message.from_user.id
-    balance = await get_user_wallet(user_id)
-    
-    text = (
-        f"<b>👛 ʏᴏᴜʀ ᴡᴀʟʟᴇᴛ ᴅᴇᴛᴀɪʟs</b>\n"
-        f"━━━━━━━━━━━━━━━━━━━\n"
-        f"<b>💳 ᴄᴜʀʀᴇɴᴛ ʙᴀʟᴀɴᴄᴇ:</b> ₹{balance}\n"
-        f"━━━━━━━━━━━━━━━━━━━\n\n"
-        f"💡 <i>Use wallet balance for 1-click instant purchases inside Mini App or Bot.</i>"
+# ------------------ Open Marketplace Event ------------------
+@Client.on_callback_query(filters.regex("^open_marketplace_kb$"))
+async def open_marketplace_kb_handler(client, callback):
+    await callback.answer("🛒 Marketplace Opened!")
+    await callback.message.reply_text(
+        "🛒 <b>MARKETPLACE SELECTION</b>\n\n"
+        "Neeche diye gaye keyboard se platform choose karein:",
+        reply_markup=MARKETPLACE_REPLY_KEYBOARD
     )
+
+# ------------------ Dynamic Pratilipi & Pocket FM Handlers ------------------
+
+@Client.on_message(filters.regex("^(📚 ᴘʀᴀᴛɪʟɪᴘɪ ғᴍ|📚 Pratilipi FM)$") & filters.private)
+async def pratilipi_fm_handler(client, message):
+    cursor = stories_col.find({"category": re.compile("Pratilipi", re.IGNORECASE)})
+    stories = await cursor.to_list(length=1000)
     
-    kb = InlineKeyboardMarkup([
-        [InlineKeyboardButton("➕ ᴀᴅᴅ ᴍᴏɴᴇʏ / ᴛᴏᴘ-ᴜᴘ", callback_data="add_wallet_funds")]
+    if not stories:
+        return await message.reply_text("❌ **No stories found in Pratilipi FM.**", quote=True)
+        
+    reply_markup = get_fm_paginated_keyboard("Pratilipi FM", stories, page=0)
+    await message.reply_text("📚 **Pratilipi FM Stories (Page 1):**", reply_markup=reply_markup, quote=True)
+
+@Client.on_message(filters.regex("^(📻 ᴘᴏᴄᴋᴇᴛ ғᴍ|📻 Pocket FM)$") & filters.private)
+async def pocket_fm_handler(client, message):
+    cursor = stories_col.find({"category": re.compile("Pocket", re.IGNORECASE)})
+    stories = await cursor.to_list(length=1000)
+    
+    if not stories:
+        return await message.reply_text("❌ **No stories found in Pocket FM.**", quote=True)
+        
+    reply_markup = get_fm_paginated_keyboard("Pocket FM", stories, page=0)
+    await message.reply_text("📻 **Pocket FM Stories (Page 1):**", reply_markup=reply_markup, quote=True)
+
+# Callback for Pagination (Pratilipi & Pocket FM)
+@Client.on_callback_query(filters.regex(r"^(prat|pock)_pg_(\d+)$"))
+async def fm_pagination_callback(client, callback: CallbackQuery):
+    prefix, page = callback.matches[0].group(1), int(callback.matches[0].group(2))
+    category_name = "Pratilipi FM" if prefix == "prat" else "Pocket FM"
+    
+    cursor = stories_col.find({"category": re.compile("Pratilipi" if prefix == "prat" else "Pocket", re.IGNORECASE)})
+    stories = await cursor.to_list(length=1000)
+    
+    reply_markup = get_fm_paginated_keyboard(category_name, stories, page=page)
+    await callback.message.edit_text(f"📖 **{category_name} Stories (Page {page + 1}):**", reply_markup=reply_markup)
+
+# Callback for View All (Pratilipi & Pocket FM)
+@Client.on_callback_query(filters.regex(r"^viewall_(prat|pock)$"))
+async def view_all_callback(client, callback: CallbackQuery):
+    prefix = callback.matches[0].group(1)
+    category_name = "Pratilipi FM" if prefix == "prat" else "Pocket FM"
+    
+    cursor = stories_col.find({"category": re.compile("Pratilipi" if prefix == "prat" else "Pocket", re.IGNORECASE)})
+    stories = await cursor.to_list(length=1000)
+    
+    if not stories:
+        return await callback.answer("❌ No stories found!", show_alert=True)
+        
+    text = f"📚 **All Available {category_name} Stories:**\n\n"
+    for idx, story in enumerate(stories, 1):
+        clean_title = story.get('title', 'Untitled').strip().split('\n')[0]
+        text += f"{idx}. {clean_title}\n"
+        
+    back_kb = InlineKeyboardMarkup([
+        [InlineKeyboardButton("🔙 Back to Main Menu", callback_data="back_to_main_menu")]
     ])
     
-    await message.reply_text(text, reply_markup=kb, quote=True)
+    # Message length safety check
+    if len(text) > 4000:
+        text = text[:3900] + "\n\n...[Truncated due to Telegram limit]"
+        
+    await callback.message.edit_text(text, reply_markup=back_kb)
 
+# Back To Main Menu Button Handler
+@Client.on_callback_query(filters.regex("^back_to_main_menu$"))
+async def back_to_main_menu_callback(client, callback: CallbackQuery):
+    user = callback.from_user
+    welcome_text = (
+        f"<b>━━━━━━━━━━━━━━━━━━━━━━</b>\n"
+        f"🌟 <b>STORY SELLER BOT</b> 🌟\n"
+        f"<b>━━━━━━━━━━━━━━━━━━━━━━</b>\n\n"
+        f"<b>HELLO {user.first_name}! 👋</b>\n\n"
+        f"<b>USE THE BUTTONS BELOW TO SEARCH OR PURCHASE YOUR FAVORITE STORIES.</b>"
+    )
+    await callback.message.edit_text(welcome_text, reply_markup=MAIN_MENU_INLINE)
+
+# Inline Callback Button Listeners for Main Menu
+@Client.on_callback_query(filters.regex(r"^btn_(wallet|account|refer|support)$"))
+async def main_inline_buttons_handler(client, callback: CallbackQuery):
+    btn_type = callback.matches[0].group(1)
+    user = callback.from_user
+    
+    if btn_type == "wallet":
+        balance = await get_user_wallet(user.id)
+        text = (
+            f"<b>👛 ʏᴏᴜʀ ᴡᴀʟʟᴇᴛ ᴅᴇᴛᴀɪʟs</b>\n"
+            f"━━━━━━━━━━━━━━━━━━━\n"
+            f"<b>💳 ᴄᴜʀʀᴇɴᴛ ʙᴀʟᴀɴᴄᴇ:</b> ₹{balance}\n"
+            f"━━━━━━━━━━━━━━━━━━━\n\n"
+            f"💡 <i>Use wallet balance for 1-click instant purchases inside Mini App or Bot.</i>"
+        )
+        kb = InlineKeyboardMarkup([[InlineKeyboardButton("➕ ᴀᴅᴅ ᴍᴏɴᴇʏ / ᴛᴏᴘ-ᴜᴘ", callback_data="add_wallet_funds")]])
+        await callback.message.reply_text(text, reply_markup=kb)
+
+    elif btn_type == "account":
+        purchases = await get_user_purchases(user.id)
+        balance = await get_user_wallet(user.id)
+        acc_text = (
+            f"<b>👤 ᴀᴄᴄᴏᴜɴᴛ ᴅᴇᴛᴀɪʟs:</b>\n"
+            f"━━━━━━━━━━━━━━━━━━━\n"
+            f"<b>ɴᴀᴍᴇ:</b> {user.first_name}\n"
+            f"<b>ᴜsᴇʀ ɪᴅ:</b> <code>{user.id}</code>\n"
+            f"<b>ᴜsᴇʀɴᴀᴍᴇ:</b> @{user.username if user.username else 'N/A'}\n"
+            f"<b>👛 ᴡᴀʟʟᴇᴛ ʙᴀʟᴀɴᴄᴇ:</b> ₹{balance}\n"
+            f"<b>sᴛᴀᴛᴜs:</b> ᴀᴄᴛɪᴠᴇ ᴜsᴇʀ ⚡\n"
+            f"━━━━━━━━━━━━━━━━━━━\n\n"
+        )
+        buttons = []
+        if not purchases:
+            acc_text += "❌ <b>ʏᴏᴜ ʜᴀᴠᴇɴ'ᴛ ᴘᴜʀᴄʜᴀsᴇᴅ ᴀɴʏ sᴛᴏʀɪᴇs ʏᴇᴛ.</b>"
+        else:
+            acc_text += "📖 <b>ʏᴏᴜʀ ᴘᴜʀᴄʜᴀsᴇᴅ sᴛᴏʀɪᴇs:</b>\n\n"
+            for item in purchases:
+                story = await get_story_by_title(item['story_title'])
+                if story:
+                    clean_title = story['title'].strip().split("\n")[0]
+                    encoded_title = clean_title.replace(" ", "_")
+                    delivery_link = f"https://t.me/{BOT_USERNAME}?start=get_{encoded_title}"
+                    acc_text += f"• <b>{clean_title}</b>\n"
+                    buttons.append([InlineKeyboardButton(f"🚀 ᴀᴄᴄᴇss {clean_title}", url=delivery_link)])
+        buttons.append([InlineKeyboardButton("❌ ᴄʟᴏsᴇ", callback_data="close_message")])
+        await callback.message.reply_text(acc_text, reply_markup=InlineKeyboardMarkup(buttons))
+
+    elif btn_type == "refer":
+        refer_link = f"https://t.me/{BOT_USERNAME}?start=ref_{user.id}"
+        wallet = await get_user_wallet(user.id)
+        total_refs = await get_referred_users_count(user.id)
+        text = (
+            f"🎁 <b><u>ʀᴇғᴇʀ & ᴇᴀʀɴ ᴘʀᴏɢʀᴀᴍ</u></b>\n\n"
+            f"अपने दोस्तों को बॉट शेयर करें और हर नए यूज़र के जॉइन करने पर पाएँ <b>₹1.00</b> डायरेक्ट वॉलेट में!\n\n"
+            f"📊 <b>आपकी डिटेल्स:</b>\n"
+            f"👥 <b>Total Referred:</b> {total_refs} Users\n"
+            f"👛 <b>Wallet Balance:</b> ₹{wallet}\n\n"
+            f"🔗 <b>आपका पर्सनल रेफरल लिंक:</b>\n"
+            f"<code>{refer_link}</code>"
+        )
+        share_text = quote("✨ सुनो! इस बॉट पर ऑडियो स्टोरीज़ और पॉडकास्ट आसानी से मिल जाते हैं। तुरंत जॉइन करो:")
+        share_url = f"https://t.me/share/url?url={quote(refer_link)}&text={share_text}"
+        kb = InlineKeyboardMarkup([
+            [InlineKeyboardButton("🚀 दोस्तों को शेयर करें", url=share_url)],
+            [InlineKeyboardButton("❌ ᴄʟᴏsᴇ", callback_data="close_message")]
+        ])
+        await callback.message.reply_text(text, reply_markup=kb, disable_web_page_preview=True)
+
+    elif btn_type == "support":
+        kb = InlineKeyboardMarkup([
+            [InlineKeyboardButton("💬 ᴄᴏɴᴛᴀᴄᴛ sᴜᴘᴘᴏʀᴛ", url="https://t.me/pratilipifm0900")],
+            [InlineKeyboardButton("❌ ᴄʟᴏsᴇ", callback_data="close_message")]
+        ])
+        await callback.message.reply_text("<b>📞 ᴄᴜsᴛᴏᴍᴇʀ sᴜᴘᴘᴏʀᴛ:</b>\n\nɪғ ʏᴏᴜ ғᴀᴄᴇ ᴀɴʏ ɪssᴜᴇs, ғᴇᴇʟ ғʀᴇᴇ ᴛᴏ ᴄᴏɴᴛᴀᴄᴛ support.", reply_markup=kb)
+
+    await callback.answer()
+
+# No-op callback handler
+@Client.on_callback_query(filters.regex("^noop$"))
+async def noop_handler(client, callback: CallbackQuery):
+    await callback.answer()
+
+# ------------------ Wallet System Handlers ------------------
 @Client.on_callback_query(filters.regex("^add_wallet_funds$"))
 async def add_funds_callback(client, callback_query):
     text = (
@@ -814,100 +997,3 @@ async def add_funds_callback(client, callback_query):
         [InlineKeyboardButton("💬 ᴄᴏɴᴛᴀᴄᴛ ᴀᴅᴍɪɴ ғᴏᴏʀ ᴛᴏᴘᴜᴘ", url="https://t.me/kaluu_help_bot")]
     ])
     await callback_query.message.edit_text(text, reply_markup=kb)
-
-# ------------------ Refer & Earn Keyboard Handler ------------------
-
-@Client.on_message(filters.regex("^(🎁 ʀᴇғᴇʀ & ᴇᴀʀɴ|🎁 Refer & Earn)$") & filters.private)
-async def refer_earn_handler(client, message):
-    user_id = message.from_user.id
-    refer_link = f"https://t.me/{BOT_USERNAME}?start=ref_{user_id}"
-    
-    wallet = await get_user_wallet(user_id)
-    total_refs = await get_referred_users_count(user_id)
-    
-    text = (
-        f"🎁 <b><u>ʀᴇғᴇʀ & ᴇᴀʀɴ ᴘʀᴏɢʀᴀᴍ</u></b>\n\n"
-        f"अपने दोस्तों को बॉट शेयर करें और हर नए यूज़र के जॉइन करने पर पाएँ <b>₹1.00</b> डायरेक्ट वॉलेट में!\n\n"
-        f"📊 <b>आपकी डिटेल्स:</b>\n"
-        f"👥 <b>Total Referred:</b> {total_refs} Users\n"
-        f"👛 <b>Wallet Balance:</b> ₹{wallet}\n\n"
-        f"🔗 <b>आपका पर्सनल रेफरल लिंक:</b>\n"
-        f"<code>{refer_link}</code>"
-    )
-    
-    share_text = quote("✨ सुनो! इस बॉट पर ऑडियो स्टोरीज़ और पॉडकास्ट आसानी से मिल जाते हैं। तुरंत जॉइन करो:")
-    share_url = f"https://t.me/share/url?url={quote(refer_link)}&text={share_text}"
-    
-    kb = InlineKeyboardMarkup([
-        [InlineKeyboardButton("🚀 दोस्तों को शेयर करें", url=share_url)],
-        [InlineKeyboardButton("❌ ᴄʟᴏsᴇ", callback_data="close_message")]
-    ])
-    
-    await message.reply_text(text, reply_markup=kb, disable_web_page_preview=True, quote=True)
-
-# ------------------ Dynamic Button Handlers (With Close Buttons) ------------------
-
-@Client.on_message(filters.regex("^(🚀 ᴏᴘᴇɴ ᴍɪɴɪ ᴀᴘᴘ|🚀 Open Mini App)$") & filters.private)
-async def open_miniapp_handler(client, message):
-    text = (
-        "🚀 <b>ᴍɪɴɪ sᴛᴏʀᴇ ᴀᴘᴘ</b>\n\n"
-        "ᴄʟɪᴄᴋ ᴛʜᴇ ʙᴜᴛᴛᴏɴ ʙᴇʟᴏᴡ ᴛᴏ ᴏᴘᴇɴ ᴏᴜʀ ᴏғғɪᴄɪᴀʟ ᴍɪɴɪ ᴀᴘᴘ ᴀɴᴅ ᴇxᴘʟᴏʀᴇ ᴀʟʟ sᴛᴏʀɪᴇs!"
-    )
-    btn = InlineKeyboardMarkup([
-        [InlineKeyboardButton("🚀 ʟᴀᴜɴᴄʜ ᴍɪɴɪ ᴀᴘᴘ", web_app=WebAppInfo(url=WEB_APP_URL))],
-        [InlineKeyboardButton("❌ ᴄʟᴏsᴇ", callback_data="close_message")]
-    ])
-    await message.reply_text(text, reply_markup=btn, quote=True)
-
-@Client.on_message(filters.regex("^(📢 ᴜᴘᴅᴀᴛᴇs ᴄʜᴀɴɴᴇʟ|📢 Updates Channel)$") & filters.private)
-async def updates_handler(client, message):
-    kb = InlineKeyboardMarkup([
-        [InlineKeyboardButton("📢 ᴊᴏɪɴ ᴄʜᴀɴɴᴇʟ", url="https://t.me/freestoryhubMR")],
-        [InlineKeyboardButton("❌ ᴄʟᴏsᴇ", callback_data="close_message")]
-    ])
-    await message.reply_text("<b>📢 ᴜᴘᴅᴀᴛᴇs ᴄʜᴀɴɴᴇʟ:</b>\n\nᴊᴏɪɴ ᴏᴜʀ ᴄʜᴀɴɴᴇʟ ғᴏʀ ᴛʜᴇ ʟᴀᴛᴇsᴛ ᴜᴘᴅᴀᴛᴇs ᴀɴᴅ ɴᴇᴡ sᴛᴏʀɪᴇs!", reply_markup=kb, quote=True)
-
-@Client.on_message(filters.regex("^(👤 ᴍʏ ᴀᴄᴄᴏᴜɴᴛ|👤 My Account)$") & filters.private)
-async def account_handler(client, message):
-    user = message.from_user
-    purchases = await get_user_purchases(user.id)
-    balance = await get_user_wallet(user.id)
-    
-    acc_text = (
-        f"<b>👤 ᴀᴄᴄᴏᴜɴᴛ ᴅᴇᴛᴀɪʟs:</b>\n"
-        f"━━━━━━━━━━━━━━━━━━━\n"
-        f"<b>ɴᴀᴍᴇ:</b> {user.first_name}\n"
-        f"<b>ᴜsᴇʀ ɪᴅ:</b> <code>{user.id}</code>\n"
-        f"<b>ᴜsᴇʀɴᴀᴍᴇ:</b> @{user.username if user.username else 'N/A'}\n"
-        f"<b>👛 ᴡᴀʟʟᴇᴛ ʙᴀʟᴀɴᴄᴇ:</b> ₹{balance}\n"
-        f"<b>sᴛᴀᴛᴜs:</b> ᴀᴄᴛɪᴠᴇ ᴜsᴇʀ ⚡\n"
-        f"━━━━━━━━━━━━━━━━━━━\n\n"
-    )
-    
-    buttons = []
-    
-    if not purchases:
-        acc_text += "❌ <b>ʏᴏᴜ ʜᴀᴠᴇɴ'ᴛ ᴘᴜʀᴄʜᴀsᴇᴅ ᴀɴʏ sᴛᴏʀɪᴇs ʏᴇᴛ.</b>"
-    else:
-        acc_text += "📖 <b>ʏᴏᴜʀ ᴘᴜʀᴄʜᴀsᴇᴅ sᴛᴏʀɪᴇs:</b>\n\n"
-        for item in purchases:
-            story = await get_story_by_title(item['story_title'])
-            if story:
-                clean_title = story['title'].strip().split("\n")[0]
-                encoded_title = clean_title.replace(" ", "_")
-                delivery_link = f"https://t.me/{BOT_USERNAME}?start=get_{encoded_title}"
-                
-                acc_text += f"• <b>{clean_title}</b>\n"
-                buttons.append([InlineKeyboardButton(f"🚀 ᴀᴄᴄᴇss {clean_title}", url=delivery_link)])
-            
-    buttons.append([InlineKeyboardButton("❌ ᴄʟᴏsᴇ", callback_data="close_message")])
-    reply_markup = InlineKeyboardMarkup(buttons)
-    await message.reply_text(acc_text, reply_markup=reply_markup, quote=True)
-
-@Client.on_message(filters.regex("^(📞 sᴜᴘᴘᴏʀᴛ|📞 Support)$") & filters.private)
-async def support_handler(client, message):
-    kb = InlineKeyboardMarkup([
-        [InlineKeyboardButton("💬 ᴄᴏɴᴛᴀᴄᴛ sᴜᴘᴘᴏʀᴛ", url="https://t.me/pratilipifm0900")],
-        [InlineKeyboardButton("❌ ᴄʟᴏsᴇ", callback_data="close_message")]
-    ])
-    await message.reply_text("<b>📞 ᴄᴜsᴛᴏᴍᴇʀ sᴜᴘᴘᴏʀᴛ:</b>\n\nɪғ ʏᴏᴜ ғᴀᴄᴇ ᴀɴʏ ɪssᴜᴇs, ғᴇᴇʟ ғʀᴇᴇ ᴛᴏ ᴄᴏɴᴛᴀᴄᴛ support.", reply_markup=kb, quote=True)
