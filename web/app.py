@@ -2,7 +2,7 @@ import os
 import motor.motor_asyncio
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
-from config import MONGO_URL
+from config import MONGO_URL, BOT_USERNAME
 
 app = FastAPI()
 
@@ -26,24 +26,28 @@ async def serve_miniapp():
             
     return "<h3 style='color:red;'>index.html file not found! Please verify the folder structure.</h3>"
 
-# 2. API Route for Mini App Stories
+# 2. API Route for Mini App Stories (Demo Synced)
 @app.get("/api/stories")
 async def get_stories_api():
     stories = []
     async for story in stories_collection.find():
         raw_title = story.get("title", "Untitled")
         clean_title = raw_title.strip().splitlines()[0] if raw_title else "Untitled"
+        url_clean_title = clean_title.replace(" ", "_")
         
         msg_ids = story.get("msg_ids", [])
-        has_demo = len(msg_ids) > 0 or story.get("demo_enabled", False)
-
+        
         # Calculate total files from message IDs if available
         first_id = story.get("first_msg_id")
         last_id = story.get("last_msg_id")
-        if first_id and last_id:
+        if first_id and last_id and last_id >= first_id:
             total_files_count = (last_id - first_id) + 1
         else:
             total_files_count = len(story.get("custom_ranges", [])) * 50 or 24
+
+        # Check demo status
+        demo_enabled = story.get("demo_enabled", False) or len(msg_ids) > 0
+        demo_msg_ids = story.get("demo_msg_ids", [])
 
         stories.append({
             "id": str(story.get("_id", "")),
@@ -54,6 +58,11 @@ async def get_stories_api():
             "total_files": f"{total_files_count} files",
             "description": story.get("desc", story.get("description", "Complete audio series package.")),
             "photo": story.get("photo", "https://picsum.photos/200"),
-            "has_demo": has_demo
+            
+            # Mini App & Bot Sync Fields
+            "has_demo": demo_enabled,
+            "demo_enabled": demo_enabled,
+            "demo_msg_ids": demo_msg_ids,
+            "demo_link": f"https://t.me/{BOT_USERNAME}?start=demo_{url_clean_title}"
         })
     return stories
