@@ -880,7 +880,33 @@ async def inline_callback_handler(client, callback_query: CallbackQuery):
             reply_markup=get_market_reply_keyboard()
         )
 
-    elif data in ["menu_wallet", "menu_account"]:
+    # ------------ 1. SEPARATE WALLET MENU ------------
+    elif data == "menu_wallet":
+        await callback_query.answer()
+        balance = await get_user_wallet(user_id)
+        total_refs = await get_referred_users_count(user_id)
+
+        wallet_text = (
+            f"💼 <b><u>YOUR WALLET DASHBOARD</u></b>\n\n"
+            f"👤 <b>User:</b> {user.first_name}\n"
+            f"🆔 <b>User ID:</b> <code>{user.id}</code>\n\n"
+            f"💰 <b>Current Balance:</b> ₹{balance:.2f}\n"
+            f"👥 <b>Total Referral Earnings:</b> ₹{total_refs * REFER_BONUS:.2f}\n\n"
+            f"💡 <b>वॉलेट बैलेंस कैसे बढ़ाएं?</b>\n"
+            f"1️⃣ <b>Refer & Earn:</b> अपने रेफरल लिंक से दोस्तों को जोड़ें और प्रति यूज़र ₹1 पाएँ।\n"
+            f"2️⃣ <b>Top-Up / Add Money:</b> एडमिन से संपर्क करके क्यूआर या यूपीआई से बैलेंस ऐड करवाएं।"
+        )
+        
+        wallet_buttons = InlineKeyboardMarkup([
+            [InlineKeyboardButton("➕ ADD FUNDS / TOP-UP", url="https://t.me/pratilipifm0900")],
+            [InlineKeyboardButton("🎁 REFER & EARN", callback_data="menu_refer")],
+            [InlineKeyboardButton("❌ CLOSE", callback_data="close_message")]
+        ])
+        
+        await msg.reply_text(wallet_text, reply_markup=wallet_buttons, quote=True)
+
+    # ------------ 2. SEPARATE ACCOUNT MENU ------------
+    elif data == "menu_account":
         await callback_query.answer()
         balance = await get_user_wallet(user_id)
         purchases = await get_user_purchases(user_id)
@@ -891,7 +917,7 @@ async def inline_callback_handler(client, callback_query: CallbackQuery):
             f"━━━━━━━━━━━━━━━━━━━\n"
             f"<b>👤 ɴᴀᴍᴇ:</b> {user.first_name}\n"
             f"<b>🆔 ᴜsᴇʀ ɪᴅ:</b> <code>{user.id}</code>\n"
-            f"<b>👛 ᴡᴀʟʟᴇᴛ ʙᴀʟᴀɴᴄᴇ:</b> ₹{balance}\n"
+            f"<b>👛 ᴡᴀʟʟᴇᴛ ʙᴀʟᴀɴᴄᴇ:</b> ₹{balance:.2f}\n"
             f"<b>👥 Total Referrals:</b> {total_refs} Users\n"
             f"━━━━━━━━━━━━━━━━━━━\n\n"
             f"<b>📚 ʏᴏᴜʀ ᴘᴜʀᴄʜᴀsᴇᴅ sᴛᴏʀɪᴇs:</b>\n"
@@ -922,7 +948,7 @@ async def inline_callback_handler(client, callback_query: CallbackQuery):
             f"🎁 <b><u>ʀᴇғᴇʀ & ᴇᴀʀɴ ᴘʀᴏɢʀᴀᴍ</u></b>\n\n"
             f"अपने दोस्तों को बॉट शेयर करें और हर नए यूज़र पर पाएँ <b>₹1.00</b>!\n\n"
             f"👥 <b>Total Referred:</b> {total_refs} Users\n"
-            f"👛 <b>Wallet Balance:</b> ₹{wallet}\n\n"
+            f"👛 <b>Wallet Balance:</b> ₹{wallet:.2f}\n\n"
             f"🔗 <b>आपका लिंक:</b>\n<code>{refer_link}</code>"
         )
         await msg.reply_text(ref_text, quote=True)
