@@ -28,7 +28,9 @@ from database.db import (
     get_exact_episode_range,
     add_wallet_balance,
     get_referred_users_count,
-    users_col
+    users_col,
+    get_episodes_by_range_db,
+    get_single_episode_db
 )
 # Config file imports
 from config import (
@@ -72,60 +74,7 @@ async def close_message_handler(client, callback_query):
         pass
     await callback_query.answer()
 
-# ------------------ Helper: Extract Episode Number ------------------
-def extract_episode_number(text: str) -> int:
-    if not text:
-        return None
-    
-    patterns = [
-        r'(?:episode|ep|episodes)\s*[-:]?\s*(\d+)',
-        r'#\s*(\d+)',
-        r'(?:part|pt)\s*[-:]?\s*(\d+)',
-        r'\bep\s*(\d+)\b',
-        r'\b(\d+)\b'
-    ]
-    
-    for pattern in patterns:
-        match = re.search(pattern, text, re.IGNORECASE)
-        if match:
-            try:
-                return int(match.group(1))
-            except ValueError:
-                continue
-    return None
-
-# ------------------ Helper: Extract Text from Message ------------------
-def get_message_searchable_text(msg) -> str:
-    if not msg:
-        return ""
-    
-    combined_texts = []
-    
-    if msg.caption:
-        combined_texts.append(msg.caption)
-    if msg.text:
-        combined_texts.append(msg.text)
-        
-    if msg.audio:
-        if msg.audio.title:
-            combined_texts.append(msg.audio.title)
-        if msg.audio.file_name:
-            combined_texts.append(msg.audio.file_name)
-        if msg.audio.performer:
-            combined_texts.append(msg.audio.performer)
-
-    if msg.document and msg.document.file_name:
-        combined_texts.append(msg.document.file_name)
-
-    if msg.video and msg.video.file_name:
-        combined_texts.append(msg.video.file_name)
-
-    if msg.voice and msg.caption:
-        combined_texts.append(msg.caption)
-
-    return " | ".join(combined_texts)
-
-# ------------------ Helper: Advanced Smart File Delivery Function ------------------
+# ------------------ Helper: Advanced Ultra-Fast File Delivery Function ------------------
 async def send_story_files_start(client, user_id, story, first_id, last_id, clean_title, custom_range_text="", target_start_ep=None, target_end_ep=None):
     sent_messages_obj = []
     sent_message_ids = []
@@ -138,39 +87,19 @@ async def send_story_files_start(client, user_id, story, first_id, last_id, clea
         sticker=chosen_sticker
     )
 
-    msg_ids_to_fetch = list(range(first_id, last_id + 1))
-    chunk_size = 200
-    matching_messages = []
+    story_id = clean_title.replace(" ", "_")
+    msg_ids_to_send = []
 
-    for i in range(0, len(msg_ids_to_fetch), chunk_size):
-        chunk = msg_ids_to_fetch[i:i + chunk_size]
-        try:
-            channel_msgs = await client.get_messages(chat_id=CHANNEL_ID, message_ids=chunk)
-            if not isinstance(channel_msgs, list):
-                channel_msgs = [channel_msgs]
-
-            for msg in channel_msgs:
-                if not msg or msg.empty:
-                    continue
-                
-                searchable_text = get_message_searchable_text(msg)
-                ep_num = extract_episode_number(searchable_text)
-
-                if target_start_ep is not None and target_end_ep is not None:
-                    if ep_num is not None and target_start_ep <= ep_num <= target_end_ep:
-                        matching_messages.append((ep_num, msg))
-                else:
-                    matching_messages.append((ep_num or 0, msg))
-        except Exception as e:
-            print(f"Error fetching channel messages batch: {e}")
-
+    # 🚀 STEP 1: DB Episodic Index Search (Ultra-Fast Lookup)
     if target_start_ep is not None and target_end_ep is not None:
-        matching_messages.sort(key=lambda x: x[0])
-        messages_to_send = [item[1] for item in matching_messages]
-    else:
-        messages_to_send = [item[1] for item in matching_messages]
+        msg_ids_to_send = await get_episodes_by_range_db(story_id, target_start_ep, target_end_ep)
 
-    total_files = len(messages_to_send)
+    # ⚡ STEP 2: Range Fallback / Whole Story Delivery
+    if not msg_ids_to_send:
+        if first_id and last_id:
+            msg_ids_to_send = list(range(first_id, last_id + 1))
+
+    total_files = len(msg_ids_to_send)
 
     if total_files == 0:
         try:
@@ -184,20 +113,21 @@ async def send_story_files_start(client, user_id, story, first_id, last_id, clea
                  f"रेंज <b>{custom_range_text}</b> के एपिसोड्स उपलब्ध नहीं हैं।"
         )
 
-    for msg in messages_to_send:
+    # 📤 STEP 3: Delivery Loop (Copy Messages to User)
+    for msg_id in msg_ids_to_send:
         try:
             sent_msg = await client.copy_message(
                 chat_id=user_id,
                 from_chat_id=CHANNEL_ID,
-                message_id=msg.id,
+                message_id=msg_id,
                 protect_content=True
             )
             sent_messages_obj.append(sent_msg)
             sent_message_ids.append(sent_msg.id)
             success_count += 1
-            await asyncio.sleep(0.4)
+            await asyncio.sleep(0.35)
         except Exception as e:
-            print(f"Error copying message {msg.id}: {e}")
+            print(f"Error copying message {msg_id}: {e}")
 
     try:
         await status_msg.delete()
@@ -262,7 +192,7 @@ async def range_clean_chat_handler(client, callback_query):
         print(f"Clean chat error: {e}")
         await callback_query.answer("❌ फाइल्स पहले ही डिलीट हो चुकी हैं!", show_alert=True)
 
-# ------------------ Mini App Web Data Receiver (UPDATED FOR DEMO) ------------------
+# ------------------ Mini App Web Data Receiver ------------------
 @Client.on_message(filters.service & filter_webapp & filters.private)
 async def web_app_data_handler(client, message):
     try:
@@ -378,7 +308,7 @@ async def view_demo_callback(client: Client, callback_query: CallbackQuery):
         
         header_msg = await client.send_message(
             chat_id=user_id,
-            text=f"🎬 <b>ᴅᴇᴍᴏ / ᴘʀᴇᴠɪᴇᴡ ғᴏʀ:</b> <code>{story['title']}</code>\n\n"
+            text=f"🎬 <b>ᴅᴇᴍᴏ / ᴘʀᴇᴠɪᴇᴡ ғᴏᴏᴛᴀɢᴇ:</b> <code>{story['title']}</code>\n\n"
                  f"⏰ <i>This demo preview will automatically delete in 10 minutes!</i>"
         )
         sent_messages.append(header_msg)
@@ -473,7 +403,7 @@ async def start_batch_callback_router(client, callback_query):
             
         await callback_query.message.delete()
         clean_title = story['title'].strip().split("\n")[0]
-        await send_story_files_start(client, user_id, story, story['first_msg_id'], story['last_msg_id'], clean_title)
+        await send_story_files_start(client, user_id, story, story.get('first_msg_id'), story.get('last_msg_id'), clean_title)
         await callback_query.answer()
 
     elif data.startswith("sendcustom_"):
@@ -512,7 +442,9 @@ async def start_batch_callback_router(client, callback_query):
             "encoded_title": encoded_title
         }
         
-        total_episodes = (story['last_msg_id'] - story['first_msg_id']) + 1
+        total_episodes = story.get('episodes', 'N/A')
+        if total_episodes == "N/A" and story.get('first_msg_id') and story.get('last_msg_id'):
+            total_episodes = (story['last_msg_id'] - story['first_msg_id']) + 1
         
         await callback_query.message.reply_text(
             f"🔢 <b>Enter Episode Range (1 - {total_episodes}):</b>\n\n"
@@ -541,8 +473,8 @@ async def process_start_range_input(client, message):
     data = START_RANGE_WAITING.get(user_id)
     story = data['story']
     
-    db_first = story['first_msg_id']
-    db_last = story['last_msg_id']
+    db_first = story.get('first_msg_id', 0)
+    db_last = story.get('last_msg_id', 0)
     
     if start_ep < 1 or start_ep > end_ep:
         return await message.reply_text("❌ <b>अमान्य रेंज!</b> शुरुआत का नंबर 1 से कम या अंत वाले नंबर से बड़ा नहीं हो सकता।", quote=True)
@@ -578,21 +510,18 @@ async def start_handler(client, message):
             try:
                 referrer_id = int(args[1].split("_")[1])
                 
-                # 1. Self-Referral Check
                 if referrer_id == user.id:
                     await message.reply_text(
                         "⚠️ <b>Hey dude, don't try to use your own referral link!</b>\n"
                         "<i>Share this link with your friends to earn rewards.</i>", 
                         quote=True
                     )
-                # 2. New User Referral Check
                 elif not registered:
                     await register_user(user.id, user.first_name, user.username)
                     await users_col.update_one({"user_id": user.id}, {"$set": {"referred_by": referrer_id}})
                     
                     new_bal = await add_wallet_balance(referrer_id, REFER_BONUS)
                     
-                    # Notify the Referrer
                     try:
                         await client.send_message(
                             chat_id=referrer_id,
@@ -604,7 +533,6 @@ async def start_handler(client, message):
                     except Exception:
                         pass
                         
-                    # Admin Log for Referral Registration
                     try:
                         log_text = (
                             f"<b>🆕 ɴᴇᴡ ᴜsᴇʀ ʀᴇɢɪsᴛᴇʀᴇᴅ (Vɪᴀ Rᴇғᴇʀʀᴀʟ)!</b>\n"
@@ -616,7 +544,6 @@ async def start_handler(client, message):
                         await send_log(client, log_text)
                     except Exception:
                         pass
-                # 3. Existing User Warning
                 else:
                     await message.reply_text(
                         "⚠️ <b>You are already an existing user of this bot!</b>\n"
@@ -626,7 +553,6 @@ async def start_handler(client, message):
             except Exception as ref_err:
                 print(f"Referral processing error: {ref_err}")
 
-        # Normal Registration (If no referral link was used and user is new)
         elif not registered:
             await register_user(user.id, user.first_name, user.username)
             try:
@@ -676,10 +602,10 @@ async def start_handler(client, message):
         first_id = story.get('first_msg_id')
         last_id = story.get('last_msg_id')
 
-        if not first_id or not last_id:
-            return await message.reply_text("⚠️ <b>ɴᴏ ғɪʟᴇs ᴀssᴏᴄɪᴀᴛᴇᴅ ᴡɪᴛʜ ᴛʜɪs sᴛᴏʀʏ!</b>\nPlease contact support.", quote=True)
+        total_files = story.get('episodes', 'N/A')
+        if (total_files == "N/A" or not isinstance(total_files, int)) and first_id and last_id:
+            total_files = (last_id - first_id) + 1
 
-        total_files = (last_id - first_id) + 1
         custom_ranges = story.get('custom_ranges', [])
 
         if custom_ranges:
@@ -699,7 +625,7 @@ async def start_handler(client, message):
                 quote=True
             )
 
-        if total_files > 100:
+        if isinstance(total_files, int) and total_files > 100:
             choice_kb = InlineKeyboardMarkup([
                 [InlineKeyboardButton(f"📦 All Episodes ({total_files} Files)", callback_data=f"sendall_{encoded_title}")],
                 [InlineKeyboardButton("🔢 Custom Range (e.g. 1-5)", callback_data=f"askrange_{encoded_title}")]
