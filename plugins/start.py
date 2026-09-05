@@ -195,7 +195,7 @@ async def send_story_files_start(client, user_id, story, first_id, last_id, clea
             sent_messages_obj.append(sent_msg)
             sent_message_ids.append(sent_msg.id)
             success_count += 1
-            await asyncio.sleep(0.4)
+            await asyncio.sleep(1.1)
         except Exception as e:
             print(f"Error copying message {msg.id}: {e}")
 
@@ -688,7 +688,6 @@ async def start_handler(client, message):
                 buttons.append([InlineKeyboardButton(f"📁 {r['name']}", callback_data=f"sendcustom_{encoded_title}:{idx}")])
             
             buttons.append([InlineKeyboardButton(f"📦 All Episodes ({total_files} Files)", callback_data=f"sendall_{encoded_title}")])
-            buttons.append([InlineKeyboardButton("🔢 Custom Range (e.g. 1-5)", callback_data=f"askrange_{encoded_title}")])
 
             choice_kb = InlineKeyboardMarkup(buttons)
             return await message.reply_text(
@@ -701,8 +700,7 @@ async def start_handler(client, message):
 
         if total_files > 100:
             choice_kb = InlineKeyboardMarkup([
-                [InlineKeyboardButton(f"📦 All Episodes ({total_files} Files)", callback_data=f"sendall_{encoded_title}")],
-                [InlineKeyboardButton("🔢 Custom Range (e.g. 1-5)", callback_data=f"askrange_{encoded_title}")]
+                [InlineKeyboardButton(f"📦 All Episodes ({total_files} Files)", callback_data=f"sendall_{encoded_title}")]
             ])
             return await message.reply_text(
                 f"📚 <b>{clean_title}</b>\n\n"
