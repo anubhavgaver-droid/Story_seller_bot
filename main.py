@@ -1,9 +1,9 @@
 import asyncio
 import os
 from aiohttp import web
-import aiofiles  # Async file reading ke liye
-from pyrogram import Client, idle
-from config import API_ID, API_HASH, BOT_TOKEN, PORT
+import aiofiles
+from pyrogram import Client, idle, filters
+from config import API_ID, API_HASH, BOT_TOKEN, PORT, ADMIN_ID
 from database.db import stories_col, get_user_purchases, get_story_by_title
 
 # Plugins setup
@@ -22,7 +22,7 @@ async def cors_middleware(request, handler):
     response.headers['Access-Control-Allow-Headers'] = 'Content-Type'
     return response
 
-# ------------------ 1. Ping / Health-Check (For Cron-Job) ------------------
+# ------------------ 1. Ping / Health-Check ------------------
 async def handle_ping(request):
     return web.Response(text="PONG / SERVER OK", status=200)
 
@@ -35,7 +35,7 @@ async def handle_miniapp(request):
             return web.Response(text=content, content_type="text/html")
     return web.Response(text="<h3>index.html not found in web/ folder!</h3>", content_type="text/html", status=404)
 
-# ------------------ 3. API Endpoint: Fetch Stories ------------------
+# ------------------ 3. API Endpoint: Fetch Stories (Fixed Episodes & Files) ------------------
 async def handle_get_stories(request):
     stories = []
     try:
@@ -43,11 +43,22 @@ async def handle_get_stories(request):
             raw_title = story.get("title", "Untitled")
             clean_title = raw_title.strip().splitlines()[0] if raw_title else "Untitled"
             
+            # Calculate total files accurately from first and last message IDs if available
+            first_id = story.get("first_msg_id")
+            last_id = story.get("last_msg_id")
+            if first_id and last_id and last_id >= first_id:
+                total_files_count = (last_id - first_id) + 1
+            else:
+                total_files_count = len(story.get("custom_ranges", [])) * 50 or 24
+
             stories.append({
+                "id": str(story.get("_id", "")),
                 "title": clean_title,
                 "price": story.get("price", 0),
                 "platform": story.get("platform", story.get("category", "PRATILIPI FM")),
-                "desc": story.get("desc", ""),
+                "episodes": story.get("episodes", "30 Episodes"),
+                "total_files": f"{total_files_count} files",
+                "desc": story.get("desc", story.get("description", "")),
                 "photo": story.get("photo", "https://picsum.photos/200")
             })
         return web.json_response(stories)
@@ -77,13 +88,11 @@ async def handle_get_user_purchases(request):
 async def start_web_server():
     app_web = web.Application(middlewares=[cors_middleware])
     
-    # Routes Setup
-    app_web.router.add_get("/ping", handle_ping)          # For Cron Job Keep-Alive
-    app_web.router.add_get("/", handle_miniapp)            # Mini App Index
+    app_web.router.add_get("/ping", handle_ping)
+    app_web.router.add_get("/", handle_miniapp)
     app_web.router.add_get("/api/stories", handle_get_stories)
     app_web.router.add_get("/api/user_purchases", handle_get_user_purchases)
     
-    # Static files serving (CSS, JS, Images from web/ folder)
     if os.path.exists(WEB_DIR):
         app_web.router.add_static("/web/", path=WEB_DIR, name="web")
 
@@ -95,12 +104,34 @@ async def start_web_server():
     await site.start()
     print(f"🌐 Advanced Web server active on port {server_port}")
 
+# ------------------ Admin Refresh Command to Fix Old Stories ------------------
+def register_admin_commands(bot):
+    @bot.on_message(filters.command("refreshstories") & filters.user(ADMIN_ID) & filters.private)
+    async def refresh_stories_handler(client, message):
+        count = 0
+        async for story in stories_col.find():
+            first_id = story.get("first_msg_id")
+            last_id = story.get("last_msg_id")
+            
+            # Recalculate and update database fields if missing or incorrect
+            update_fields = {}
+            if first_id and last_id:
+                calc_files = (last_id - first_id) + 1
+                update_fields["total_files"] = f"{calc_files} files"
+            
+            if not story.get("episodes"):
+                update_fields["episodes"] = "30 Episodes"
+                
+            if update_fields:
+                await stories_col.update_one({"_id": story["_id"]}, {"$set": update_fields})
+                count += 1
+                
+        await message.reply_text(f"✅ <b>Database Refreshed Successfully!</b>\n\n🔄 Updated <b>{count}</b> stories with correct episode & file counts.")
+
 # ------------------ Main Execution ------------------
 async def main():
-    # 1. Start Web Server
     await start_web_server()
 
-    # 2. Initialize Pyrogram Client
     bot = Client(
         "StorySellerBot",
         api_id=API_ID,
@@ -109,14 +140,13 @@ async def main():
         plugins=plugins
     )
 
-    # 3. Start Pyrogram Bot
+    # Register admin commands dynamically
+    register_admin_commands(bot)
+
     await bot.start()
     print("🤖 Telegram Bot Started Successfully!")
 
-    # 4. Keep alive
     await idle()
-
-    # 5. Stop Bot on exit
     await bot.stop()
 
 if __name__ == "__main__":
