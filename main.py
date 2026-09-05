@@ -109,35 +109,6 @@ async def start_web_server():
     await site.start()
     print(f"🌐 Advanced Web server active on port {server_port}")
 
-# ------------------ Admin Refresh Command to Fix Old Stories ------------------
-def register_admin_commands(bot):
-    @bot.on_message(filters.command("refreshstories") & filters.user(ADMIN_ID) & filters.private)
-    async def refresh_stories_handler(client, message):
-        count = 0
-        async for story in stories_col.find():
-            first_id = story.get("first_msg_id")
-            last_id = story.get("last_msg_id")
-            
-            # Recalculate and update database fields if missing or incorrect
-            update_fields = {}
-            if first_id and last_id:
-                calc_files = (last_id - first_id) + 1
-                update_fields["total_files"] = f"{calc_files} files"
-            
-            if not story.get("episodes"):
-                update_fields["episodes"] = "30 Episodes"
-                
-            if "demo_enabled" not in story:
-                update_fields["demo_enabled"] = False
-            if "demo_msg_ids" not in story:
-                update_fields["demo_msg_ids"] = []
-
-            if update_fields:
-                await stories_col.update_one({"_id": story["_id"]}, {"$set": update_fields})
-                count += 1
-                
-        await message.reply_text(f"✅ <b>Database Refreshed Successfully!</b>\n\n🔄 Updated <b>{count}</b> stories with correct episode, file counts & demo sync setup.")
-
 # ------------------ Main Execution ------------------
 async def main():
     await start_web_server()
@@ -149,9 +120,6 @@ async def main():
         bot_token=BOT_TOKEN,
         plugins=plugins
     )
-
-    # Register admin commands dynamically
-    register_admin_commands(bot)
 
     await bot.start()
     print("🤖 Telegram Bot Started Successfully!")
