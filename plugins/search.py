@@ -5,6 +5,8 @@ import difflib
 import time
 from pyrogram import Client, filters, enums
 from pyrogram.types import (
+    ReplyKeyboardMarkup, 
+    KeyboardButton, 
     InlineKeyboardMarkup, 
     InlineKeyboardButton, 
     ForceReply, 
@@ -28,54 +30,58 @@ from database.db import (
 # Config Imports
 from config import WEB_APP_URL, BOT_USERNAME, CHANNEL_ID
 
-ITEMS_PER_PAGE = 10
 SEARCH_WAITING = {}
 
-# 1. Main Inline Menu Markup (Shared Layout)
-MAIN_MENU_INLINE = InlineKeyboardMarkup([
-    [InlineKeyboardButton("💼 ᴍʏ ᴡᴀʟʟᴇᴛ", callback_data="btn_wallet"), InlineKeyboardButton("👤 ᴍʏ ᴀᴄᴄᴏᴜɴᴛ", callback_data="btn_account")],
-    [InlineKeyboardButton("🎁 ʀᴇғᴇʀ & ᴇᴀʀɴ", callback_data="btn_refer")],
-    [InlineKeyboardButton("📢 ᴜᴘᴅᴀᴛᴇs ᴄʜᴀɴɴᴇʟ", url="https://t.me/freestoryhubMR"), InlineKeyboardButton("📞 sᴜᴘᴘᴏʀᴛ", callback_data="btn_support")],
-    [InlineKeyboardButton("🛒 ᴏᴘᴇɴ ᴍᴀʀᴋᴇᴛᴘʟᴀᴄᴇ", callback_data="open_marketplace_kb")]
-])
+# Main Bottom Reply Keyboard Menu
+MAIN_MENU = ReplyKeyboardMarkup(
+    [
+        [KeyboardButton("🚀 ᴏᴘᴇɴ ᴍɪɴɪ ᴀᴘᴘ")],
+        [KeyboardButton("💼 ᴍʏ ᴡᴀʟʟᴇᴛ"), KeyboardButton("👤 ᴍʏ ᴀᴄᴄᴏᴜɴᴛ")],
+        [KeyboardButton("🎁 ʀᴇғᴇʀ & ᴇᴀʀɴ")],
+        [KeyboardButton("🔎 sᴇᴀʀᴄʜ sᴛᴏʀʏ"), KeyboardButton("📻 ᴘᴏᴄᴋᴇᴛ ғᴍ")],
+        [KeyboardButton("📚 ᴘʀᴀᴛɪʟɪᴘɪ ғᴍ"), KeyboardButton("📢 ᴜᴘᴅᴀᴛᴇs ᴄʜᴀɴɴᴇʟ")],
+        [KeyboardButton("📞 sᴜᴘᴘᴏʀᴛ")]
+    ],
+    resize_keyboard=True
+)
 
-# ------------------ Helper: Dynamic 10-10 Pagination Keyboard ------------------
-def get_fm_paginated_keyboard(category_name, stories_list, page=0):
-    total_items = len(stories_list)
-    total_pages = max(1, (total_items + ITEMS_PER_PAGE - 1) // ITEMS_PER_PAGE)
+# 1. 📻 Pocket FM / 📚 Pratilipi FM Click Handler (Modifies Reply Keyboard)
+@Client.on_message(filters.regex("^(📻 ᴘᴏᴄᴋᴇᴛ ғᴍ|📚 ᴘʀᴀᴛɪʟɪᴘɪ ғᴍ|📻 Pocket FM|📚 Pratilipi FM)$") & filters.private)
+async def category_handler(client, message):
+    cat_type = "Pratilipi" if "pratilipi" in message.text.lower() else "Pocket"
+    cursor = stories_col.find({"category": re.compile(cat_type, re.IGNORECASE)})
+    stories = await cursor.to_list(length=100)
     
-    start_idx = page * ITEMS_PER_PAGE
-    end_idx = start_idx + ITEMS_PER_PAGE
-    current_batch = stories_list[start_idx:end_idx]
-    
-    prefix = "prat" if "pratilipi" in category_name.lower() else "pock"
-    keyboard = []
-    
-    for story in current_batch:
+    if not stories:
+        return await message.reply_text(
+            f"❌ <b>ɴᴏ sᴛᴏʀɪᴇs ᴀᴠᴀɪʟᴀʙʟᴇ ɪɴ {message.text}.</b>", 
+            reply_markup=MAIN_MENU, 
+            quote=True
+        )
+        
+    # Build Reply Keyboard with Stories
+    keyboard_buttons = []
+    for story in stories:
         clean_title = story.get('title', 'Untitled').strip().split('\n')[0]
-        encoded = clean_title.replace(" ", "_")
-        keyboard.append([InlineKeyboardButton(f"📖 {clean_title}", callback_data=f"getstory_{encoded}")])
+        keyboard_buttons.append([KeyboardButton(f"📖 {clean_title}")])
         
-    nav_row = []
-    if page > 0:
-        nav_row.append(InlineKeyboardButton("⬅️ Prev", callback_data=f"{prefix}_pg_{page - 1}"))
+    keyboard_buttons.append([KeyboardButton("🔙 ʙᴀᴄᴋ ᴛᴏ ᴍᴀɪɴ ᴍᴇɴᴜ")])
     
-    nav_row.append(InlineKeyboardButton(f"{page + 1}/{total_pages}", callback_data="noop"))
-    
-    if page < total_pages - 1:
-        nav_row.append(InlineKeyboardButton("Next ➡️", callback_data=f"{prefix}_pg_{page + 1}"))
-        
-    if nav_row:
-        keyboard.append(nav_row)
-        
-    keyboard.append([
-        InlineKeyboardButton("👁️ View All", callback_data=f"viewall_{prefix}"),
-        InlineKeyboardButton("🔙 Back to Main Menu", callback_data="back_to_main_menu")
-    ])
-    
-    return InlineKeyboardMarkup(keyboard)
+    category_keyboard = ReplyKeyboardMarkup(keyboard_buttons, resize_keyboard=True)
+    await message.reply_text(
+        f"📚 <b>{message.text} Stories:</b>\n\nNeeche diye gaye keyboard se story select karein:", 
+        reply_markup=category_keyboard, 
+        quote=True
+    )
 
-# 2. Search Prompt Trigger
+# 2. 🔙 Back to Main Menu Handler
+@Client.on_message(filters.regex("^(🔙 ʙᴀᴄᴋ ᴛᴏ ᴍᴀɪɴ ᴍᴇɴᴜ|🔙 Back to Main Menu)$") & filters.private)
+async def back_to_main_menu(client, message):
+    user_id = message.from_user.id
+    SEARCH_WAITING.pop(user_id, None)
+    await message.reply_text("<b>🌟 ᴍᴀɪɴ ᴍᴇɴᴜ:</b>", reply_markup=MAIN_MENU, quote=True)
+
+# 3. 🔎 Search Prompt Handler
 @Client.on_message(filters.regex("^(🔎 sᴇᴀʀᴄʜ sᴛᴏʀʏ|🔎 Search Story)$") & filters.private)
 async def search_prompt(client, message):
     user_id = message.from_user.id
@@ -89,12 +95,12 @@ async def search_prompt(client, message):
         quote=True
     )
 
-# 3. Fuzzy Search Engine (Inline Output Format)
+# 4. Search Execution -> Modifies Reply Keyboard with Matched Stories
 @Client.on_message(
     filters.private 
     & filters.text 
     & ~filters.command(["start", "addstory", "deletestory", "allstories", "cancel", "addmoney", "broadcast", "refreshstories"]) 
-    & ~filters.regex("^(🚀 ᴏᴘᴇɴ ᴍɪɴɪ ᴀᴘᴘ|💼 ᴍʏ ᴡᴀʟʟᴇᴛ|📢 ᴜᴘᴅᴀᴛᴇs ᴄʜᴀɴɴᴇʟ|👤 ᴍʏ ᴀᴄᴄᴏᴜɴᴛ|📞 sᴜᴘᴘᴏʀᴛ|📻 ᴘᴏᴄᴋᴇᴛ ғᴍ|📚 ᴘʀᴀᴛɪʟɪᴘɪ ғᴍ|🎁 ʀᴇғᴇʀ & ᴇᴀʀɴ|🔙 ʙᴀᴄᴋ ᴛᴏ ᴍᴀɪɴ ᴍᴇɴᴜ|🔎 sᴇᴀʀᴄʜ sᴛᴏʀʏ)"),
+    & ~filters.regex("^(🚀 ᴏᴘᴇɴ ᴍɪɴɪ ᴀᴘᴘ|💼 ᴍʏ ᴡᴀʟʟᴇᴛ|📢 ᴜᴘᴅᴀᴛᴇs ᴄʜᴀɴɴᴇʟ|👤 ᴍʏ ᴀᴄᴄᴏᴜɴᴛ|📞 sᴜᴘᴘᴏʀᴛ|📻 ᴘᴏᴄᴋᴇᴛ ғᴍ|📚 ᴘʀᴀᴛɪʟɪᴘɪ ғᴍ|🎁 ʀᴇғᴇʀ & ᴇᴀʀɴ|🔙 ʙᴀᴄᴋ ᴛᴏ ᴍᴀɪɴ ᴍᴇɴᴜ|📖 |🔎 sᴇᴀʀᴄʜ sᴛᴏʀʏ|🚀 Open Mini App|💼 My Wallet|📢 Updates Channel|👤 My Account|📞 Support|📻 Pocket FM|📚 Pratilipi FM|🔙 Back to Main Menu|🔎 Search Story)"),
     group=2
 )
 async def process_search(client, message):
@@ -123,35 +129,30 @@ async def process_search(client, message):
         matched_stories = db_stories or []
     
     if not matched_stories:
-        return await message.reply_text(f"❌ <b>ɴᴏ sᴛᴏʀʏ ғᴏᴜɴᴅ ᴡɪᴛʜ ɴᴀᴍᴇ '{query}'!</b>", reply_markup=MAIN_MENU_INLINE, quote=True)
+        return await message.reply_text(f"❌ <b>ɴᴏ sᴛᴏʀʏ ғᴏᴜɴᴅ ᴡɪᴛʜ ɴᴀᴍᴇ '{query}'!</b>", reply_markup=MAIN_MENU, quote=True)
         
-    # Inline Result Buttons
-    inline_buttons = []
-    for s in matched_stories:
-        clean_title = s['title'].strip().splitlines()[0]
-        encoded = clean_title.replace(" ", "_")
-        inline_buttons.append([InlineKeyboardButton(f"📖 {clean_title}", callback_data=f"getstory_{encoded}")])
-        
-    inline_buttons.append([InlineKeyboardButton("🔙 Back to Main Menu", callback_data="back_to_main_menu")])
+    keyboard_buttons = [[KeyboardButton(f"📖 {s['title'].strip().splitlines()[0]}")] for s in matched_stories]
+    keyboard_buttons.append([KeyboardButton("🔙 ʙᴀᴄᴋ ᴛᴏ ᴍᴀɪɴ ᴍᴇɴᴜ")])
     
-    search_keyboard = InlineKeyboardMarkup(inline_buttons)
+    search_keyboard = ReplyKeyboardMarkup(keyboard_buttons, resize_keyboard=True)
     await message.reply_text(f"🔍 <b>ғᴏᴜɴᴅ sᴛᴏʀɪᴇs ᴍᴀᴛᴄʜɪɴɢ '{query}':</b>", reply_markup=search_keyboard, quote=True)
 
-# 4. Inline Callback for Story Selection
-@Client.on_callback_query(filters.regex(r"^getstory_"))
-async def get_story_callback_handler(client, callback: CallbackQuery):
-    encoded_title = callback.data.split("getstory_")[1]
-    story_title = encoded_title.replace("_", " ")
+# 5. Story Selection Click Handler (From Reply Keyboard)
+@Client.on_message(filters.regex("^📖 ") & filters.private)
+async def story_selected_handler(client, message):
+    user_id = message.from_user.id
+    story_title = message.text.replace("📖 ", "").strip()
     story = await get_story_by_title(story_title)
     
     if not story:
-        return await callback.answer("❌ Story not found!", show_alert=True)
+        return await message.reply_text("❌ <b>ᴛʜɪs sᴛᴏʀʏ ɪs ɴᴏᴛ ᴀᴠᴀɪʟᴀʙʟᴇ.</b>", quote=True)
         
-    user_id = callback.from_user.id
     clean_title = story['title'].strip().splitlines()[0]
+    encoded_title = clean_title.replace(" ", "_")
     wallet_bal = await get_user_wallet(user_id)
     
     inline_buttons = []
+    
     if story.get('demo_enabled', False):
         inline_buttons.append([InlineKeyboardButton("🎬 ᴅᴇᴍᴏ / ᴘʀᴇᴠɪᴇᴡ", callback_data=f"viewdemo_{encoded_title}")])
         
@@ -175,7 +176,6 @@ async def get_story_callback_handler(client, callback: CallbackQuery):
     )
     
     try:
-        await callback.message.reply_photo(photo=photo_url, caption=caption_text, reply_markup=btn)
+        await message.reply_photo(photo=photo_url, caption=caption_text, reply_markup=btn, quote=True)
     except Exception:
-        await callback.message.reply_text(caption_text, reply_markup=btn)
-    await callback.answer()
+        await message.reply_text(caption_text, reply_markup=btn, quote=True)
