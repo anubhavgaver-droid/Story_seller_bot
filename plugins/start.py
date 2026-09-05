@@ -113,7 +113,7 @@ async def send_story_files_start(client, user_id, story, first_id, last_id, clea
                  f"रेंज <b>{custom_range_text}</b> के एपिसोड्स उपलब्ध नहीं हैं।"
         )
 
-    # 📤 STEP 3: Delivery Loop (Copy Messages to User)
+    # 📤 STEP 3: Delivery Loop (Copy Messages to User with 1.5s Gap)
     for msg_id in msg_ids_to_send:
         try:
             sent_msg = await client.copy_message(
@@ -125,7 +125,7 @@ async def send_story_files_start(client, user_id, story, first_id, last_id, clea
             sent_messages_obj.append(sent_msg)
             sent_message_ids.append(sent_msg.id)
             success_count += 1
-            await asyncio.sleep(0.35)
+            await asyncio.sleep(1.5)  # ⏱️ 1.5 Second Gap Added
         except Exception as e:
             print(f"Error copying message {msg_id}: {e}")
 
