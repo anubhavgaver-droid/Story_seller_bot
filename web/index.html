@@ -158,51 +158,56 @@
             border: 1.5px solid rgba(255, 255, 255, 0.3);
             object-fit: cover;
             box-shadow: 0 15px 35px rgba(0, 0, 0, 0.9);
-            transform-origin: bottom center;
+            transform-origin: center center;
             opacity: 0;
-            transform: scale(0.6) translateY(40px);
+            transform: scale(0.6) translateY(50px);
             will-change: transform, opacity;
-            image-rendering: -webkit-optimize-contrast;
             backface-visibility: hidden;
         }
 
+        /* SMOOTH SHUFFLE ANIMATION FIX */
         @keyframes rotateShuffleSmooth {
             0% {
                 opacity: 0;
-                transform: rotate(-30deg) translate(-100px, -10px) scale(0.75);
+                transform: rotate(-25deg) translate(-120px, 20px) scale(0.6);
                 z-index: 1;
             }
-            20% {
+            15% {
                 opacity: 1;
-                transform: rotate(-18deg) translate(-55px, -5px) scale(0.85);
+                transform: rotate(-12deg) translate(-50px, -10px) scale(0.85);
                 z-index: 2;
             }
-            50% {
+            35% {
                 opacity: 1;
-                transform: rotate(0deg) translate(0px, -20px) scale(1.08);
-                z-index: 5;
+                transform: rotate(0deg) translate(0px, -25px) scale(1.08);
+                z-index: 10;
             }
-            80% {
+            65% {
                 opacity: 1;
-                transform: rotate(18deg) translate(55px, -5px) scale(0.85);
-                z-index: 2;
+                transform: rotate(12deg) translate(50px, -10px) scale(0.85);
+                z-index: 3;
+            }
+            85% {
+                opacity: 0.8;
+                transform: rotate(20deg) translate(90px, 15px) scale(0.7);
+                z-index: 1;
             }
             100% {
-                opacity: 1;
-                transform: rotate(0deg) translate(0px, 0px) scale(1);
-                z-index: 4;
+                opacity: 0;
+                transform: rotate(25deg) translate(120px, 30px) scale(0.5);
+                z-index: 0;
             }
         }
 
         .cards-stack-wrapper.active .fan-card {
-            animation: rotateShuffleSmooth 4.5s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+            animation: rotateShuffleSmooth 4s cubic-bezier(0.25, 1, 0.5, 1) infinite;
         }
 
         .cards-stack-wrapper.active .card-pos-0 { animation-delay: 0.0s; }
-        .cards-stack-wrapper.active .card-pos-1 { animation-delay: 0.9s; }
-        .cards-stack-wrapper.active .card-pos-2 { animation-delay: 1.8s; }
-        .cards-stack-wrapper.active .card-pos-3 { animation-delay: 2.7s; }
-        .cards-stack-wrapper.active .card-pos-4 { animation-delay: 3.6s; }
+        .cards-stack-wrapper.active .card-pos-1 { animation-delay: 0.8s; }
+        .cards-stack-wrapper.active .card-pos-2 { animation-delay: 1.6s; }
+        .cards-stack-wrapper.active .card-pos-3 { animation-delay: 2.4s; }
+        .cards-stack-wrapper.active .card-pos-4 { animation-delay: 3.2s; }
 
         .splash-title { font-size: 20px; font-weight: 900; letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 8px; text-align: center; color: #ffffff; }
         .splash-sub { font-size: 12px; opacity: 0.7; max-width: 270px; text-align: center; line-height: 1.4; margin-bottom: 20px; font-weight: 500; color: #d1d5db; }
@@ -809,7 +814,7 @@
             return false;
         }
 
-        /* --- ROTATING SPLASH FAN STACK SCREEN --- */
+        /* --- ROTATING SPLASH FAN STACK SCREEN (UPDATED) --- */
         function setupSplashScreen(list) {
             const wrapper = document.getElementById('cardsWrapper');
             if(!wrapper) return;
@@ -826,12 +831,16 @@
                 wrapper.appendChild(img);
             });
 
-            setTimeout(() => { wrapper.classList.add('active'); }, 50);
+            // Trigger animation start
+            requestAnimationFrame(() => {
+                wrapper.classList.add('active');
+            });
             
+            // Auto hide splash after 3.8 seconds
             setTimeout(() => {
                 const splash = document.getElementById('splash-screen');
                 if(splash) splash.classList.add('hidden');
-            }, 3000);
+            }, 3800);
         }
 
         async function loadStories() {
