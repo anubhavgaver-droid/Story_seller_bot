@@ -523,36 +523,68 @@ async def process_start_range_input(client, message):
 @Client.on_message(filters.command("start") & filters.private)
 async def start_handler(client, message):
     user = message.from_user
+    args = message.text.split(maxsplit=1)
     
     # Refer & Earn Logic
     try:
         registered = await is_user_registered(user.id)
-        if not registered:
-            if len(message.command) > 1 and message.command[1].startswith("ref_"):
-                try:
-                    referrer_id = int(message.command[1].split("_")[1])
-                    if referrer_id != user.id:
-                        await register_user(user.id, user.first_name, user.username)
-                        await users_col.update_one({"user_id": user.id}, {"$set": {"referred_by": referrer_id}})
+        
+        # Check if the user used a referral link
+        if len(args) > 1 and args[1].startswith("ref_"):
+            try:
+                referrer_id = int(args[1].split("_")[1])
+                
+                # 1. Self-Referral Check
+                if referrer_id == user.id:
+                    await message.reply_text(
+                        "⚠️ <b>Hey dude, don't try to use your own referral link!</b>\n"
+                        "<i>Share this link with your friends to earn rewards.</i>", 
+                        quote=True
+                    )
+                # 2. New User Referral Check
+                elif not registered:
+                    await register_user(user.id, user.first_name, user.username)
+                    await users_col.update_one({"user_id": user.id}, {"$set": {"referred_by": referrer_id}})
+                    
+                    new_bal = await add_wallet_balance(referrer_id, REFER_BONUS)
+                    
+                    # Notify the Referrer
+                    try:
+                        await client.send_message(
+                            chat_id=referrer_id,
+                            text=f"🎉 <b>ɴᴇᴡ ʀᴇғᴇʀʀᴀʟ ᴀʟᴇʀᴛ!</b>\n\n"
+                                 f"👤 <b>{user.first_name}</b> (<code>{user.id}</code>) ने आपके रेफरल लिंक से जॉइन किया है!\n"
+                                 f"💰 आपको मिला: <b>₹{REFER_BONUS:.2f} Bonus</b>\n"
+                                 f"👛 नया वॉलेट बैलेंस: <b>₹{new_bal}</b>"
+                        )
+                    except Exception:
+                        pass
                         
-                        new_bal = await add_wallet_balance(referrer_id, REFER_BONUS)
-                        
-                        try:
-                            await client.send_message(
-                                chat_id=referrer_id,
-                                text=f"🎉 <b>ɴᴇᴡ ʀᴇғᴇʀʀᴀʟ ᴀʟᴇʀᴛ!</b>\n\n"
-                                     f"👤 <b>{user.first_name}</b> आपके रेफरल लिंक से जुड़े हैं।\n"
-                                     f"💰 आपको मिला: <b>₹{REFER_BONUS:.2f} Bonus</b>\n"
-                                     f"👛 नया वॉलेट बैलेंस: <b>₹{new_bal}</b>"
-                            )
-                        except Exception:
-                            pass
-                except Exception as ref_err:
-                    print(f"Referral processing error: {ref_err}")
+                    # Admin Log for Referral Registration
+                    try:
+                        log_text = (
+                            f"<b>🆕 ɴᴇᴡ ᴜsᴇʀ ʀᴇɢɪsᴛᴇʀᴇᴅ (Vɪᴀ Rᴇғᴇʀʀᴀʟ)!</b>\n"
+                            f"<b>ɴᴀᴍᴇ:</b> {user.first_name}\n"
+                            f"<b>ᴜsᴇʀ ɪᴅ:</b> <code>{user.id}</code>\n"
+                            f"<b>ᴜsᴇʀɴᴀᴍᴇ:</b> @{user.username if user.username else 'None'}\n"
+                            f"<b>ʀᴇғᴇʀʀᴇᴅ ʙʏ:</b> <code>{referrer_id}</code>"
+                        )
+                        await send_log(client, log_text)
+                    except Exception:
+                        pass
+                # 3. Existing User Warning
+                else:
+                    await message.reply_text(
+                        "⚠️ <b>You are already an existing user of this bot!</b>\n"
+                        "<i>Referral bonus is only valid for new users.</i>", 
+                        quote=True
+                    )
+            except Exception as ref_err:
+                print(f"Referral processing error: {ref_err}")
 
-            if not await is_user_registered(user.id):
-                await register_user(user.id, user.first_name, user.username)
-
+        # Normal Registration (If no referral link was used and user is new)
+        elif not registered:
+            await register_user(user.id, user.first_name, user.username)
             try:
                 log_text = (
                     f"<b>🆕 ɴᴇᴡ ᴜsᴇʀ ʀᴇɢɪsᴛᴇʀᴇᴅ!</b>\n"
@@ -563,11 +595,13 @@ async def start_handler(client, message):
                 await send_log(client, log_text)
             except Exception as e:
                 print(f"Log Error: {e}")
+                
     except Exception as db_err:
         print(f"Database Error in /start registration: {db_err}")
 
-    args = message.text.split(maxsplit=1)
-    
+    # ==========================
+    # Deep-Link Logic (Files Delivery & Story Viewing)
+    # ==========================
     if len(args) > 1 and args[1].startswith("get_"):
         raw_param = args[1]
         try:
@@ -695,6 +729,9 @@ async def start_handler(client, message):
         else:
             return await message.reply_text("❌ <b>ᴛʜɪs sᴛᴏʀʏ ɪs ɴᴏᴛ ᴀᴠᴀɪʟᴀʙʟᴇ.</b>", reply_markup=MAIN_MENU, quote=True)
 
+    # ==========================
+    # Normal /start Welcome Message
+    # ==========================
     welcome_text = (
         f"<b>━━━━━━━━━━━━━━━━━━━━━━</b>\n"
         f"🌟 <b>STORY SELLER BOT</b> 🌟\n"
