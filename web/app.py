@@ -14,11 +14,9 @@ stories_collection = db["stories"]
 # 1. Root Route: Returns HTML Interface (Mini App)
 @app.get("/", response_class=HTMLResponse)
 async def serve_miniapp():
-    # File path setup (works inside web/ or root directory)
     base_dir = os.path.dirname(__file__)
     html_path = os.path.join(base_dir, "index.html")
     
-    # Fallback check for web/index.html structure
     if not os.path.exists(html_path):
         html_path = os.path.join(base_dir, "web", "index.html")
 
@@ -33,21 +31,29 @@ async def serve_miniapp():
 async def get_stories_api():
     stories = []
     async for story in stories_collection.find():
-        # Title की पहली लाइन को साफ़ (Clean) कर रहे हैं
         raw_title = story.get("title", "Untitled")
         clean_title = raw_title.strip().splitlines()[0] if raw_title else "Untitled"
         
-        # चेक करें कि डेमो मैसेजेस हैं या नहीं
         msg_ids = story.get("msg_ids", [])
-        has_demo = len(msg_ids) > 0
+        has_demo = len(msg_ids) > 0 or story.get("demo_enabled", False)
+
+        # Calculate total files from message IDs if available
+        first_id = story.get("first_msg_id")
+        last_id = story.get("last_msg_id")
+        if first_id and last_id:
+            total_files_count = (last_id - first_id) + 1
+        else:
+            total_files_count = len(story.get("custom_ranges", [])) * 50 or 24
 
         stories.append({
             "id": str(story.get("_id", "")),
             "title": clean_title,
             "price": story.get("price", 0),
-            "platform": story.get("platform", story.get("category", "PRATILIPI FM")),
-            "description": story.get("desc", story.get("description", "")),
-            "photo": story.get("photo", story.get("poster", "https://picsum.photos/200")),
-            "has_demo": has_demo  # 👈 Mini App को पता चलेगा कि डेमो बटन दिखाना है या नहीं
+            "platform": story.get("platform", story.get("category", "Pocket FM")),
+            "episodes": story.get("episodes", "30 Episodes"),
+            "total_files": f"{total_files_count} files",
+            "description": story.get("desc", story.get("description", "Complete audio series package.")),
+            "photo": story.get("photo", "https://picsum.photos/200"),
+            "has_demo": has_demo
         })
     return stories
