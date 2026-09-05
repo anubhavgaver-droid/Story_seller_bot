@@ -9,12 +9,16 @@ from database.db import (
     get_all_stories, 
     send_log,
     add_wallet_balance,
-    stories_col
+    stories_col,
+    db  # MongoDB database instance
 )
 from plugins.post import send_story_to_channel
 
 ADD_STATE = {}
 DELETE_STATE = {}
+
+# MongoDB Episodes Collection
+episodes_col = db["episodes"]
 
 def extract_msg_id(text: str):
     """Link या Message ID में से Numeric Message ID निकालने का Helper फ़ंक्शन"""
@@ -24,10 +28,85 @@ def extract_msg_id(text: str):
     match = re.search(r"/(\d+)$", text)
     return int(match.group(1)) if match else None
 
+
+def extract_episode_number(text: str):
+    """
+    कैप्शन (हिंदी/इंग्लिश/डिजिट्स) में से Episode Number निकालने के लिए Regex फ़ंक्शन
+    """
+    if not text:
+        return None
+    
+    # 1. इंग्लिश पैटर्न: Ep 1, Episode 1, Ep.01, Part 1, #1
+    match = re.search(r'(?:episode|ep|part|ep\.|#)\s*[-:]?\s*(\d+)', text, re.IGNORECASE)
+    if match:
+        return int(match.group(1))
+    
+    # 2. हिंदी पैटर्न: एपिसोड 1, भाग 1, एपिसोड-1
+    match_hindi = re.search(r'(?:एपिसोड|भाग|एपिसोड-)\s*[-:]?\s*(\d+)', text)
+    if match_hindi:
+        return int(match_hindi.group(1))
+
+    # 3. अगर केवल standalone नंबर मौजूद हो
+    match_num = re.search(r'\b(\d+)\b', text)
+    if match_num:
+        return int(match_num.group(1))
+
+    return None
+
+
+async def index_story_episodes(client, story_clean_title, channel_id, first_id, last_id):
+    """
+    First Msg ID से Last Msg ID तक के सभी मैसेजेस को MongoDB में
+    Episode Number vs Message ID मैपिंग के साथ Save करने का फ़ंक्शन।
+    """
+    # पुरानी एंट्रीज़ साफ़ करें ताकि डुप्लीकेशन न हो
+    await episodes_col.delete_many({"story_id": story_clean_title})
+
+    episodes_to_insert = []
+    
+    # Telegram से मैसेज ID की रेंज फेच करना
+    msg_ids = list(range(first_id, last_id + 1))
+    
+    # Telegram API लिमिट से बचने के लिए 200-200 के बैच में मैसेजेस फेच करेंगे
+    chunk_size = 200
+    for i in range(0, len(msg_ids), chunk_size):
+        chunk = msg_ids[i:i + chunk_size]
+        try:
+            messages = await client.get_messages(chat_id=channel_id, message_ids=chunk)
+            if not isinstance(messages, list):
+                messages = [messages]
+
+            for msg in messages:
+                if not msg or msg.empty:
+                    continue
+
+                # कैप्शन या टेक्स्ट निकालना
+                caption_text = msg.caption or msg.text or ""
+                ep_num = extract_episode_number(caption_text)
+
+                if ep_num is not None:
+                    episodes_to_insert.append({
+                        "story_id": story_clean_title,
+                        "episode_num": ep_num,
+                        "message_id": msg.id,
+                        "caption": caption_text[:100]  # बैकअप/रेफ़रेंस के लिए 
+                    })
+        except Exception as e:
+            print(f"Error indexing chunk {chunk}: {e}")
+
+    # MongoDB में Bulk Insertion (1 ही बार में सब सेव)
+    if episodes_to_insert:
+        await episodes_col.insert_many(episodes_to_insert)
+        # तेज़ फ़ास्ट सर्चिंग के लिए MongoDB Compound Index बनाएँ
+        await episodes_col.create_index([("story_id", 1), ("episode_num", 1)])
+        
+    return len(episodes_to_insert)
+
+
 # ------------------ ADMIN REFRESH COMMAND FOR ALL STORIES ------------------
 @Client.on_message(filters.command("refreshstories") & filters.user(ADMIN_ID) & filters.private, group=1)
 async def refresh_all_stories(client, message):
-    status_msg = await message.reply_text("🔄 <b>Processing all stories in database... Please wait.</b>")
+    status_msg = await message.reply_text("🔄 <b>Processing and Indexing all stories in database... Please wait.</b>")
     
     updated_count = 0
     total_stories = 0
@@ -37,6 +116,7 @@ async def refresh_all_stories(client, message):
             total_stories += 1
             first_id = story.get("first_msg_id")
             last_id = story.get("last_msg_id")
+            clean_title = story.get("title", "").strip().split("\n")[0].replace(" ", "_")
             
             update_data = {}
             
@@ -63,16 +143,22 @@ async def refresh_all_stories(client, message):
                     {"_id": story["_id"]}, 
                     {"$set": update_data}
                 )
-                updated_count += 1
+            
+            # MongoDB indexing for custom range search
+            if first_id and last_id:
+                await index_story_episodes(client, clean_title, CHANNEL_ID, first_id, last_id)
+
+            updated_count += 1
 
         await status_msg.edit_text(
-            f"✅ <b>Refresh Completed Successfully!</b>\n\n"
-            f"📊 <b>Total Stories Checked:</b> {total_stories}\n"
+            f"✅ <b>Refresh & Indexing Completed Successfully!</b>\n\n"
+            f"📊 <b>Total Stories Checked & Indexed:</b> {total_stories}\n"
             f"🛠 <b>Fixed/Updated:</b> {updated_count}\n\n"
-            f"<i>Ab Mini App aur Bot dono me sabhi stories ka data fix aur sync ho gaya hai.</i>"
+            f"<i>Ab Mini App aur Bot dono me sabhi stories ka data MongoDB me fast-search ke liye index ho gaya hai.</i>"
         )
     except Exception as e:
         await status_msg.edit_text(f"❌ <b>Error occurred:</b> `{str(e)}`")
+
 
 # ------------------ ADMIN ADD MONEY TO USER WALLET ------------------
 @Client.on_message(filters.command("addmoney") & filters.user(ADMIN_ID) & filters.private, group=1)
@@ -128,6 +214,7 @@ async def add_money_handler(client, message):
     except Exception:
         pass
 
+
 # 1. Cancel Command
 @Client.on_message(filters.command("cancel") & filters.user(ADMIN_ID) & filters.private, group=1)
 async def cancel_action(client, message):
@@ -138,6 +225,7 @@ async def cancel_action(client, message):
         await message.reply_text("❌ <b>ᴘʀᴏᴄᴇss ᴄᴀɴᴄᴇʟʟᴇᴅ!</b>")
     else:
         await message.reply_text("❓ ʏᴏᴜ ʜᴀᴠᴇ ɴᴏ ᴀᴄᴛɪᴠᴇ ᴘʀᴏᴄᴇss.")
+
 
 # 2. View All Stories List
 @Client.on_message(filters.command("allstories") & filters.user(ADMIN_ID) & filters.private, group=1)
@@ -171,6 +259,7 @@ async def list_stories(client, message):
     
     await message.reply_text(text, disable_web_page_preview=True)
 
+
 # 3. Delete Story Command Start
 @Client.on_message(filters.command("deletestory") & filters.user(ADMIN_ID) & filters.private, group=1)
 async def start_delete(client, message):
@@ -183,6 +272,7 @@ async def start_delete(client, message):
         reply_markup=ForceReply(True)
     )
 
+
 # 3.1 Delete Input Execution Handler
 @Client.on_message(filters.private & filters.user(ADMIN_ID) & ~filters.command(["start", "addstory", "deletestory", "allstories", "cancel", "addmoney", "refreshstories"]), group=1)
 async def process_delete_input(client, message):
@@ -193,7 +283,12 @@ async def process_delete_input(client, message):
         return
 
     story_title = message.text.strip().split("\n")[0]
+    clean_title = story_title.replace(" ", "_")
+    
     deleted = await delete_story_db(story_title)
+
+    # MongoDB से इस स्टोरी के सारे इंडेक्स एपिसोड भी डिलीट करें
+    await episodes_col.delete_many({"story_id": clean_title})
 
     DELETE_STATE.pop(user_id, None)
 
@@ -206,6 +301,7 @@ async def process_delete_input(client, message):
     else:
         await message.reply_text(f"❌ <b>ғᴀɪʟᴇᴅ ᴛᴏ ᴅᴇʟᴇᴛᴇ!</b> Story name <code>{story_title}</code> not found in database.")
 
+
 # 4. Add Story Command Start
 @Client.on_message(filters.command("addstory") & filters.user(ADMIN_ID) & filters.private, group=1)
 async def start_add(client, message):
@@ -215,6 +311,7 @@ async def start_add(client, message):
         [InlineKeyboardButton("📚 Pratilipi FM", callback_data="setcat_Pratilipi FM")]
     ])
     await message.reply_text("<b>[sᴛᴇᴘ 1/10]</b> sᴇʟᴇᴄᴛ ᴛʜᴇ sᴛᴏʀʏ ᴄᴀᴛᴇɢᴏʀʏ:\n<i>(ᴛʏᴘᴇ /cancel ᴛᴏ ᴀʙᴏʀᴛ)</i>", reply_markup=kb)
+
 
 # 5. Category Selection Callback
 @Client.on_callback_query(filters.regex("^setcat_") & filters.user(ADMIN_ID))
@@ -231,6 +328,7 @@ async def cat_selected(client, callback):
     await callback.message.reply_text("<b>[sᴛᴇᴘ 2/10]</b> 🧩 <b>sᴇʟᴇᴄᴛ sᴛᴏʀʏ ɢᴇɴʀᴇ:</b>", reply_markup=genre_kb)
     await callback.answer()
 
+
 # 5.1 Genre Selection Callback
 @Client.on_callback_query(filters.regex("^setgenre_") & filters.user(ADMIN_ID))
 async def genre_selected(client, callback):
@@ -239,6 +337,7 @@ async def genre_selected(client, callback):
     ADD_STATE[callback.from_user.id]['step'] = 'TITLE'
     await callback.message.reply_text("<b>[sᴛᴇᴘ 3/10]</b> 📖 ᴇɴᴛᴇʀ ᴛʜᴇ sᴛᴏʀʏ ᴛɪᴛʟᴇ:", reply_markup=ForceReply(True))
     await callback.answer()
+
 
 # 6. Demo Option Selection Callback (Yes / No)
 @Client.on_callback_query(filters.regex("^setdemo_") & filters.user(ADMIN_ID))
@@ -254,6 +353,7 @@ async def demo_option_selected(client, callback):
     ADD_STATE[user_id]['step'] = 'FIRST_MSG'
     await callback.message.reply_text("<b>[sᴛᴇᴘ 9/10]</b> DB Channel से स्टोरी की <b>FIRST Message ID / Link</b> भेजें:", reply_markup=ForceReply(True))
     await callback.answer()
+
 
 # 6.1 Range Selection Callbacks
 @Client.on_callback_query(filters.regex("^(setrange_|add_more_range|finish_ranges)") & filters.user(ADMIN_ID))
@@ -279,11 +379,15 @@ async def range_callbacks(client, callback):
         await finalize_add_story(client, callback.message, story_data)
         await callback.answer()
 
+
 # Helper Function: Finalize & Save Story to Database
 async def finalize_add_story(client, message, data):
     first = data['first_msg_id']
     last = data['last_msg_id']
     demo_msg_ids = []
+
+    # Status Message
+    status_msg = await message.reply_text("⏳ <b>Saving story & indexing episodes in MongoDB... Please wait!</b>")
 
     # Automatic Demo Audio Files Fetching
     if data.get('demo_enabled', False):
@@ -304,6 +408,9 @@ async def finalize_add_story(client, message, data):
     # Database updates
     await add_story_db(data)
     
+    # 🚀 MongoDB Episode Indexing Call (बैकग्राउंड इंडेक्सिंग)
+    indexed_count = await index_story_episodes(client, clean_title, CHANNEL_ID, first, last)
+
     # Auto-Post Trigger to Channel
     try:
         await send_story_to_channel(client, data)
@@ -326,6 +433,7 @@ async def finalize_add_story(client, message, data):
         f"<b>🎬 Demo Status:</b> {demo_status}\n"
         f"<b>🎧 Demo IDs:</b> {demo_msg_ids}\n"
         f"<b>📦 Files:</b> {total_files} (Msg {data['first_msg_id']} to {data['last_msg_id']})\n"
+        f"<b>⚡ Indexed Episodes:</b> {indexed_count} Episodes Saved in DB\n"
         f"<b>🎯 Custom Ranges:</b> {ranges_count} Configured\n\n"
         f"🔗 <b>sʜᴀʀᴇᴀʙʟᴇ ʟɪɴᴋ:</b>\n<code>{bot_share_link}</code>"
     )
@@ -334,7 +442,7 @@ async def finalize_add_story(client, message, data):
     except Exception:
         pass
     
-    await message.reply_text(
+    await status_msg.edit_text(
         f"✅ <b>sᴛᴏʀʏ ᴀᴅᴅᴇᴅ sᴜᴄᴄᴇssғᴜʟʟʏ!</b>\n\n"
         f"♨️ <b>Story :</b> {data['title']}\n"
         f"🔰 <b>Status :</b> {data.get('status', 'Completed')}\n"
@@ -345,10 +453,12 @@ async def finalize_add_story(client, message, data):
         f"<b>🎬 Demo Status:</b> {demo_status}\n"
         f"<b>🎧 Demo Files IDs:</b> {demo_msg_ids}\n"
         f"<b>📦 Total Files:</b> {total_files}\n"
+        f"<b>⚡ Indexed Episodes:</b> {indexed_count} Episodes Saved in DB\n"
         f"<b>🎯 Custom Buttons:</b> {ranges_count} Configured\n\n"
         f"🔗 <b>sʜᴀʀᴇᴀʙʟᴇ ʟɪɴᴋ:</b>\n<code>{bot_share_link}</code>",
         disable_web_page_preview=True
     )
+
 
 # 7. Admin Add Story Input Wizard
 @Client.on_message(filters.private & filters.user(ADMIN_ID) & ~filters.command(["start", "addstory", "deletestory", "allstories", "cancel", "addmoney", "refreshstories"]), group=1)
