@@ -9,7 +9,6 @@ db = client["story_seller_db"]
 stories_col = db["stories"]
 users_col = db["users"]        # Collection for User Registration, Wallet & Language
 purchases_col = db["purchases"]  # Collection for Purchased Stories
-episodes_col = db["episodes"]   # Collection for Fast Episode Indexing & Search
 
 # -------------------- LOG HELPER FUNCTION --------------------
 async def send_log(client_bot, text: str):
@@ -82,59 +81,6 @@ def get_exact_episode_range(fetched_messages) -> str:
     start_id = getattr(start_msg, 'id', getattr(start_msg, 'message_id', 0))
     end_id = getattr(end_msg, 'id', getattr(end_msg, 'message_id', 0))
     return f"Files {start_id} to {end_id}"
-
-# -------------------- EPISODE INDEXING DATABASE HELPER FUNCTIONS --------------------
-async def save_story_episodes_db(story_id: str, episode_list: list):
-    """
-    इंडेक्स किए गए एपिसोड्स की लिस्ट को MongoDB में Bulk इंसर्ट करता है
-    और तेज़ खोज के लिए (story_id, episode_num) पर Compound Index बनाता है।
-    """
-    clean_id = story_id.strip().replace(" ", "_")
-    # डुप्लीकेट एंट्रीज़ से बचने के लिए पहले का डेटा डिलीट करें
-    await episodes_col.delete_many({"story_id": clean_id})
-    
-    if episode_list:
-        # Array items me story_id add/confirm karein
-        for item in episode_list:
-            item["story_id"] = clean_id
-            
-        await episodes_col.insert_many(episode_list)
-        # Faster DB Search Performance Indexing
-        await episodes_col.create_index([("story_id", 1), ("episode_num", 1)])
-        return len(episode_list)
-    return 0
-
-async def get_episodes_by_range_db(story_id: str, start_ep: int, end_ep: int) -> list:
-    """
-    यूज़र द्वारा माँगी गई एपिसोड रेंज (जैसे Ep 1 से 50) के Telegram Message IDs चुटकी में निकालता है।
-    """
-    clean_id = story_id.strip().replace(" ", "_")
-    cursor = episodes_col.find({
-        "story_id": clean_id,
-        "episode_num": {"$gte": int(start_ep), "$lte": int(end_ep)}
-    }).sort("episode_num", 1)
-    
-    results = await cursor.to_list(length=None)
-    return [doc["message_id"] for doc in results if "message_id" in doc]
-
-async def get_single_episode_db(story_id: str, ep_num: int) -> int:
-    """
-    सिंगल एपिसोड (जैसे Episode 15) की Message ID निकालता है।
-    """
-    clean_id = story_id.strip().replace(" ", "_")
-    doc = await episodes_col.find_one({
-        "story_id": clean_id,
-        "episode_num": int(ep_num)
-    })
-    return doc.get("message_id") if doc else None
-
-async def delete_story_episodes_db(story_id: str):
-    """
-    स्टोरी डिलीट होने पर उसके इंडेक्स किए गए सभी एपिसोड्स MongoDB से डिलीट करता है।
-    """
-    clean_id = story_id.strip().replace(" ", "_")
-    res = await episodes_col.delete_many({"story_id": clean_id})
-    return res.deleted_count
 
 # -------------------- USER REGISTRATION & LANGUAGE --------------------
 async def is_user_registered(user_id: int) -> bool:
@@ -301,10 +247,8 @@ async def update_story_range(title: str, first_msg_id: int, last_msg_id: int) ->
     return res.modified_count > 0
 
 async def delete_story_db(title: str) -> bool:
-    """स्टोरी डिलीट करने का फ़ंक्शन - Main List, Purchase List और Episode Indexing से डिलीट करता है"""
+    """स्टोरी डिलीट करने का फ़ंक्शन - Main List और Purchase List दोनों से डिलीट करता है"""
     clean_title = title.strip().split("\n")[0]
-    story_id = clean_title.replace(" ", "_")
-    
     res = await stories_col.delete_one({"title": clean_title})
     
     if res.deleted_count > 0:
@@ -314,8 +258,6 @@ async def delete_story_db(title: str) -> bool:
                 {"title": clean_title}
             ]
         })
-        # Delete associated indexed episodes as well
-        await episodes_col.delete_many({"story_id": story_id})
         return True
     return False
 
