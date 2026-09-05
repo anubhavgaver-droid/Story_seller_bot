@@ -2,6 +2,7 @@ import json
 import asyncio
 import time
 import re
+from urllib.parse import quote
 from pyrogram import Client, filters, enums
 from pyrogram.types import (
     ReplyKeyboardMarkup, 
@@ -205,7 +206,6 @@ async def send_story_files_start(client, user_id, story, first_id, last_id, clea
 
     ep_range = get_exact_episode_range(sent_messages_obj) if sent_messages_obj else f"Files Range"
 
-    # Permament Range-Based Clean Button Logic (RAM memory issue Fixed)
     if sent_message_ids:
         first_sent_id = sent_message_ids[0]
         last_sent_id = sent_message_ids[-1]
@@ -238,9 +238,7 @@ async def range_clean_chat_handler(client, callback_query):
 
         await callback_query.answer("🧹 Cleaning files... Please wait!")
 
-        # Range to delete
         msg_ids_to_delete = list(range(start_id, end_id + 1))
-        # Add the clean message itself
         msg_ids_to_delete.append(callback_query.message.id)
 
         chunk_size = 100
@@ -758,8 +756,8 @@ async def refer_earn_handler(client, message):
         f"<code>{refer_link}</code>"
     )
     
-    share_text = f"✨ सुनो! इस बॉट पर ऑडियो स्टोरीज़ और पॉडकास्ट आसानी से मिल जाते हैं। तुरंत जॉइन करो:"
-    share_url = f"https://t.me/share/url?url={refer_link}&text={share_text}"
+    share_text = quote("✨ सुनो! इस बॉट पर ऑडियो स्टोरीज़ और पॉडकास्ट आसानी से मिल जाते हैं। तुरंत जॉइन करो:")
+    share_url = f"https://t.me/share/url?url={quote(refer_link)}&text={share_text}"
     
     kb = InlineKeyboardMarkup([
         [InlineKeyboardButton("🚀 दोस्तों को शेयर करें", url=share_url)],
