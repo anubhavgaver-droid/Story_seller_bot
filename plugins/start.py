@@ -24,7 +24,10 @@ from database.db import (
     update_user_wallet,
     add_user_purchase,
     is_story_unlocked,
-    get_exact_episode_range
+    get_exact_episode_range,
+    add_wallet_balance,
+    get_referred_users_count,
+    users_col
 )
 # Config file imports
 from config import (
@@ -35,15 +38,17 @@ from config import (
     SEARCH_RANGE_STICKER_ID
 )
 
-# Storage Dictionaries for Clean Chat & Range Input
-CLEAN_CHAT_STORAGE = {}
+REFER_BONUS = 1.0  # ₹1.00 Per Referral
+
+# Storage Dictionary for Range Input
 START_RANGE_WAITING = {}
 
-# 1. Main Menu Keyboard Layout
+# 1. Main Menu Keyboard Layout (With Refer & Earn Added)
 MAIN_MENU = ReplyKeyboardMarkup(
     [
         [KeyboardButton("🚀 ᴏᴘᴇɴ ᴍɪɴɪ ᴀᴘᴘ")],
         [KeyboardButton("💼 ᴍʏ ᴡᴀʟʟᴇᴛ", style=enums.ButtonStyle.SUCCESS), KeyboardButton("👤 ᴍʏ ᴀᴄᴄᴏᴜɴᴛ", style=enums.ButtonStyle.PRIMARY)],
+        [KeyboardButton("🎁 ʀᴇғᴇʀ & ᴇᴀʀɴ", style=enums.ButtonStyle.SUCCESS)],
         [KeyboardButton("🔎 sᴇᴀʀᴄʜ sᴛᴏʀʏ", style=enums.ButtonStyle.SUCCESS), KeyboardButton("📻 ᴘᴏᴄᴋᴇᴛ ғᴍ", style=enums.ButtonStyle.DANGER)],
         [KeyboardButton("📚 ᴘʀᴀᴛɪʟɪᴘɪ ғᴍ", style=enums.ButtonStyle.DANGER), KeyboardButton("📢 ᴜᴘᴅᴀᴛᴇs ᴄʜᴀɴɴᴇʟ", style=enums.ButtonStyle.PRIMARY)],
         [KeyboardButton("📞 sᴜᴘᴘᴏʀᴛ", style=enums.ButtonStyle.SUCCESS)]
@@ -56,6 +61,15 @@ async def web_app_filter(_, __, message):
     return bool(message.web_app_data)
 
 filter_webapp = filters.create(web_app_filter)
+
+# ------------------ Global Close Callback Handler ------------------
+@Client.on_callback_query(filters.regex("^close_message$"))
+async def close_message_handler(client, callback_query):
+    try:
+        await callback_query.message.delete()
+    except Exception:
+        pass
+    await callback_query.answer()
 
 # ------------------ Helper: Extract Episode Number ------------------
 def extract_episode_number(text: str) -> int:
@@ -191,12 +205,16 @@ async def send_story_files_start(client, user_id, story, first_id, last_id, clea
 
     ep_range = get_exact_episode_range(sent_messages_obj) if sent_messages_obj else f"Files Range"
 
-    delivery_key = f"{user_id}_{int(time.time())}"
-    CLEAN_CHAT_STORAGE[delivery_key] = sent_message_ids
-
-    clean_kb = InlineKeyboardMarkup([
-        [InlineKeyboardButton("🧹 ᴄʟᴇᴀɴ / ᴅᴇʟᴇᴛᴇ ᴀʟʟ ғɪʟᴇs", callback_data=f"cleanchat_{delivery_key}")]
-    ])
+    # Permament Range-Based Clean Button Logic (RAM memory issue Fixed)
+    if sent_message_ids:
+        first_sent_id = sent_message_ids[0]
+        last_sent_id = sent_message_ids[-1]
+        
+        clean_kb = InlineKeyboardMarkup([
+            [InlineKeyboardButton("🧹 ᴄʟᴇᴀɴ / ᴅᴇʟᴇᴛᴇ ᴀʟʟ ғɪʟᴇs", callback_data=f"rangechatclean_{first_sent_id}_{last_sent_id}")]
+        ])
+    else:
+        clean_kb = None
 
     await client.send_message(
         chat_id=user_id,
@@ -207,6 +225,44 @@ async def send_story_files_start(client, user_id, story, first_id, last_id, clea
              f"👇 <i>सुनने के बाद चैट साफ़ करने के लिए नीचे बटन पर क्लिक करें:</i>",
         reply_markup=clean_kb
     )
+
+# ------------------ Range-Based Clean Chat Callback Handler ------------------
+@Client.on_callback_query(filters.regex(r"^rangechatclean_"))
+async def range_clean_chat_handler(client, callback_query):
+    try:
+        user_id = callback_query.from_user.id
+        data_parts = callback_query.data.split("_")
+        
+        start_id = int(data_parts[1])
+        end_id = int(data_parts[2])
+
+        await callback_query.answer("🧹 Cleaning files... Please wait!")
+
+        # Range to delete
+        msg_ids_to_delete = list(range(start_id, end_id + 1))
+        # Add the clean message itself
+        msg_ids_to_delete.append(callback_query.message.id)
+
+        chunk_size = 100
+        for i in range(0, len(msg_ids_to_delete), chunk_size):
+            batch = msg_ids_to_delete[i:i + chunk_size]
+            try:
+                await client.delete_messages(chat_id=user_id, message_ids=batch)
+                await asyncio.sleep(0.2)
+            except Exception as e:
+                print(f"Error deleting batch: {e}")
+
+        try:
+            await client.send_message(
+                chat_id=user_id, 
+                text="✅ <b>आपकी डिलीवरी फाइल्स और चैट सफलतापूर्वक साफ़ कर दी गई हैं!</b> 🗑️"
+            )
+        except Exception:
+            pass
+
+    except Exception as e:
+        print(f"Clean chat error: {e}")
+        await callback_query.answer("❌ फाइल्स पहले ही डिलीट हो चुकी हैं!", show_alert=True)
 
 # ------------------ Mini App Web Data Receiver ------------------
 @Client.on_message(filters.service & filter_webapp & filters.private)
@@ -361,7 +417,7 @@ async def process_wallet_payment(client, callback_query):
         await callback_query.answer("❌ Error processing wallet payment!", show_alert=True)
 
 # ------------------ Start Batch Callback Router ------------------
-@Client.on_callback_query(filters.regex(r"^(sendall_|sendcustom_|askrange_|cleanchat_)"))
+@Client.on_callback_query(filters.regex(r"^(sendall_|sendcustom_|askrange_)"))
 async def start_batch_callback_router(client, callback_query):
     data = callback_query.data
     user_id = callback_query.from_user.id
@@ -424,29 +480,6 @@ async def start_batch_callback_router(client, callback_query):
         )
         await callback_query.answer()
 
-    elif data.startswith("cleanchat_"):
-        key = data.split("cleanchat_")[1]
-        msg_ids = CLEAN_CHAT_STORAGE.get(key, [])
-
-        if not msg_ids:
-            return await callback_query.answer("⚠️ चैट पहले ही साफ़ की जा चुकी है!", show_alert=True)
-
-        await callback_query.answer("🧹 Cleaning files... Please wait!")
-
-        for m_id in msg_ids:
-            try:
-                await client.delete_messages(chat_id=user_id, message_ids=m_id)
-                await asyncio.sleep(0.1)
-            except Exception:
-                pass
-
-        try:
-            await callback_query.message.edit_text("✅ <b>चैट सफलतापूर्वक साफ़ कर दी गई है!</b> 🗑️")
-        except Exception:
-            pass
-
-        CLEAN_CHAT_STORAGE.pop(key, None)
-
 # ------------------ Process Start Custom Range Input Text ------------------
 @Client.on_message(filters.private & filters.text, group=4)
 async def process_start_range_input(client, message):
@@ -493,10 +526,35 @@ async def process_start_range_input(client, message):
 async def start_handler(client, message):
     user = message.from_user
     
+    # Refer & Earn Logic
     try:
         registered = await is_user_registered(user.id)
         if not registered:
-            await register_user(user.id, user.first_name, user.username)
+            if len(message.command) > 1 and message.command[1].startswith("ref_"):
+                try:
+                    referrer_id = int(message.command[1].split("_")[1])
+                    if referrer_id != user.id:
+                        await register_user(user.id, user.first_name, user.username)
+                        await users_col.update_one({"user_id": user.id}, {"$set": {"referred_by": referrer_id}})
+                        
+                        new_bal = await add_wallet_balance(referrer_id, REFER_BONUS)
+                        
+                        try:
+                            await client.send_message(
+                                chat_id=referrer_id,
+                                text=f"🎉 <b>ɴᴇᴡ ʀᴇғᴇʀʀᴀʟ ᴀʟᴇʀᴛ!</b>\n\n"
+                                     f"👤 <b>{user.first_name}</b> आपके रेफरल लिंक से जुड़े हैं।\n"
+                                     f"💰 आपको मिला: <b>₹{REFER_BONUS:.2f} Bonus</b>\n"
+                                     f"👛 नया वॉलेट बैलेंस: <b>₹{new_bal}</b>"
+                            )
+                        except Exception:
+                            pass
+                except Exception as ref_err:
+                    print(f"Referral processing error: {ref_err}")
+
+            if not await is_user_registered(user.id):
+                await register_user(user.id, user.first_name, user.username)
+
             try:
                 log_text = (
                     f"<b>🆕 ɴᴇᴡ ᴜsᴇʀ ʀᴇɢɪsᴛᴇʀᴇᴅ!</b>\n"
@@ -680,7 +738,37 @@ async def add_funds_callback(client, callback_query):
     ])
     await callback_query.message.edit_text(text, reply_markup=kb)
 
-# ------------------ Dynamic Button Handlers ------------------
+# ------------------ Refer & Earn Keyboard Handler ------------------
+
+@Client.on_message(filters.regex("^(🎁 ʀᴇғᴇʀ & ᴇᴀʀɴ|🎁 Refer & Earn)$") & filters.private)
+async def refer_earn_handler(client, message):
+    user_id = message.from_user.id
+    refer_link = f"https://t.me/{BOT_USERNAME}?start=ref_{user_id}"
+    
+    wallet = await get_user_wallet(user_id)
+    total_refs = await get_referred_users_count(user_id)
+    
+    text = (
+        f"🎁 <b><u>ʀᴇғᴇʀ & ᴇᴀʀɴ ᴘʀᴏɢʀᴀᴍ</u></b>\n\n"
+        f"अपने दोस्तों को बॉट शेयर करें और हर नए यूज़र के जॉइन करने पर पाएँ <b>₹1.00</b> डायरेक्ट वॉलेट में!\n\n"
+        f"📊 <b>आपकी डिटेल्स:</b>\n"
+        f"👥 <b>Total Referred:</b> {total_refs} Users\n"
+        f"👛 <b>Wallet Balance:</b> ₹{wallet}\n\n"
+        f"🔗 <b>आपका पर्सनल रेफरल लिंक:</b>\n"
+        f"<code>{refer_link}</code>"
+    )
+    
+    share_text = f"✨ सुनो! इस बॉट पर ऑडियो स्टोरीज़ और पॉडकास्ट आसानी से मिल जाते हैं। तुरंत जॉइन करो:"
+    share_url = f"https://t.me/share/url?url={refer_link}&text={share_text}"
+    
+    kb = InlineKeyboardMarkup([
+        [InlineKeyboardButton("🚀 दोस्तों को शेयर करें", url=share_url)],
+        [InlineKeyboardButton("❌ ᴄʟᴏsᴇ", callback_data="close_message")]
+    ])
+    
+    await message.reply_text(text, reply_markup=kb, disable_web_page_preview=True, quote=True)
+
+# ------------------ Dynamic Button Handlers (With Close Buttons) ------------------
 
 @Client.on_message(filters.regex("^(🚀 ᴏᴘᴇɴ ᴍɪɴɪ ᴀᴘᴘ|🚀 Open Mini App)$") & filters.private)
 async def open_miniapp_handler(client, message):
@@ -689,14 +777,16 @@ async def open_miniapp_handler(client, message):
         "ᴄʟɪᴄᴋ ᴛʜᴇ ʙᴜᴛᴛᴏɴ ʙᴇʟᴏᴡ ᴛᴏ ᴏᴘᴇɴ ᴏᴜʀ ᴏғғɪᴄɪᴀʟ ᴍɪɴɪ ᴀᴘᴘ ᴀɴᴅ ᴇxᴘʟᴏʀᴇ ᴀʟʟ sᴛᴏʀɪᴇs!"
     )
     btn = InlineKeyboardMarkup([
-        [InlineKeyboardButton("🚀 ʟᴀᴜɴᴄʜ ᴍɪɴɪ ᴀᴘᴘ", web_app=WebAppInfo(url=WEB_APP_URL))]
+        [InlineKeyboardButton("🚀 ʟᴀᴜɴᴄʜ ᴍɪɴɪ ᴀᴘᴘ", web_app=WebAppInfo(url=WEB_APP_URL))],
+        [InlineKeyboardButton("❌ ᴄʟᴏsᴇ", callback_data="close_message")]
     ])
     await message.reply_text(text, reply_markup=btn, quote=True)
 
 @Client.on_message(filters.regex("^(📢 ᴜᴘᴅᴀᴛᴇs ᴄʜᴀɴɴᴇʟ|📢 Updates Channel)$") & filters.private)
 async def updates_handler(client, message):
     kb = InlineKeyboardMarkup([
-        [InlineKeyboardButton("📢 ᴊᴏɪɴ ᴄʜᴀɴɴᴇʟ", url="https://t.me/freestoryhubMR")]
+        [InlineKeyboardButton("📢 ᴊᴏɪɴ ᴄʜᴀɴɴᴇʟ", url="https://t.me/freestoryhubMR")],
+        [InlineKeyboardButton("❌ ᴄʟᴏsᴇ", callback_data="close_message")]
     ])
     await message.reply_text("<b>📢 ᴜᴘᴅᴀᴛᴇs ᴄʜᴀɴɴᴇʟ:</b>\n\nᴊᴏɪɴ ᴏᴜʀ ᴄʜᴀɴɴᴇʟ ғᴏʀ ᴛʜᴇ ʟᴀᴛᴇsᴛ ᴜᴘᴅᴀᴛᴇs ᴀɴᴅ ɴᴇᴡ sᴛᴏʀɪᴇs!", reply_markup=kb, quote=True)
 
@@ -717,29 +807,30 @@ async def account_handler(client, message):
         f"━━━━━━━━━━━━━━━━━━━\n\n"
     )
     
-    if not purchases:
-        acc_text += "❌ <b>ʏᴏᴜ ʜᴀᴠᴇɴ'ᴛ ᴘᴜʀᴄʜᴀsᴇᴅ ᴀɴʏ sᴛᴏʀɪᴇs ʏᴇᴛ.</b>"
-        return await message.reply_text(acc_text, quote=True)
-    
-    acc_text += "📖 <b>ʏᴏᴜʀ ᴘᴜʀᴄʜᴀsᴇᴅ sᴛᴏʀɪᴇs:</b>\n\n"
     buttons = []
     
-    for item in purchases:
-        story = await get_story_by_title(item['story_title'])
-        if story:
-            clean_title = story['title'].strip().split("\n")[0]
-            encoded_title = clean_title.replace(" ", "_")
-            delivery_link = f"https://t.me/{BOT_USERNAME}?start=get_{encoded_title}"
+    if not purchases:
+        acc_text += "❌ <b>ʏᴏᴜ ʜᴀᴠᴇɴ'ᴛ ᴘᴜʀᴄʜᴀsᴇᴅ ᴀɴʏ sᴛᴏʀɪᴇs ʏᴇᴛ.</b>"
+    else:
+        acc_text += "📖 <b>ʏᴏᴜʀ ᴘᴜʀᴄʜᴀsᴇᴅ sᴛᴏʀɪᴇs:</b>\n\n"
+        for item in purchases:
+            story = await get_story_by_title(item['story_title'])
+            if story:
+                clean_title = story['title'].strip().split("\n")[0]
+                encoded_title = clean_title.replace(" ", "_")
+                delivery_link = f"https://t.me/{BOT_USERNAME}?start=get_{encoded_title}"
+                
+                acc_text += f"• <b>{clean_title}</b>\n"
+                buttons.append([InlineKeyboardButton(f"🚀 ᴀᴄᴄᴇss {clean_title}", url=delivery_link)])
             
-            acc_text += f"• <b>{clean_title}</b>\n"
-            buttons.append([InlineKeyboardButton(f"🚀 ᴀᴄᴄᴇss {clean_title}", url=delivery_link)])
-            
-    reply_markup = InlineKeyboardMarkup(buttons) if buttons else None
+    buttons.append([InlineKeyboardButton("❌ ᴄʟᴏsᴇ", callback_data="close_message")])
+    reply_markup = InlineKeyboardMarkup(buttons)
     await message.reply_text(acc_text, reply_markup=reply_markup, quote=True)
 
 @Client.on_message(filters.regex("^(📞 sᴜᴘᴘᴏʀᴛ|📞 Support)$") & filters.private)
 async def support_handler(client, message):
     kb = InlineKeyboardMarkup([
-        [InlineKeyboardButton("💬 ᴄᴏɴᴛᴀᴄᴛ sᴜᴘᴘᴏʀᴛ", url="https://t.me/pratilipifm0900")]
+        [InlineKeyboardButton("💬 ᴄᴏɴᴛᴀᴄᴛ sᴜᴘᴘᴏʀᴛ", url="https://t.me/pratilipifm0900")],
+        [InlineKeyboardButton("❌ ᴄʟᴏsᴇ", callback_data="close_message")]
     ])
     await message.reply_text("<b>📞 ᴄᴜsᴛᴏᴍᴇʀ sᴜᴘᴘᴏʀᴛ:</b>\n\nɪғ ʏᴏᴜ ғᴀᴄᴇ ᴀɴʏ ɪssᴜᴇs, ғᴇᴇʟ ғʀᴇᴇ ᴛᴏ ᴄᴏɴᴛᴀᴄᴛ support.", reply_markup=kb, quote=True)
