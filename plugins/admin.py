@@ -8,7 +8,8 @@ from database.db import (
     delete_story_db, 
     get_all_stories, 
     send_log,
-    add_wallet_balance
+    add_wallet_balance,
+    stories_col
 )
 from plugins.post import send_story_to_channel
 
@@ -22,6 +23,56 @@ def extract_msg_id(text: str):
         return int(text)
     match = re.search(r"/(\d+)$", text)
     return int(match.group(1)) if match else None
+
+# ------------------ ADMIN REFRESH COMMAND FOR ALL STORIES ------------------
+@Client.on_message(filters.command("refreshstories") & filters.user(ADMIN_ID) & filters.private, group=1)
+async def refresh_all_stories(client, message):
+    status_msg = await message.reply_text("🔄 <b>Processing all stories in database... Please wait.</b>")
+    
+    updated_count = 0
+    total_stories = 0
+
+    try:
+        async for story in stories_col.find():
+            total_stories += 1
+            first_id = story.get("first_msg_id")
+            last_id = story.get("last_msg_id")
+            
+            update_data = {}
+            
+            # Total Files Calculation
+            if first_id and last_id and last_id >= first_id:
+                calc_files = (last_id - first_id) + 1
+                update_data["total_files"] = f"{calc_files} files"
+            elif not story.get("total_files"):
+                update_data["total_files"] = "24 files"
+            
+            # Episodes fix
+            if not story.get("episodes"):
+                update_data["episodes"] = "30 Episodes"
+                
+            # Demo Sync Setup
+            if "demo_enabled" not in story:
+                update_data["demo_enabled"] = False
+            if "demo_msg_ids" not in story:
+                update_data["demo_msg_ids"] = []
+
+            # Update DB
+            if update_data:
+                await stories_col.update_one(
+                    {"_id": story["_id"]}, 
+                    {"$set": update_data}
+                )
+                updated_count += 1
+
+        await status_msg.edit_text(
+            f"✅ <b>Refresh Completed Successfully!</b>\n\n"
+            f"📊 <b>Total Stories Checked:</b> {total_stories}\n"
+            f"🛠 <b>Fixed/Updated:</b> {updated_count}\n\n"
+            f"<i>Ab Mini App aur Bot dono me sabhi stories ka data fix aur sync ho gaya hai.</i>"
+        )
+    except Exception as e:
+        await status_msg.edit_text(f"❌ <b>Error occurred:</b> `{str(e)}`")
 
 # ------------------ ADMIN ADD MONEY TO USER WALLET ------------------
 @Client.on_message(filters.command("addmoney") & filters.user(ADMIN_ID) & filters.private, group=1)
@@ -133,7 +184,7 @@ async def start_delete(client, message):
     )
 
 # 3.1 Delete Input Execution Handler
-@Client.on_message(filters.private & filters.user(ADMIN_ID) & ~filters.command(["start", "addstory", "deletestory", "allstories", "cancel", "addmoney"]), group=1)
+@Client.on_message(filters.private & filters.user(ADMIN_ID) & ~filters.command(["start", "addstory", "deletestory", "allstories", "cancel", "addmoney", "refreshstories"]), group=1)
 async def process_delete_input(client, message):
     user_id = message.from_user.id
 
@@ -171,7 +222,6 @@ async def cat_selected(client, callback):
     ADD_STATE[callback.from_user.id]['category'] = callback.data.split("setcat_")[1]
     ADD_STATE[callback.from_user.id]['platform'] = callback.data.split("setcat_")[1]
     
-    # Genre Selection Keyboard
     genre_kb = InlineKeyboardMarkup([
         [InlineKeyboardButton("🎭 Drama", callback_data="setgenre_Drama"), InlineKeyboardButton("💖 Romance", callback_data="setgenre_Romance")],
         [InlineKeyboardButton("⚡ Action", callback_data="setgenre_Action"), InlineKeyboardButton("🔍 Thriller", callback_data="setgenre_Thriller")],
@@ -205,7 +255,7 @@ async def demo_option_selected(client, callback):
     await callback.message.reply_text("<b>[sᴛᴇᴘ 9/10]</b> DB Channel से स्टोरी की <b>FIRST Message ID / Link</b> भेजें:", reply_markup=ForceReply(True))
     await callback.answer()
 
-# 6.1 Range Selection Callbacks (> 100 Files)
+# 6.1 Range Selection Callbacks
 @Client.on_callback_query(filters.regex("^(setrange_|add_more_range|finish_ranges)") & filters.user(ADMIN_ID))
 async def range_callbacks(client, callback):
     user_id = callback.from_user.id
@@ -235,6 +285,7 @@ async def finalize_add_story(client, message, data):
     last = data['last_msg_id']
     demo_msg_ids = []
 
+    # Automatic Demo Audio Files Fetching
     if data.get('demo_enabled', False):
         middle_range = list(range(first + 1, last))
         if len(middle_range) >= 2:
@@ -244,7 +295,9 @@ async def finalize_add_story(client, message, data):
         else:
             demo_msg_ids = [first, last]
             
+    data['demo_enabled'] = data.get('demo_enabled', False)
     data['demo_msg_ids'] = demo_msg_ids
+
     clean_title = data['title'].strip().split("\n")[0].replace(" ", "_")
     data['link'] = f"https://t.me/{BOT_USERNAME}?start=get_{clean_title}"
 
@@ -259,7 +312,7 @@ async def finalize_add_story(client, message, data):
 
     bot_share_link = f"https://t.me/{BOT_USERNAME}?start=story_{clean_title}"
     total_files = data['last_msg_id'] - data['first_msg_id'] + 1
-    demo_status = "✅ Yes" if data.get('demo_enabled', False) else "❌ No"
+    demo_status = "✅ Enabled (Auto Synced to Mini App)" if data.get('demo_enabled', False) else "❌ Disabled"
     ranges_count = len(data.get('custom_ranges', []))
 
     log_msg = (
@@ -270,7 +323,7 @@ async def finalize_add_story(client, message, data):
         f"🧩 <b>Genre :</b> {data.get('genre', 'Drama')}\n"
         f"🎬 <b>Episodes :</b> {data.get('episodes', 'N/A')}\n\n"
         f"░▒▓█ PRICE - ₹{data['price']} █▓▒░\n\n"
-        f"<b>🎬 Demo Enabled:</b> {demo_status}\n"
+        f"<b>🎬 Demo Status:</b> {demo_status}\n"
         f"<b>🎧 Demo IDs:</b> {demo_msg_ids}\n"
         f"<b>📦 Files:</b> {total_files} (Msg {data['first_msg_id']} to {data['last_msg_id']})\n"
         f"<b>🎯 Custom Ranges:</b> {ranges_count} Configured\n\n"
@@ -289,7 +342,8 @@ async def finalize_add_story(client, message, data):
         f"🧩 <b>Genre :</b> {data.get('genre', 'Drama')}\n"
         f"🎬 <b>Episodes :</b> {data.get('episodes', 'N/A')}\n\n"
         f"░▒▓█ PRICE - ₹{data['price']} █▓▒░\n\n"
-        f"<b>🎬 Demo IDs:</b> {demo_msg_ids}\n"
+        f"<b>🎬 Demo Status:</b> {demo_status}\n"
+        f"<b>🎧 Demo Files IDs:</b> {demo_msg_ids}\n"
         f"<b>📦 Total Files:</b> {total_files}\n"
         f"<b>🎯 Custom Buttons:</b> {ranges_count} Configured\n\n"
         f"🔗 <b>sʜᴀʀᴇᴀʙʟᴇ ʟɪɴᴋ:</b>\n<code>{bot_share_link}</code>",
@@ -297,7 +351,7 @@ async def finalize_add_story(client, message, data):
     )
 
 # 7. Admin Add Story Input Wizard
-@Client.on_message(filters.private & filters.user(ADMIN_ID) & ~filters.command(["start", "addstory", "deletestory", "allstories", "cancel", "addmoney"]), group=1)
+@Client.on_message(filters.private & filters.user(ADMIN_ID) & ~filters.command(["start", "addstory", "deletestory", "allstories", "cancel", "addmoney", "refreshstories"]), group=1)
 async def wizard_inputs(client, message):
     user_id = message.from_user.id
 
@@ -392,7 +446,7 @@ async def wizard_inputs(client, message):
             ADD_STATE.pop(user_id, None)
             await finalize_add_story(client, message, data)
 
-    # ------------------ Dynamic Range Steps ------------------
+    # Dynamic Range Steps
     elif step == 'RANGE_NAME':
         ADD_STATE[user_id]['temp_range_name'] = message.text.strip()
         ADD_STATE[user_id]['step'] = 'RANGE_FIRST'
