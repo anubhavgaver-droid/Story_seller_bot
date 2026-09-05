@@ -11,7 +11,8 @@ from pyrogram.types import (
     InlineKeyboardButton, 
     ForceReply,
     WebAppInfo,
-    CallbackQuery
+    CallbackQuery,
+    ReplyKeyboardRemove
 )
 
 # Required Database functions
@@ -46,7 +47,7 @@ REFER_BONUS = 1.0  # ₹1.00 Per Referral
 START_RANGE_WAITING = {}
 USER_PAGE_STATE = {}
 
-# 1. Main Welcome Message Inline Keyboard (Welcome Message के साथ जुड़े Inline Buttons)
+# 1. Main Welcome Message Inline Keyboard
 def get_welcome_inline_keyboard():
     return InlineKeyboardMarkup(
         [
@@ -71,7 +72,7 @@ def get_welcome_inline_keyboard():
         ]
     )
 
-# 2. Market Reply Keyboard (जब "Open Market" इनलाइन बटन दबाया जाएगा तब यह कीबोर्ड खुलेगा)
+# 2. Market Reply Keyboard
 def get_market_reply_keyboard():
     return ReplyKeyboardMarkup(
         keyboard=[
@@ -82,7 +83,7 @@ def get_market_reply_keyboard():
         resize_keyboard=True
     )
 
-# 3. Category Pagination Keyboard Generator (कीबोर्ड के अंदर Next/Prev/View All)
+# 3. Category Pagination Keyboard Generator
 async def get_category_reply_keyboard(category_name: str, page=1, per_page=10):
     regex_pattern = re.compile(f"^{category_name}$", re.IGNORECASE)
     all_stories = await stories_col.find({"category": regex_pattern}).to_list(length=1000)
@@ -473,6 +474,32 @@ async def view_demo_callback(client: Client, callback_query: CallbackQuery):
         print(f"Error in view_demo_callback: {e}")
         await callback_query.answer("❌ Failed to send Demo files!", show_alert=True)
 
+# ------------------ Direct Buy Callback Handler ------------------
+@Client.on_callback_query(filters.regex(r"^buy_"))
+async def direct_buy_callback_handler(client, callback_query: CallbackQuery):
+    try:
+        data_parts = callback_query.data.split("_")
+        price = float(data_parts[-1])
+        story_title = " ".join(data_parts[1:-1])
+
+        story = await get_story_by_title(story_title)
+        if not story:
+            return await callback_query.answer("❌ Story not found!", show_alert=True)
+
+        await callback_query.answer("💳 Redirecting to payment options...", show_alert=False)
+        clean_title = story['title'].strip().split("\n")[0]
+        
+        pay_info_text = (
+            f"💳 <b><u>DIRECT PAYMENT INITIATED</u></b>\n\n"
+            f"📖 <b>Story:</b> {clean_title}\n"
+            f"💰 <b>Amount Due:</b> ₹{price}\n\n"
+            f"<i>To pay directly via QR / UPI or manual transfer, please contact support or add funds to your wallet using the My Wallet option!</i>"
+        )
+        await callback_query.message.reply_text(pay_info_text, quote=True)
+    except Exception as e:
+        print(f"Error handling direct buy: {e}")
+        await callback_query.answer("❌ Failed to process purchase request!", show_alert=True)
+
 # ------------------ Wallet Payment Callback Handler ------------------
 @Client.on_callback_query(filters.regex(r"^walletpay_"))
 async def process_wallet_payment(client, callback_query):
@@ -826,7 +853,7 @@ async def start_handler(client, message):
         else:
             return await message.reply_text("❌ <b>ᴛʜɪs sᴛᴏʀʏ ɪs ɴᴏᴛ ᴀᴠᴀɪʟᴀʙʟᴇ.</b>", reply_markup=get_welcome_inline_keyboard(), quote=True)
 
-    # Normal /start Welcome Message (Inlined Buttons Attach)
+    # Normal /start Welcome Message
     welcome_text = (
         f"<b>━━━━━━━━━━━━━━━━━━━━━━</b>\n"
         f"🌟 <b>STORY SELLER BOT</b> 🌟\n"
@@ -837,8 +864,8 @@ async def start_handler(client, message):
     await message.reply_text(welcome_text, reply_markup=get_welcome_inline_keyboard(), quote=True)
 
 
-# ------------------ Inline Button Callbacks Handler ------------------
-@Client.on_callback_query()
+# ------------------ Inline Menu Callbacks Handler ------------------
+@Client.on_callback_query(filters.regex(r"^(open_market_keyboard|menu_wallet|menu_account|menu_refer)$"))
 async def inline_callback_handler(client, callback_query: CallbackQuery):
     data = callback_query.data
     user_id = callback_query.from_user.id
@@ -953,13 +980,24 @@ async def reply_keyboard_router(client, message):
     elif text == "🔎 SEARCH STORY":
         await message.reply_text("🔎 **स्टोरी सर्च करने के लिए:**\n\nकृपया जिस स्टोरी को खोजना चाहते हैं उसका नाम लिखकर भेजें!")
 
-    # 4. Back to Main Menu
+    # 4. Back to Main Menu (With Reply Keyboard Removal)
     elif text == "🔙 BACK TO MAIN MENU":
         welcome_text = (
             f"🏠 **मुख्य मेनू:**\n\n"
             f"मार्किट फिर से खोलने के लिए **🛒 OPEN MARKET** इनलाइन बटन दबाएं।"
         )
+        
+        # चरण 1: Reply Keyboard को हटाएँ
+        remove_msg = await message.reply_text("🔄...", reply_markup=ReplyKeyboardRemove())
+        
+        # चरण 2: मुख्य Inline Menu भेजें
         await message.reply_text(welcome_text, reply_markup=get_welcome_inline_keyboard())
+        
+        # चरण 3: अस्थायी मैसेंजर डिलीट करें
+        try:
+            await remove_msg.delete()
+        except Exception:
+            pass
 
     # 5. Direct Story Click (📖 Story Title)
     elif text.startswith("📖 "):
