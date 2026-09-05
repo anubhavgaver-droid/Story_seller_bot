@@ -262,7 +262,7 @@ async def range_clean_chat_handler(client, callback_query):
         print(f"Clean chat error: {e}")
         await callback_query.answer("❌ फाइल्स पहले ही डिलीट हो चुकी हैं!", show_alert=True)
 
-# ------------------ Mini App Web Data Receiver ------------------
+# ------------------ Mini App Web Data Receiver (UPDATED FOR DEMO) ------------------
 @Client.on_message(filters.service & filter_webapp & filters.private)
 async def web_app_data_handler(client, message):
     try:
@@ -271,7 +271,51 @@ async def web_app_data_handler(client, message):
         story_title = data.get("title")
         price = float(data.get("price", 0))
         
-        if action == "buy_story":
+        # 1. Mini App से Demo फ़ाइल माँगने पर
+        if action in ["view_demo", "demo", "get_demo"]:
+            story = await get_story_by_title(story_title)
+            if not story or not story.get("demo_enabled"):
+                return await message.reply_text("⚠️ <b>इस स्टोरी का डेमो उपलब्ध नहीं है!</b>", quote=True)
+
+            demo_ids = story.get("demo_msg_ids", [])
+            if not demo_ids:
+                return await message.reply_text("❌ <b>डेमो फाइल्स नहीं मिलीं!</b>", quote=True)
+
+            user_id = message.from_user.id
+            sent_messages = []
+
+            header_msg = await message.reply_text(
+                f"🎬 <b>ᴅᴇᴍᴏ / ᴘʀᴇᴠɪᴇᴡ ғᴏᴏᴛᴀɢᴇ:</b> <code>{story['title']}</code>\n\n"
+                f"⏰ <i>यह डेमो सैंपल 10 मिनट बाद अपने आप डिलीट हो जाएगा!</i>",
+                quote=True
+            )
+            sent_messages.append(header_msg)
+
+            for msg_id in demo_ids:
+                try:
+                    copied_msg = await client.copy_message(
+                        chat_id=user_id,
+                        from_chat_id=CHANNEL_ID,
+                        message_id=msg_id,
+                        caption=f"🎧 <b>Demo Sample</b> - {story['title']}"
+                    )
+                    sent_messages.append(copied_msg)
+                except Exception as e:
+                    print(f"Error copying demo msg {msg_id}: {e}")
+
+            async def auto_delete_task(messages_list):
+                await asyncio.sleep(600)
+                for msg in messages_list:
+                    try:
+                        await msg.delete()
+                    except Exception:
+                        pass
+
+            asyncio.create_task(auto_delete_task(sent_messages))
+            return
+
+        # 2. Mini App से Buy Story ट्रिगर होने पर
+        elif action == "buy_story":
             story = await get_story_by_title(story_title)
             if not story:
                 return await message.reply_text("❌ <b>sᴛᴏʀʏ ɴᴏᴛ ғᴏᴜɴᴅ.</b>", quote=True)
@@ -769,7 +813,7 @@ async def add_funds_callback(client, callback_query):
         "Contact admin or send payment screenshot to top-up your wallet balance automatically."
     )
     kb = InlineKeyboardMarkup([
-        [InlineKeyboardButton("💬 ᴄᴏɴᴛᴀᴄᴛ ᴀᴅᴍɪɴ ғᴏʀ ᴛᴏᴘᴜᴘ", url="https://t.me/kaluu_help_bot")]
+        [InlineKeyboardButton("💬 ᴄᴏɴᴛᴀᴄᴛ ᴀᴅᴍɪɴ ғᴏᴏʀ ᴛᴏᴘᴜᴘ", url="https://t.me/kaluu_help_bot")]
     ])
     await callback_query.message.edit_text(text, reply_markup=kb)
 
