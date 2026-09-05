@@ -12,7 +12,7 @@ from pyrogram.types import (
     ForceReply, 
     WebAppInfo,
     CallbackQuery,
-    ReplyKeyboardRemove
+    ReplyKeyboardRemove  # <-- कीबोर्ड क्लोज करने के लिए जोड़ा गया
 )
 from database.db import (
     get_stories_by_cat, 
@@ -30,7 +30,7 @@ from config import WEB_APP_URL, BOT_USERNAME, CHANNEL_ID
 # State Storage
 SEARCH_WAITING = {}
 
-# Market Reply Keyboard (start.py से सिंक किया हुआ)
+# Market Reply Keyboard
 def get_market_reply_keyboard():
     return ReplyKeyboardMarkup(
         keyboard=[
@@ -41,7 +41,7 @@ def get_market_reply_keyboard():
         resize_keyboard=True
     )
 
-# Welcome Inline Keyboard Layout (start.py की तर्ज पर)
+# Welcome Inline Keyboard Layout
 def get_welcome_inline_keyboard():
     return InlineKeyboardMarkup(
         [
@@ -76,7 +76,25 @@ async def search_prompt_handler(client, message):
         quote=True
     )
 
-# 2. Advanced Fuzzy + Database Search Processor
+# 2. Back to Main Menu Handler (कीबोर्ड क्लोज करने के साथ)
+@Client.on_message(filters.regex("^(🔙 BACK TO MAIN MENU|🔙 Back to Main Menu)$") & filters.private)
+async def back_to_main_menu(client, message):
+    user_id = message.from_user.id
+    SEARCH_WAITING.pop(user_id, None)  # सर्च वेटिंग क्लियर करें
+    
+    # 1. ReplyKeyboardRemove() से रिप्लाई कीबोर्ड हाइड हो जाएगा
+    await message.reply_text(
+        "🏠 <b>मुख्य मेनू पर वापस आ गए हैं।</b>", 
+        reply_markup=ReplyKeyboardRemove(),
+        quote=True
+    )
+    # 2. इनलाइन कीबोर्ड दिखाएं
+    await message.reply_text(
+        "👇 <b>आगे का विकल्प चुनें:</b>", 
+        reply_markup=get_welcome_inline_keyboard()
+    )
+
+# 3. Advanced Fuzzy + Database Search Processor
 @Client.on_message(
     filters.private 
     & filters.text 
@@ -99,7 +117,8 @@ async def process_story_search(client, message):
     matched_stories = []
     
     if all_stories:
-        title_map = {s['title'].strip().split("\n")[0]: s for s in all_stories}
+        # \n से बचाने के लिए splitlines()[0] का उपयोग
+        title_map = {s['title'].strip().splitlines()[0]: s for s in all_stories}
         story_titles = list(title_map.keys())
         
         # Fuzzy String Match (Difflib)
@@ -120,7 +139,12 @@ async def process_story_search(client, message):
             quote=True
         )
         
-    keyboard_buttons = [[KeyboardButton(f"📖 {s['title'].strip().split('\n')[0]}")] for s in matched_stories]
+    # F-string SyntaxError से बचने के लिए स्वच्छ लूप स्ट्रक्चर
+    keyboard_buttons = []
+    for s in matched_stories:
+        clean_title = s['title'].strip().splitlines()[0]
+        keyboard_buttons.append([KeyboardButton(f"📖 {clean_title}")])
+        
     keyboard_buttons.append([KeyboardButton("🔙 BACK TO MAIN MENU")])
     
     search_reply_kb = ReplyKeyboardMarkup(keyboard_buttons, resize_keyboard=True)
