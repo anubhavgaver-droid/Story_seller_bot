@@ -155,6 +155,11 @@ async def add_wallet_balance(user_id: int, amount: float) -> float:
     )
     return float(user.get("wallet_balance", 0.0))
 
+# -------------------- REFERRAL DATABASE FUNCTIONS --------------------
+async def get_referred_users_count(user_id: int) -> int:
+    """किसी यूज़र द्वारा रेफर किए गए कुल यूज़र्स की संख्या गिनता है"""
+    return await users_col.count_documents({"referred_by": user_id})
+
 # -------------------- USER PURCHASES & ACCESS CHECK --------------------
 async def add_user_purchase(user_id: int, story_title: str, story_link: str = "#"):
     """ऑटो-पेमेंट या Wallet deduction कन्फर्म होने पर खरीदे गए टाइटल की पहली लाइन सेव करेगा"""
