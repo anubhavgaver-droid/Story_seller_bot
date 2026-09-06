@@ -153,7 +153,7 @@
 
         .hd-stack-card {
             position: absolute;
-            width: 215px; /* बड़ा और HD पोस्टर साइज़ */
+            width: 215px;
             height: 310px;
             border-radius: 20px;
             object-fit: cover;
@@ -164,7 +164,7 @@
             will-change: transform, opacity;
         }
 
-        /* EXACT STACK POSITIONS (video directional flow) */
+        /* EXACT STACK POSITIONS */
         .hd-stack-card.pos-front {
             transform: translate3d(0, 0, 0) rotate(0deg) scale(1);
             z-index: 5;
@@ -814,7 +814,7 @@
             return false;
         }
 
-        /* --- HD STACK CAROUSEL ROTATION (EXACT REPLICA) --- */
+        /* --- HD STACK CAROUSEL ROTATION --- */
         function setupSplashScreen(list) {
             const wrapper = document.getElementById('cardsWrapper');
             if(!wrapper) return;
@@ -823,7 +823,7 @@
             const shuffled = [...list].sort(() => 0.5 - Math.random());
             const picked = shuffled.slice(0, 5);
             
-            picked.forEach((story, idx) => {
+            picked.forEach((story) => {
                 const img = document.createElement('img');
                 img.src = story.photo || 'https://picsum.photos/400/600';
                 img.className = 'hd-stack-card';
@@ -850,10 +850,8 @@
             }
 
             rotateStack();
-            // 1.1 सेकंड्स की रफ़्तार में वीडियो जैसा मोशन
             splashInterval = setInterval(rotateStack, 1100);
             
-            // Auto hide splash screen
             setTimeout(() => {
                 const splash = document.getElementById('splash-screen');
                 if(splash) splash.classList.add('hidden');
@@ -985,7 +983,6 @@
                 buyBtn.onclick = function() { buyStory(story.title, story.price); };
             }
 
-            // Demo Sync setup
             const demoBtn = document.getElementById('mDemoBtn');
             const hasDemoAvailable = story.has_demo || story.demo_enabled || (story.demo_msg_ids && story.demo_msg_ids.length > 0);
             
