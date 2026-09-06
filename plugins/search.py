@@ -26,7 +26,8 @@ from database.db import (
 from config import BOT_USERNAME, CHANNEL_ID
 
 SEARCH_WAITING = {}
-PAGE_LIMIT = 10  # एक बार में दिखाने के लिए स्टोरीज की संख्या
+USER_PAGE_STATE = {}  # Track current page state for users
+PAGE_LIMIT = 10       # Strictly 10 stories per page
 
 
 # 1. Main Market / Platform Keyboard
@@ -40,8 +41,9 @@ MARKET_MENU = ReplyKeyboardMarkup(
     resize_keyboard=True
 )
 
-# Helper function to build paginated story list
-def build_story_keyboard(stories, page=1, total_pages=1, category_key=None):
+
+# Helper: Build Paginated Keyboard (Supports 10 limit & View All option)
+def build_paginated_keyboard(stories, page=1, total_pages=1, show_view_all=True):
     keyboard_buttons = []
     
     # Story selection buttons (Only First Line Title)
@@ -49,10 +51,14 @@ def build_story_keyboard(stories, page=1, total_pages=1, category_key=None):
         clean_title = s['title'].strip().splitlines()[0]
         keyboard_buttons.append([KeyboardButton(f"📖 {clean_title}")])
     
-    # Navigation row if pagination applies
+    # Navigation & View All Row
     nav_buttons = []
     if page > 1:
         nav_buttons.append(KeyboardButton("⏪ ᴘʀᴇᴠɪᴏᴜs"))
+        
+    if total_pages > 1 and show_view_all:
+        nav_buttons.append(KeyboardButton("👁 ᴠɪᴇᴡ ᴀʟʟ"))
+        
     if page < total_pages:
         nav_buttons.append(KeyboardButton("ɴᴇxᴛ ⏩"))
         
@@ -63,38 +69,88 @@ def build_story_keyboard(stories, page=1, total_pages=1, category_key=None):
     return ReplyKeyboardMarkup(keyboard_buttons, resize_keyboard=True)
 
 
-# 2. Pocket FM / Pratilipi FM Category Handler
-@Client.on_message(filters.regex("^(📻 ᴘᴏᴄᴋᴇᴛ ғᴍ|📚 ᴘʀᴀᴛɪʟɪᴘɪ ғᴍ|📻 Pocket FM|📚 Pratilipi FM|📻 POCKET FM|📚 PRATILIPI FM)$") & filters.private)
-async def category_handler(client, message):
-    cat_map = {
-        "📻 ᴘᴏᴄᴋᴇᴛ ғᴍ": "pocket_fm", "📻 Pocket FM": "pocket_fm", "📻 POCKET FM": "pocket_fm",
-        "📚 ᴘʀᴀᴛɪʟɪᴘɪ ғᴍ": "pratilipi_fm", "📚 Pratilipi FM": "pratilipi_fm", "📚 PRATILIPI FM": "pratilipi_fm"
-    }
-    cat_key = cat_map[message.text]
-    stories, total_pages = await get_stories_by_cat(cat_key, page=1, limit=PAGE_LIMIT)
+# Helper: Render Category Page
+async def show_category_page(client, message, cat_key, cat_name, page=1, view_all=False):
+    limit = 500 if view_all else PAGE_LIMIT
+    stories, total_pages = await get_stories_by_cat(cat_key, page=page, limit=limit)
     
     if not stories:
         return await message.reply_text(
-            f"❌ <b>ɴᴏ sᴛᴏʀɪᴇs ᴀᴠᴀɪʟᴀʙʟᴇ ɪɴ {message.text.upper()}.</b>", 
+            f"❌ <b>ɴᴏ sᴛᴏʀɪᴇs ᴀᴠᴀɪʟᴀʙʟᴇ ɪɴ {cat_name.upper()}.</b>", 
             reply_markup=MARKET_MENU, 
             quote=True
         )
         
-    category_keyboard = build_story_keyboard(stories, page=1, total_pages=total_pages, category_key=cat_key)
+    USER_PAGE_STATE[message.from_user.id] = {
+        "cat_key": cat_key,
+        "cat_name": cat_name,
+        "page": page,
+        "total_pages": total_pages,
+        "is_view_all": view_all
+    }
+    
+    category_keyboard = build_paginated_keyboard(
+        stories, 
+        page=page, 
+        total_pages=total_pages, 
+        show_view_all=not view_all
+    )
+    
+    status_title = f"ALL STORIES ({cat_name.upper()})" if view_all else f"{cat_name.upper()} (ᴘᴀɢᴇ {page}/{total_pages})"
     
     await message.reply_text(
-        f"📚 <b>ᴀᴠᴀɪʟᴀʙʟᴇ sᴛᴏʀɪᴇs ({message.text.upper()}):</b>\n\n"
+        f"📚 <b>{status_title}:</b>\n\n"
         f"<i>sᴇʟᴇᴄᴛ ʏᴏᴜʀ sᴛᴏʀʏ ʙᴇʟᴏᴡ ᴛᴏ ᴠɪᴇᴡ ᴅᴇᴛᴀɪʟs:</i>", 
         reply_markup=category_keyboard, 
         quote=True
     )
 
 
-# 3. Back to Menu Handler
+# 2. Pocket FM / Pratilipi FM Category Handler
+@Client.on_message(filters.regex("^(📻 ᴘᴏᴄᴋᴇᴛ ғᴍ|📚 ᴘʀᴀᴛɪʟɪᴘɪ ғᴍ|📻 Pocket FM|📚 Pratilipi FM|📻 POCKET FM|📚 PRATILIPI FM)$") & filters.private)
+async def category_handler(client, message):
+    cat_map = {
+        "📻 ᴘᴏᴄᴋᴇᴛ ғᴍ": ("pocket_fm", "📻 ᴘᴏᴄᴋᴇᴛ ғᴍ"), 
+        "📻 Pocket FM": ("pocket_fm", "📻 ᴘᴏᴄᴋᴇᴛ ғᴍ"), 
+        "📻 POCKET FM": ("pocket_fm", "📻 ᴘᴏᴄᴋᴇᴛ ғᴍ"),
+        "📚 ᴘʀᴀᴛɪʟɪᴘɪ ғᴍ": ("pratilipi_fm", "📚 ᴘʀᴀᴛɪʟɪᴘɪ ғᴍ"), 
+        "📚 Pratilipi FM": ("pratilipi_fm", "📚 ᴘʀᴀᴛɪʟɪᴘɪ ғᴍ"), 
+        "📚 PRATILIPI FM": ("pratilipi_fm", "📚 ᴘʀᴀᴛɪʟɪᴘɪ ғᴍ")
+    }
+    cat_key, cat_name = cat_map[message.text]
+    await show_category_page(client, message, cat_key, cat_name, page=1)
+
+
+# 3. Pagination & View All Handlers
+@Client.on_message(filters.regex("^(ɴᴇxᴛ ⏩|⏪ ᴘʀᴇᴠɪᴏᴜs|👁 ᴠɪᴇᴡ ᴀʟʟ|👁 View All|👁 VIEW ALL)$") & filters.private)
+async def handle_pagination(client, message):
+    user_id = message.from_user.id
+    state = USER_PAGE_STATE.get(user_id)
+    
+    if not state:
+        return await message.reply_text(
+            "<b>🏠 ᴘʟᴇᴀsᴇ sᴇʟᴇᴄᴛ ᴀ ᴄᴀᴛᴇɢᴏʀʏ ғɪʀsᴛ:</b>", 
+            reply_markup=MARKET_MENU, 
+            quote=True
+        )
+        
+    current_page = state["page"]
+    total_pages = state["total_pages"]
+    
+    if message.text in ["👁 ᴠɪᴇᴡ ᴀʟʟ", "👁 View All", "👁 VIEW ALL"]:
+        await show_category_page(client, message, state["cat_key"], state["cat_name"], page=1, view_all=True)
+    elif message.text == "ɴᴇxᴛ ⏩" and current_page < total_pages:
+        await show_category_page(client, message, state["cat_key"], state["cat_name"], page=current_page + 1)
+    elif message.text == "⏪ ᴘʀᴇᴠɪᴏᴜs" and current_page > 1:
+        await show_category_page(client, message, state["cat_key"], state["cat_name"], page=current_page - 1)
+
+
+# 4. Back to Menu Handler (English Welcome Message)
 @Client.on_message(filters.regex("^(🔙 ʙᴀᴄᴋ ᴛᴏ ᴍᴇɴᴜ|🔙 Back to Menu|🔙 BACK TO MENU)$") & filters.private)
 async def back_to_menu_handler(client, message):
     user_id = message.from_user.id
     SEARCH_WAITING.pop(user_id, None)
+    USER_PAGE_STATE.pop(user_id, None)
 
     try:
         temp_msg = await message.reply_text(
@@ -112,7 +168,7 @@ async def back_to_menu_handler(client, message):
         f"🌟 <b>sᴛᴏʀʏ sᴇʟʟᴇʀ ʙᴏᴛ</b> 🌟\n"
         f"<b>━━━━━━━━━━━━━━━━━━━━━━</b>\n\n"
         f"<b>ʜᴇʟʟᴏ {user.first_name}! 👋</b>\n\n"
-        f"वेलकम! मार्केट ओपन करने या अपना वॉलेट/अकाउंट देखने के लिए नीचे दिए गए बटन पर क्लिक करें:"
+        f"ᴡᴇʟᴄᴏᴍᴇ! ᴄʟɪᴄᴋ ᴏɴ ᴛʜᴇ ʙᴜᴛᴛᴏɴs ʙᴇʟᴏᴡ ᴛᴏ ᴏᴘᴇɴ ᴛʜᴇ ᴍᴀʀᴋᴇᴛ, ᴄʜᴇᴄᴋ ʏᴏᴜʀ ᴡᴀʟʟᴇᴛ, ᴏʀ ᴍᴀɴᴀɢᴇ ʏᴏᴜʀ ᴀᴄᴄᴏᴜɴᴛ:"
     )
 
     main_inline_kb = InlineKeyboardMarkup([
@@ -139,18 +195,19 @@ async def back_to_menu_handler(client, message):
     )
 
 
-# 3.1 Back to Platform Handler
+# 5. Back to Platform Handler
 @Client.on_message(filters.regex("^(🔙 ʙᴀᴄᴋ ᴛᴏ ᴘʟᴀᴛғᴏʀᴍ|🔙 Back to Platform|🔙 BACK TO PLATFORM)$") & filters.private)
 async def back_to_platform_handler(client, message):
+    USER_PAGE_STATE.pop(message.from_user.id, None)
     await message.reply_text(
         "<b>🏠 ᴍᴀɪɴ ᴍᴀʀᴋᴇᴛ / ᴘʟᴀᴛғᴏʀᴍ:</b>\n\n"
-        "<i>नीचे दिए गए विकल्पों में से चुनें:</i>",
+        "<i>ᴄʜᴏᴏsᴇ ᴀɴ ᴏᴘᴛɪᴏɴ ғʀᴏᴍ ʙᴇʟᴏᴡ:</i>",
         reply_markup=MARKET_MENU,
         quote=True
     )
 
 
-# 4. Story Selection Click Handler
+# 6. Story Selection Click Handler
 @Client.on_message(filters.regex("^📖 ") & filters.private)
 async def story_selected_handler(client, message):
     user_id = message.from_user.id
@@ -185,7 +242,7 @@ async def story_selected_handler(client, message):
         f"🎧 <b>ᴇᴘɪsᴏᴅᴇs :</b> {story.get('episodes', 'N/A')}\n\n"
         f"░▒▓█ ᴘʀɪᴄᴇ - ₹{story['price']} █▓▒░\n\n"
         f"👛 <b>ʏᴏᴜʀ ᴡᴀʟʟᴇᴛ :</b> ₹{wallet_bal}\n\n"
-        f"<i>👇 Select a payment method below:</i>"
+        f"<i>👇 sᴇʟᴇᴄᴛ ᴀ ᴘᴀʏᴍᴇɴᴛ ᴍᴇᴛʜᴏᴅ ʙᴇʟᴏᴡ:</i>"
     )
     
     try:
@@ -194,7 +251,7 @@ async def story_selected_handler(client, message):
         await message.reply_text(caption_text, reply_markup=btn, quote=True)
 
 
-# 5. View Demo Callback Handler
+# 7. View Demo Callback Handler
 @Client.on_callback_query(filters.regex(r"^viewdemo_"))
 async def view_demo_callback(client: Client, callback_query: CallbackQuery):
     try:
@@ -209,14 +266,14 @@ async def view_demo_callback(client: Client, callback_query: CallbackQuery):
         if not demo_ids:
             return await callback_query.answer("❌ No demo files found!", show_alert=True)
             
-        await callback_query.answer("🎬 Sending demo preview... Check your chat!")
+        await callback_query.answer("🎬 Sending demo preview...")
         user_id = callback_query.from_user.id
         sent_messages = []
         
         header_msg = await client.send_message(
             chat_id=user_id,
             text=f"🎬 <b>ᴅᴇᴍᴏ ᴘʀᴇᴠɪᴇᴡ ғᴏʀ:</b> <code>{story['title'].strip().splitlines()[0]}</code>\n\n"
-                 f"⏰ <i>This demo preview will automatically auto-delete in 10 minutes!</i>"
+                 f"⏰ <i>Auto-delete in 10 minutes!</i>"
         )
         sent_messages.append(header_msg)
         
@@ -247,7 +304,7 @@ async def view_demo_callback(client: Client, callback_query: CallbackQuery):
         await callback_query.answer("❌ Failed to send demo preview!", show_alert=True)
 
 
-# 6. Wallet Deduction Payment Callback Handler
+# 8. Wallet Payment Callback Handler
 @Client.on_callback_query(filters.regex(r"^walletpay_"))
 async def process_wallet_payment(client, callback_query):
     try:
@@ -283,7 +340,7 @@ async def process_wallet_payment(client, callback_query):
             f"📖 <b>sᴛᴏʀʏ :</b> {clean_title}\n"
             f"💸 <b>ᴅᴇᴅᴜᴄᴛᴇᴅ :</b> ₹{price}\n"
             f"👛 <b>ʀᴇᴍᴀɪɴɪɴɢ ʙᴀʟᴀɴᴄᴇ :</b> ₹{new_balance}\n\n"
-            f"👇 <i>Click below to unlock and access your story files:</i>"
+            f"👇 <i>ᴄʟɪᴄᴋ ʙᴇʟᴏᴡ ᴛᴏ ᴜɴʟᴏᴄᴋ ᴀɴᴅ ᴀᴄᴄᴇss ʏᴏᴜʀ sᴛᴏʀʏ ғɪʟᴇs:</i>"
         )
         
         access_btn = InlineKeyboardMarkup([
@@ -297,7 +354,7 @@ async def process_wallet_payment(client, callback_query):
         await callback_query.answer("❌ Error processing wallet payment!", show_alert=True)
 
 
-# 7. Search Prompt Handler
+# 9. Search Prompt Handler
 @Client.on_message(filters.regex("^(🔎 sᴇᴀʀᴄʜ sᴛᴏʀʏ|🔎 Search Story|🔎 SEARCH STORY)$") & filters.private)
 async def search_prompt(client, message):
     user_id = message.from_user.id
@@ -305,19 +362,19 @@ async def search_prompt(client, message):
     
     await message.reply_text(
         "🔎 <b>sᴇᴀʀᴄʜ ʏᴏᴜʀ ғᴀᴠᴏʀɪᴛᴇ sᴛᴏʀʏ!</b>\n\n"
-        "<i>Type and send the story title below:</i>\n"
-        "<code>(अगर स्पेलिंग में थोड़ी गलती भी होगी, तो बॉट सही रिजल्ट ढूंढ लेगा)</code>",
+        "<i>ᴛʏᴘᴇ ᴀɴᴅ sᴇɴᴅ ᴛʜᴇ sᴛᴏʀʏ ᴛɪᴛʟᴇ ʙᴇʟᴏᴡ:</i>\n"
+        "<code>(Even with minor spelling mistakes, the bot will find the closest match)</code>",
         reply_markup=ForceReply(selective=True, placeholder="TYPE STORY NAME HERE..."),
         quote=True
     )
 
 
-# 8. Enhanced Fuzzy Search Process Logic
+# 10. Enhanced Fuzzy Search Process Logic
 @Client.on_message(
     filters.private 
     & filters.text 
     & ~filters.command(["start", "addstory", "deletestory", "allstories", "cancel", "addmoney", "broadcast", "refreshstories"]) 
-    & ~filters.regex("^(🚀 ᴏᴘᴇɴ ᴍɪɴɪ ᴀᴘᴘ|🚀 OPEN MINI APP|💼 ᴍʏ ᴡᴀʟʟᴇᴛ|📢 ᴜᴘᴅᴀᴛᴇs ᴄʜᴀɴɴᴇʟ|👤 ᴍʏ ᴀᴄᴄᴏᴜɴᴛ|📞 sᴜᴘᴘᴏʀᴛ|📻 ᴘᴏᴄᴋᴇᴛ ғᴍ|📚 ᴘʀᴀᴛɪʟɪᴘɪ ғᴍ|🎁 ʀᴇғᴇʀ & ᴇᴀʀɴ|🎁 Refer & Earn|🛑 sᴛᴏᴘ ᴅᴇʟɪᴠᴇʀʏ|🛑 Stop Delivery|stop delivery|🔙 ʙᴀᴄᴋ ᴛᴏ ᴍᴇɴᴜ|🔙 Back to Menu|🔙 BACK TO MENU|🔙 ʙᴀᴄᴋ ᴛᴏ ᴘʟᴀᴛғᴏʀᴍ|🔙 Back to Platform|🔙 BACK TO PLATFORM|📖 |🔎 sᴇᴀʀᴄʜ sᴛᴏʀʏ|🔎 SEARCH STORY|🚀 Open Mini App|💼 My Wallet|📢 Updates Channel|👤 My Account|📞 Support|📻 Pocket FM|📚 Pratilipi FM|🔎 Search Story|⏪ ᴘʀᴇᴠɪᴏᴜs|ɴᴇxᴛ ⏩)$"),
+    & ~filters.regex("^(🚀 ᴏᴘᴇɴ ᴍɪɴɪ ᴀᴘᴘ|🚀 OPEN MINI APP|💼 ᴍʏ ᴡᴀʟʟᴇᴛ|📢 ᴜᴘᴅᴀᴛᴇs ᴄʜᴀɴɴᴇʟ|👤 ᴍʏ ᴀᴄᴄᴏᴜɴᴛ|📞 sᴜᴘᴘᴏʀᴛ|📻 ᴘᴏᴄᴋᴇᴛ ғᴍ|📚 ᴘʀᴀᴛɪʟɪᴘɪ ғᴍ|🎁 ʀᴇғᴇʀ & ᴇᴀʀɴ|🎁 Refer & Earn|🛑 sᴛᴏᴘ ᴅᴇʟɪᴠᴇʀʏ|🛑 Stop Delivery|stop delivery|🔙 ʙᴀᴄᴋ ᴛᴏ ᴍᴇɴᴜ|🔙 Back to Menu|🔙 BACK TO MENU|🔙 ʙᴀᴄᴋ ᴛᴏ ᴘʟᴀᴛғᴏʀᴍ|🔙 Back to Platform|🔙 BACK TO PLATFORM|📖 |🔎 sᴇᴀʀᴄʜ sᴛᴏʀʏ|🔎 SEARCH STORY|🚀 Open Mini App|💼 My Wallet|📢 Updates Channel|👤 My Account|📞 Support|📻 Pocket FM|📚 Pratilipi FM|🔎 Search Story|⏪ ᴘʀᴇᴠɪᴏᴜs|ɴᴇxᴛ ⏩|👁 ᴠɪᴇᴡ ᴀʟʟ|👁 View All|👁 VIEW ALL)$"),
     group=2
 )
 async def process_search(client, message):
@@ -330,7 +387,6 @@ async def process_search(client, message):
     query = message.text.strip()
     SEARCH_WAITING.pop(user_id, None)
     
-    # Fetch all stories for Fuzzy Matching
     all_stories = await get_all_stories()
     matched_stories = []
     
@@ -338,15 +394,13 @@ async def process_search(client, message):
         title_map = {s['title'].strip().splitlines()[0]: s for s in all_stories}
         story_titles = list(title_map.keys())
         
-        # Fuzzy Match using difflib
-        close_matches = difflib.get_close_matches(query, story_titles, n=15, cutoff=0.35)
+        close_matches = difflib.get_close_matches(query, story_titles, n=10, cutoff=0.35)
         
         if close_matches:
             matched_stories = [title_map[t] for t in close_matches]
             
-    # Fallback to Database Substring Search
     if not matched_stories:
-        db_stories, _ = await search_stories_db(query, page=1, limit=50)
+        db_stories, _ = await search_stories_db(query, page=1, limit=10)
         matched_stories = db_stories or []
     
     if not matched_stories:
