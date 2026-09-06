@@ -50,15 +50,12 @@ USER_ACTIVE_STORY = {}
 # Storage Set for Delivery Stop Control
 STOP_DELIVERY_USERS = set()
 
-# 1. Main Menu Keyboard Layout (With Refer & Earn Added)
+# 1. Main Menu Keyboard Layout (Market & Platform Search Options)
 MAIN_MENU = ReplyKeyboardMarkup(
     [
         [KeyboardButton("🚀 ᴏᴘᴇɴ ᴍɪɴɪ ᴀᴘᴘ")],
-        [KeyboardButton("💼 ᴍʏ ᴡᴀʟʟᴇᴛ"), KeyboardButton("👤 ᴍʏ ᴀᴄᴄᴏᴜɴᴛ")],
-        [KeyboardButton("🎁 ʀᴇғᴇʀ & ᴇᴀʀɴ")],
-        [KeyboardButton("🔎 sᴇᴀʀᴄʜ sᴛᴏʀʏ"), KeyboardButton("📻 ᴘᴏᴄᴋᴇᴛ ғᴍ")],
-        [KeyboardButton("📚 ᴘʀᴀᴛɪʟɪᴘɪ ғᴍ"), KeyboardButton("📢 ᴜᴘᴅᴀᴛᴇs ᴄʜᴀɴɴᴇʟ")],
-        [KeyboardButton("📞 sᴜᴘᴘᴏʀᴛ")]
+        [KeyboardButton("🔎 sᴇᴀʀᴄʜ sᴛᴏʀʏ")],
+        [KeyboardButton("📻 ᴘᴏᴄᴋᴇᴛ ғᴍ"), KeyboardButton("📚 ᴘʀᴀᴛɪʟɪᴘɪ ғᴍ")]
     ],
     resize_keyboard=True
 )
@@ -821,15 +818,133 @@ async def start_handler(client, message):
         else:
             return await message.reply_text("❌ <b>ᴛʜɪs sᴛᴏʀʏ ɪs ɴᴏᴛ ᴀᴠᴀɪʟᴀʙʟᴇ.</b>", reply_markup=MAIN_MENU)
 
-    # Normal /start Welcome Message
+    # Normal /start Welcome Message with Inline Buttons
     welcome_text = (
         f"<b>━━━━━━━━━━━━━━━━━━━━━━</b>\n"
         f"🌟 <b>STORY SELLER BOT</b> 🌟\n"
         f"<b>━━━━━━━━━━━━━━━━━━━━━━</b>\n\n"
         f"<b>HELLO {user.first_name}! 👋</b>\n\n"
-        f"<b>USE THE BUTTONS BELOW TO SEARCH OR PURCHASE YOUR FAVORITE STORIES.</b>"
+        f"हमारे बॉट में आपका स्वागत है। मार्केट ओपन करने या अपना वॉलेट/अकाउंट देखने के लिए नीचे दिए गए बटन पर क्लिक करें:"
     )
-    await message.reply_text(welcome_text, reply_markup=MAIN_MENU)
+
+    start_inline_kb = InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("🛒 ᴏᴘᴇɴ ᴍᴀʀᴋᴇᴛ / sᴛᴏʀᴇ", callback_data="open_market_cb")
+        ],
+        [
+            InlineKeyboardButton("💼 ᴍʏ ᴡᴀʟʟᴇᴛ", callback_data="open_wallet_cb"),
+            InlineKeyboardButton("👤 ᴍʏ ᴀᴄᴄᴏᴜɴᴛ", callback_data="open_account_cb")
+        ],
+        [
+            InlineKeyboardButton("🎁 ʀᴇғᴇʀ & ᴇᴀʀɴ", callback_data="open_refer_cb")
+        ],
+        [
+            InlineKeyboardButton("📢 ᴜᴘᴅᴀᴛᴇs", url="https://t.me/freestoryhubMR"),
+            InlineKeyboardButton("📞 sᴜᴘᴘᴏʀᴛ", url="https://t.me/pratilipifm0900")
+        ]
+    ])
+
+    # ReplyKeyboardRemove() से कीबोर्ड छुपा रहेगा जब तक Open Market पर क्लिक न हो
+    await message.reply_text(welcome_text, reply_markup=start_inline_kb)
+
+# ------------------ Open Market Callback Handler (Auto-Delete Welcome Msg) ------------------
+@Client.on_callback_query(filters.regex("^open_market_cb$"))
+async def open_market_callback(client, callback_query):
+    await callback_query.answer("🛒 Market Opened!")
+    
+    # 1. पुराना वेलकम मैसेज डिलीट करना
+    try:
+        await callback_query.message.delete()
+    except Exception as e:
+        print(f"Error deleting welcome msg: {e}")
+
+    # 2. नया मार्केट मैसेज और सर्च कीबोर्ड भेजना
+    await client.send_message(
+        chat_id=callback_query.from_user.id,
+        text="🛒 <b>ᴍᴀʀᴋᴇᴛ & sᴇᴀʀᴄʜ ᴍᴇɴᴜ</b>\n\n"
+             "👇 नीचे दिए गए कीबोर्ड से आप स्टोरी खोज सकते हैं या प्लेटफार्म चुन सकते हैं:",
+        reply_markup=MAIN_MENU
+    )
+
+# ------------------ Callback Handlers for Start Inline Buttons ------------------
+
+@Client.on_callback_query(filters.regex("^open_wallet_cb$"))
+async def cb_wallet_handler(client, callback_query):
+    user_id = callback_query.from_user.id
+    balance = await get_user_wallet(user_id)
+    
+    text = (
+        f"<b>👛 ʏᴏᴜʀ ᴡᴀʟʟᴇᴛ ᴅᴇᴛᴀɪʟs</b>\n"
+        f"━━━━━━━━━━━━━━━━━━━\n"
+        f"<b>💳 ᴄᴜʀʀᴇɴᴛ ʙᴀʟᴀɴᴄᴇ:</b> ₹{balance}\n"
+        f"━━━━━━━━━━━━━━━━━━━\n\n"
+        f"💡 <i>Use wallet balance for 1-click instant purchases.</i>"
+    )
+    kb = InlineKeyboardMarkup([
+        [InlineKeyboardButton("➕ ᴀᴅᴅ ᴍᴏɴᴇʏ / ᴛᴏᴘ-ᴜᴘ", callback_data="add_wallet_funds")],
+        [InlineKeyboardButton("❌ ᴄʟᴏsᴇ", callback_data="close_message")]
+    ])
+    await callback_query.message.reply_text(text, reply_markup=kb)
+    await callback_query.answer()
+
+@Client.on_callback_query(filters.regex("^open_account_cb$"))
+async def cb_account_handler(client, callback_query):
+    user = callback_query.from_user
+    purchases = await get_user_purchases(user.id)
+    balance = await get_user_wallet(user.id)
+    
+    acc_text = (
+        f"<b>👤 ᴀᴄᴄᴏᴜɴᴛ ᴅᴇᴛᴀɪʟs:</b>\n"
+        f"━━━━━━━━━━━━━━━━━━━\n"
+        f"<b>ɴᴀᴍᴇ:</b> {user.first_name}\n"
+        f"<b>ᴜsᴇʀ ɪᴅ:</b> <code>{user.id}</code>\n"
+        f"<b>👛 ᴡᴀʟʟᴇᴛ ʙᴀʟᴀɴᴄᴇ:</b> ₹{balance}\n"
+        f"━━━━━━━━━━━━━━━━━━━\n\n"
+    )
+    
+    buttons = []
+    if not purchases:
+        acc_text += "❌ <b>ʏᴏᴜ ʜᴀᴠᴇɴ'ᴛ ᴘᴜʀᴄʜᴀsᴇᴅ ᴀɴʏ sᴛᴏʀɪᴇs ʏᴇᴛ.</b>"
+    else:
+        acc_text += "📖 <b>ʏᴏᴜʀ ᴘᴜʀᴄʜᴀsᴇᴅ sᴛᴏʀɪᴇs:</b>\n\n"
+        for item in purchases:
+            story = await get_story_by_title(item['story_title'])
+            if story:
+                clean_title = story['title'].strip().split("\n")[0]
+                encoded_title = clean_title.replace(" ", "_")
+                delivery_link = f"https://t.me/{BOT_USERNAME}?start=get_{encoded_title}"
+                buttons.append([InlineKeyboardButton(f"🚀 ᴀᴄᴄᴇss {clean_title}", url=delivery_link)])
+            
+    buttons.append([InlineKeyboardButton("❌ ᴄʟᴏsᴇ", callback_data="close_message")])
+    await callback_query.message.reply_text(acc_text, reply_markup=InlineKeyboardMarkup(buttons))
+    await callback_query.answer()
+
+@Client.on_callback_query(filters.regex("^open_refer_cb$"))
+async def cb_refer_handler(client, callback_query):
+    user_id = callback_query.from_user.id
+    refer_link = f"https://t.me/{BOT_USERNAME}?start=ref_{user_id}"
+    wallet = await get_user_wallet(user_id)
+    total_refs = await get_referred_users_count(user_id)
+    
+    text = (
+        f"🎁 <b><u>ʀᴇғᴇʀ & ᴇᴀʀɴ ᴘʀᴏɢʀᴀᴍ</u></b>\n\n"
+        f"अपने दोस्तों को बॉट शेयर करें और हर नए यूज़र के जॉइन करने पर पाएँ <b>₹1.00</b> डायरेक्ट वॉलेट में!\n\n"
+        f"📊 <b>आपकी डिटेल्स:</b>\n"
+        f"👥 <b>Total Referred:</b> {total_refs} Users\n"
+        f"👛 <b>Wallet Balance:</b> ₹{wallet}\n\n"
+        f"🔗 <b>आपका पर्सनल रेफरल लिंक:</b>\n"
+        f"<code>{refer_link}</code>"
+    )
+    
+    share_text = url_quote("✨ सुनो! इस बॉट पर ऑडियो स्टोरीज़ और पॉडकास्ट आसानी से मिल जाते हैं। तुरंत जॉइन करो:")
+    share_url = f"https://t.me/share/url?url={url_quote(refer_link)}&text={share_text}"
+    
+    kb = InlineKeyboardMarkup([
+        [InlineKeyboardButton("🚀 दोस्तों को शेयर करें", url=share_url)],
+        [InlineKeyboardButton("❌ ᴄʟᴏsᴇ", callback_data="close_message")]
+    ])
+    await callback_query.message.reply_text(text, reply_markup=kb, disable_web_page_preview=True)
+    await callback_query.answer()
 
 # ------------------ Wallet System Handlers ------------------
 
@@ -924,7 +1039,7 @@ async def account_handler(client, message):
     acc_text = (
         f"<b>👤 ᴀᴄᴄᴏᴜɴᴛ ᴅᴇᴛᴀɪʟs:</b>\n"
         f"━━━━━━━━━━━━━━━━━━━\n"
-        f"<b>ɴᴀᴍᴇ:</b> {user.first_name}\n"
+        f"<b>ɴᴀ姆:</b> {user.first_name}\n"
         f"<b>ᴜsᴇʀ ɪᴅ:</b> <code>{user.id}</code>\n"
         f"<b>ᴜsᴇʀɴᴀᴍᴇ:</b> @{user.username if user.username else 'N/A'}\n"
         f"<b>👛 ᴡᴀʟʟᴇᴛ ʙᴀʟᴀɴᴄᴇ:</b> ₹{balance}\n"
