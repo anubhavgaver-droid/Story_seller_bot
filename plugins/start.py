@@ -101,7 +101,7 @@ def build_custom_range_reply_keyboard(custom_ranges):
     return ReplyKeyboardMarkup(
         keyboard=keyboard_rows,
         resize_keyboard=True,
-        one_time_keyboard=True
+        one_time_keyboard=False  # FIXED: Set to False so keyboard UI remains active
     )
 
 # ------------------ Global Close Callback Handler ------------------
@@ -166,7 +166,7 @@ def get_message_searchable_text(msg) -> str:
 
     return " | ".join(combined_texts)
 
-# ------------------ Helper: Smart File Delivery Function (With Reply Keyboard Stop Button) ------------------
+# ------------------ Helper: Smart File Delivery Function ------------------
 async def send_story_files_start(client, user_id, story, first_id, last_id, clean_title, custom_range_text="", target_start_ep=None, target_end_ep=None):
     sent_messages_obj = []
     sent_message_ids = []
@@ -178,17 +178,21 @@ async def send_story_files_start(client, user_id, story, first_id, last_id, clea
 
     chosen_sticker = SEARCH_RANGE_STICKER_ID if target_start_ep is not None else DELIVERY_STICKER_ID
 
-    # Stop Delivery Keyboard Keybaord
+    # Stop Delivery Keyboard Layout
     stop_reply_keyboard = ReplyKeyboardMarkup(
         [[KeyboardButton("🛑 sᴛᴏᴘ ᴅᴇʟɪᴠᴇʀʏ")]],
         resize_keyboard=True
     )
 
-    status_sticker = await client.send_sticker(
-        chat_id=user_id,
-        sticker=chosen_sticker,
-        reply_markup=stop_reply_keyboard
-    )
+    # 1. Send Sticker with Stop Keyboard
+    try:
+        status_sticker = await client.send_sticker(
+            chat_id=user_id,
+            sticker=chosen_sticker,
+            reply_markup=stop_reply_keyboard
+        )
+    except Exception:
+        status_sticker = None
 
     msg_ids_to_fetch = list(range(first_id, last_id + 1))
     chunk_size = 200
@@ -225,10 +229,9 @@ async def send_story_files_start(client, user_id, story, first_id, last_id, clea
     total_files = len(messages_to_send)
 
     if total_files == 0:
-        try:
-            await status_sticker.delete()
-        except Exception:
-            pass
+        if status_sticker:
+            try: await status_sticker.delete()
+            except Exception: pass
 
         return await client.send_message(
             chat_id=user_id,
@@ -237,12 +240,14 @@ async def send_story_files_start(client, user_id, story, first_id, last_id, clea
             reply_markup=MAIN_MENU
         )
 
+    # 2. Send Progress Message WITH Reply Keyboard (To ensure Telegram UI renders it)
     progress_msg = await client.send_message(
         chat_id=user_id,
         text=f"📦 <b>ᴅᴇʟɪᴠᴇʀɪɴɢ ғɪʟᴇs...</b>\n\n"
              f"📖 <b>Story:</b> {clean_title}\n"
              f"📊 <b>Progress:</b> 0 / {total_files} Files Sent\n\n"
-             f"<i>रोकने के लिए नीचे दिए गए 'Stop Delivery' कीबोर्ड बटन को दबाएं।</i>"
+             f"<i>रोकने के लिए नीचे दिए गए '🛑 sᴛᴏᴘ ᴅᴇʟɪᴠᴇʀʏ' बटन को दबाएं।</i>",
+        reply_markup=stop_reply_keyboard
     )
 
     is_stopped_by_user = False
@@ -271,7 +276,7 @@ async def send_story_files_start(client, user_id, story, first_id, last_id, clea
                     f"📦 <b>ᴅᴇʟɪᴠᴇʀɪɴɢ ғɪʟᴇs...</b>\n\n"
                     f"📖 <b>Story:</b> {clean_title}\n"
                     f"📊 <b>Progress:</b> {success_count} / {total_files} Files Sent\n\n"
-                    f"<i>रोकने के लिए नीचे दिए गए 'Stop Delivery' कीबोर्ड बटन को दबाएं।</i>"
+                    f"<i>रोकने के लिए नीचे दिए गए '🛑 sᴛᴏᴘ ᴅᴇʟɪᴠᴇʀʏ' बटन को दबाएं।</i>"
                 )
             except Exception:
                 pass
@@ -282,7 +287,7 @@ async def send_story_files_start(client, user_id, story, first_id, last_id, clea
 
     # Cleanup Status Sticker and Progress Tracker
     try:
-        await status_sticker.delete()
+        if status_sticker: await status_sticker.delete()
         await progress_msg.delete()
     except Exception:
         pass
@@ -592,8 +597,8 @@ async def handle_range_reply_buttons(client, message):
     user_id = message.from_user.id
     text = message.text.strip()
 
-    # 1. Stop Delivery Keybaord Action Check (Highest Priority)
-    if "stop delivery" in text.lower():
+    # 1. Stop Delivery Action Check (Highest Priority - Checked BEFORE active story check)
+    if "stop delivery" in text.lower() or "sᴛᴏᴘ ᴅᴇʟɪᴠᴇʀʏ" in text:
         STOP_DELIVERY_USERS.add(user_id)
         return await message.reply_text("🛑 **डिलीवरी रोकी जा रही है... कृपया प्रतीक्षा करें!**", quote=True)
 
