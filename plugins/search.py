@@ -109,15 +109,12 @@ async def show_category_page(client, message, cat_key, cat_name, page=1, view_al
 # 2. Pocket FM / Pratilipi FM Category Handler
 @Client.on_message(filters.regex("^(📻 ᴘᴏᴄᴋᴇᴛ ғᴍ|📚 ᴘʀᴀᴛɪʟɪᴘɪ ғᴍ|📻 Pocket FM|📚 Pratilipi FM|📻 POCKET FM|📚 PRATILIPI FM)$") & filters.private)
 async def category_handler(client, message):
-    cat_map = {
-        "📻 ᴘᴏᴄᴋᴇᴛ ғᴍ": ("pocket_fm", "📻 ᴘᴏᴄᴋᴇᴛ ғᴍ"), 
-        "📻 Pocket FM": ("pocket_fm", "📻 ᴘᴏᴄᴋᴇᴛ ғᴍ"), 
-        "📻 POCKET FM": ("pocket_fm", "📻 ᴘᴏᴄᴋᴇᴛ ғᴍ"),
-        "📚 ᴘʀᴀᴛɪʟɪᴘɪ ғᴍ": ("pratilipi_fm", "📚 ᴘʀᴀᴛɪʟɪᴘɪ ғᴍ"), 
-        "📚 Pratilipi FM": ("pratilipi_fm", "📚 ᴘʀᴀᴛɪʟɪᴘɪ ғᴍ"), 
-        "📚 PRATILIPI FM": ("pratilipi_fm", "📚 ᴘʀᴀᴛɪʟɪᴘɪ ғᴍ")
-    }
-    cat_key, cat_name = cat_map[message.text]
+    text = message.text
+    if "POCKET" in text.upper() or "ᴘᴏᴄᴋᴇᴛ" in text:
+        cat_key, cat_name = "pocket", "📻 ᴘᴏᴄᴋᴇᴛ ғᴍ"
+    else:
+        cat_key, cat_name = "pratilipi", "📚 ᴘʀᴀᴛɪʟɪᴘɪ ғᴍ"
+        
     await show_category_page(client, message, cat_key, cat_name, page=1)
 
 
@@ -145,7 +142,7 @@ async def handle_pagination(client, message):
         await show_category_page(client, message, state["cat_key"], state["cat_name"], page=current_page - 1)
 
 
-# 4. Back to Menu Handler (English Welcome Message)
+# 4. Back to Menu Handler
 @Client.on_message(filters.regex("^(🔙 ʙᴀᴄᴋ ᴛᴏ ᴍᴇɴᴜ|🔙 Back to Menu|🔙 BACK TO MENU)$") & filters.private)
 async def back_to_menu_handler(client, message):
     user_id = message.from_user.id
@@ -237,7 +234,7 @@ async def story_selected_handler(client, message):
     caption_text = (
         f"📖 <b>sᴛᴏʀʏ :</b> {clean_title}\n"
         f"🔰 <b>sᴛᴀᴛᴜs :</b> {story.get('status', 'Completed')}\n"
-        f"🖥️ <b>ᴘʟᴀᴛғᴏʀᴍ :</b> {story.get('category', 'Pocket FM')}\n"
+        f"🖥️ <b>ᴘʟᴀᴛғᴏʀᴍ :</b> {story.get('category', story.get('platform', 'Pocket FM'))}\n"
         f"🎭 <b>ɢᴇɴʀᴇ :</b> {story.get('genre', 'Drama')}\n"
         f"🎧 <b>ᴇᴘɪsᴏᴅᴇs :</b> {story.get('episodes', 'N/A')}\n\n"
         f"░▒▓█ ᴘʀɪᴄᴇ - ₹{story['price']} █▓▒░\n\n"
