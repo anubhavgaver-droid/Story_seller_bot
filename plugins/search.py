@@ -75,10 +75,11 @@ async def back_to_menu_handler(client, message):
     SEARCH_WAITING.pop(user_id, None)
     
     await message.reply_text(
-        "❌ <b>Menu Closed. Normal Keyboard Active!</b>", 
-        reply_markup=ReplyKeyboardRemove(), 
-        quote=True
+        text=welcome_text, 
+        reply_markup=start_inline_kb,
+        reply_markup=ReplyKeyboardRemove()
     )
+    
 
 # 4. Story Selection Click Handler
 @Client.on_message(filters.regex("^📖 ") & filters.private)
