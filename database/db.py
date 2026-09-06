@@ -1,6 +1,7 @@
 import re
 import sys
 import os
+import time
 from motor.motor_asyncio import AsyncIOMotorClient
 from config import MONGO_URL, LOG_CHANNEL
 
@@ -173,14 +174,23 @@ async def add_user_purchase(user_id: int, story_title: str, story_link: str = "#
     clean_title = story_title.strip().split("\n")[0]
     await purchases_col.update_one(
         {"user_id": user_id, "story_title": clean_title},
-        {"$set": {"user_id": user_id, "story_title": clean_title, "link": story_link}},
+        {
+            "$set": {
+                "user_id": user_id, 
+                "story_title": clean_title, 
+                "story_link": story_link,
+                "link": story_link,
+                "timestamp": time.time()
+            }
+        },
         upsert=True
     )
 
 async def is_story_unlocked(user_id: int, story_title: str) -> bool:
     """चेक करता है कि यूज़र ने स्टोरी खरीदी है या नहीं"""
     clean_title = story_title.strip().split("\n")[0]
-    purchase = await purchases_col.find_one({"user_id": user_id, "story_title": clean_title})
+    pattern = re.compile(f"^{re.escape(clean_title)}$", re.IGNORECASE)
+    purchase = await purchases_col.find_one({"user_id": user_id, "story_title": pattern})
     return bool(purchase)
 
 async def get_user_purchases(user_id: int):
@@ -271,38 +281,77 @@ async def delete_story_db(title: str) -> bool:
 
 async def get_all_stories():
     """सभी स्टोरीज़ की लिस्ट निकालने के लिए फ़ंक्शन"""
-    cursor = stories_col.find({})
-    return await cursor.to_list(length=None)
+    try:
+        cursor = stories_col.find({})
+        return await cursor.to_list(length=2000)
+    except Exception as e:
+        print(f"Error in get_all_stories: {e}")
+        return []
 
-async def get_stories_by_cat(category, page=1, limit=10):
+async def get_stories_by_cat(cat_key, page=1, limit=10):
     """
-    कैटेगरी-वाइज़ पेजिनेटेड स्टोरीज़ रिटर्न करता है।
+    Case-insensitive Regex category fetcher.
+    Matches 'Pocket FM', 'POCKET FM', 'pocket_fm', 'Pratilipi FM', etc.
     """
-    skip = (page - 1) * limit
-    cursor = stories_col.find({"category": category}).skip(skip).limit(limit)
-    stories = await cursor.to_list(length=limit)
-    total = await stories_col.count_documents({"category": category})
-    total_pages = (total + limit - 1) // limit if total > 0 else 1
-    return stories, total_pages
+    if "pocket" in str(cat_key).lower():
+        pattern = re.compile(r"pocket", re.IGNORECASE)
+    elif "pratilipi" in str(cat_key).lower():
+        pattern = re.compile(r"pratilipi", re.IGNORECASE)
+    else:
+        pattern = re.compile(re.escape(str(cat_key)), re.IGNORECASE)
 
-async def search_stories_db(query, page=1, limit=10):
+    query = {
+        "$or": [
+            {"category": pattern},
+            {"platform": pattern}
+        ]
+    }
+
+    try:
+        total_count = await stories_col.count_documents(query)
+        if total_count == 0:
+            return [], 0
+
+        total_pages = (total_count + limit - 1) // limit
+        skip = (page - 1) * limit
+
+        cursor = stories_col.find(query).skip(skip).limit(limit)
+        stories = await cursor.to_list(length=limit)
+        
+        return stories, total_pages
+    except Exception as e:
+        print(f"Error in get_stories_by_cat: {e}")
+        return [], 0
+
+async def search_stories_db(query_str, page=1, limit=10):
     """
     टाइटल या विवरण के आधार पर पेजिनेटेड सर्च परिणाम देता है।
     """
-    skip = (page - 1) * limit
-    filter_q = {
+    pattern = re.compile(re.escape(query_str), re.IGNORECASE)
+    query = {
         "$or": [
-            {"title": {"$regex": query, "$options": "i"}},
-            {"desc": {"$regex": query, "$options": "i"}}
+            {"title": pattern},
+            {"desc": pattern}
         ]
     }
-    cursor = stories_col.find(filter_q).skip(skip).limit(limit)
-    stories = await cursor.to_list(length=limit)
-    total = await stories_col.count_documents(filter_q)
-    total_pages = (total + limit - 1) // limit if total > 0 else 1
-    return stories, total_pages
+    
+    try:
+        total_count = await stories_col.count_documents(query)
+        if total_count == 0:
+            return [], 0
+
+        total_pages = (total_count + limit - 1) // limit
+        skip = (page - 1) * limit
+
+        cursor = stories_col.find(query).skip(skip).limit(limit)
+        stories = await cursor.to_list(length=limit)
+        return stories, total_pages
+    except Exception as e:
+        print(f"Error in search_stories_db: {e}")
+        return [], 0
 
 async def get_story_by_title(title: str):
-    """टाइटल के आधार पर स्टोरी ढूँढता है"""
+    """टाइटल के आधार पर स्टोरी ढूँढता है (Exact Match Case-Insensitive)"""
     clean_title = title.strip().split("\n")[0]
-    return await stories_col.find_one({"title": clean_title})
+    pattern = re.compile(f"^{re.escape(clean_title)}$", re.IGNORECASE)
+    return await stories_col.find_one({"title": pattern})
