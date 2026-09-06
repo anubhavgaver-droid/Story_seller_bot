@@ -44,7 +44,7 @@ MARKET_MENU = ReplyKeyboardMarkup(
 async def category_handler(client, message):
     cat_map = {
         "📻 ᴘᴏᴄᴋᴇᴛ ғᴍ": "pocket_fm", "📻 Pocket FM": "pocket_fm", "📻 POCKET FM": "pocket_fm",
-        "📚 ᴘʀᴀᴛɪʟɪపి ғᴍ": "pratilipi_fm", "📚 Pratilipi FM": "pratilipi_fm", "📚 PRATILIPI FM": "pratilipi_fm"
+        "📚 ᴘʀᴀᴛɪʟɪᴘɪ ғᴍ": "pratilipi_fm", "📚 Pratilipi FM": "pratilipi_fm", "📚 PRATILIPI FM": "pratilipi_fm"
     }
     cat_key = cat_map[message.text]
     stories, total_pages = await get_stories_by_cat(cat_key, page=1, limit=50)
@@ -58,7 +58,7 @@ async def category_handler(client, message):
         
     keyboard_buttons = [[KeyboardButton(f"📖 {s['title'].strip().splitlines()[0]}")] for s in stories]
     
-    # स्टोरी लिस्ट के अंत में 🔙 BACK TO PLATFORM बटन (बदलाव यहाँ किया गया है)
+    # स्टोरी लिस्ट के अंत में 🔙 BACK TO PLATFORM बटन
     keyboard_buttons.append([KeyboardButton("🔙 BACK TO PLATFORM")])
     
     category_keyboard = ReplyKeyboardMarkup(keyboard_buttons, resize_keyboard=True)
@@ -68,21 +68,48 @@ async def category_handler(client, message):
         quote=True
     )
 
-# 3. Back to Menu Handler (start.py की तरह Keyboard को Remove/Close करेगा)
+# 3. Back to Menu Handler (Keyboards को हटाकर सीधे इनलाइन मेनू भेजेगा)
 @Client.on_message(filters.regex("^(🔙 ʙᴀᴄᴋ ᴛᴏ ᴍᴇɴᴜ|🔙 Back to Menu|🔙 BACK TO MENU)$") & filters.private)
 async def back_to_menu_handler(client, message):
     user_id = message.from_user.id
     SEARCH_WAITING.pop(user_id, None)
     
+    # 1. पहले नीचे वाले कस्टम कीबोर्ड को पूरी तरह गायब/हटाएं
     await message.reply_text(
         "_", 
         reply_markup=ReplyKeyboardRemove()
     )
     
-    # तुरंत बाद start.py वाला वेलकम मैसेज और इनलाइन कीबोर्ड भेजें
+    # 2. यूज़र का नाम फेच करके वेलकम मैसेज और इनलाइन बटन भेजें
+    user = message.from_user
+    welcome_msg = (
+        f"<b>━━━━━━━━━━━━━━━━━━━━━━</b>\n"
+        f"🌟 <b>STORY SELLER BOT</b> 🌟\n"
+        f"<b>━━━━━━━━━━━━━━━━━━━━━━</b>\n\n"
+        f"<b>HELLO {user.first_name}! 👋</b>\n\n"
+        f"हमारे बॉट में आपका स्वागत है। मार्केट ओपन करने या अपना वॉलेट/अकाउंट देखने के लिए नीचे दिए गए बटन पर क्लिक करें:"
+    )
+
+    main_inline_kb = InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("🛒 ᴏᴘᴇɴ ᴍᴀʀᴋᴇᴛ / sᴛᴏʀᴇ", callback_data="open_market_cb")
+        ],
+        [
+            InlineKeyboardButton("💼 ᴍʏ ᴡᴀʟʟᴇ́t", callback_data="open_wallet_cb"),
+            InlineKeyboardButton("👤 ᴍʏ ᴀᴄᴄᴏᴜɴᴛ", callback_data="open_account_cb")
+        ],
+        [
+            InlineKeyboardButton("🎁 ʀᴇғᴇʀ & ᴇᴀʀɴ", callback_data="open_refer_cb")
+        ],
+        [
+            InlineKeyboardButton("📢 ᴜᴘᴅᴀᴛᴇs", url="https://t.me/freestoryhubMR"),
+            InlineKeyboardButton("📞 sᴜᴘᴘᴏʀᴛ", url="https://t.me/pratilipifm0900")
+        ]
+    ])
+
     await message.reply_text(
-        text=welcome_text, 
-        reply_markup=start_inline_kb,
+        text=welcome_msg, 
+        reply_markup=main_inline_kb,
         quote=True
     )
 
