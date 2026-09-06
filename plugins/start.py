@@ -46,6 +46,9 @@ REFER_BONUS = 1.0  # ₹1.00 Per Referral
 START_RANGE_WAITING = {}
 USER_ACTIVE_STORY = {}
 
+# Storage Set for Delivery Stop Control
+STOP_DELIVERY_USERS = set()
+
 # 1. Main Menu Keyboard Layout (With Refer & Earn Added)
 MAIN_MENU = ReplyKeyboardMarkup(
     [
@@ -65,12 +68,19 @@ async def web_app_filter(_, __, message):
 
 filter_webapp = filters.create(web_app_filter)
 
+# ------------------ Dynamic Stop Delivery Callback Handler ------------------
+@Client.on_callback_query(filters.regex("^stop_delivery$"))
+async def stop_delivery_handler(client, callback_query):
+    user_id = callback_query.from_user.id
+    STOP_DELIVERY_USERS.add(user_id)
+    await callback_query.answer("🛑 डिलीवरी रोकी जा रही है... कृपया प्रतीक्षा करें!", show_alert=True)
+
 # ------------------ Helper: Dynamic Reply Keyboard Grid Generator ------------------
 def build_custom_range_reply_keyboard(custom_ranges):
     keyboard_rows = []
     current_row = []
 
-    # 1. Custom Ranges को 2/2 की Grid (2-Column Grid) में सेट करना
+    # Custom Ranges को 2-Column Grid में सेट करना
     for r in custom_ranges:
         btn_text = f"Files {r['name']}"
         current_row.append(KeyboardButton(btn_text))
@@ -82,10 +92,10 @@ def build_custom_range_reply_keyboard(custom_ranges):
     if current_row:
         keyboard_rows.append(current_row)
 
-    # 2. Full Delivery / All Files Button (Full Width)
+    # Full Delivery / All Files Button
     keyboard_rows.append([KeyboardButton("📦 Full Delivery (All Files)")])
 
-    # 3. Cancel Button (Full Width)
+    # Cancel Button
     keyboard_rows.append([KeyboardButton("❌ Cancel")])
 
     return ReplyKeyboardMarkup(
@@ -156,15 +166,19 @@ def get_message_searchable_text(msg) -> str:
 
     return " | ".join(combined_texts)
 
-# ------------------ Helper: Advanced Smart File Delivery Function ------------------
+# ------------------ Helper: Advanced Smart File Delivery Function (With Stop Button) ------------------
 async def send_story_files_start(client, user_id, story, first_id, last_id, clean_title, custom_range_text="", target_start_ep=None, target_end_ep=None):
     sent_messages_obj = []
     sent_message_ids = []
     success_count = 0
 
+    # Reset user's stop delivery status
+    if user_id in STOP_DELIVERY_USERS:
+        STOP_DELIVERY_USERS.remove(user_id)
+
     chosen_sticker = SEARCH_RANGE_STICKER_ID if target_start_ep is not None else DELIVERY_STICKER_ID
 
-    status_msg = await client.send_sticker(
+    status_sticker = await client.send_sticker(
         chat_id=user_id,
         sticker=chosen_sticker
     )
@@ -205,7 +219,7 @@ async def send_story_files_start(client, user_id, story, first_id, last_id, clea
 
     if total_files == 0:
         try:
-            await status_msg.delete()
+            await status_sticker.delete()
         except Exception:
             pass
 
@@ -216,7 +230,29 @@ async def send_story_files_start(client, user_id, story, first_id, last_id, clea
             reply_markup=MAIN_MENU
         )
 
+    # Dynamic Inline Keyboard for Stop Delivery
+    stop_keyboard = InlineKeyboardMarkup([
+        [InlineKeyboardButton("🛑 sᴛᴏᴘ ᴅᴇʟɪᴠᴇʀʏ", callback_data="stop_delivery")]
+    ])
+
+    progress_msg = await client.send_message(
+        chat_id=user_id,
+        text=f"📦 <b>ᴅᴇʟɪᴠᴇʀɪɴɢ ғɪʟᴇs...</b>\n\n"
+             f"📖 <b>Story:</b> {clean_title}\n"
+             f"📊 <b>Progress:</b> 0 / {total_files} Files Sent\n\n"
+             f"<i>अगर आप डिलीवरी रोकना चाहते हैं तो नीचे 'Stop' बटन दबाएं:</i>",
+        reply_markup=stop_keyboard
+    )
+
+    is_stopped_by_user = False
+
     for msg in messages_to_send:
+        # Stop Check Before Copying File
+        if user_id in STOP_DELIVERY_USERS:
+            is_stopped_by_user = True
+            STOP_DELIVERY_USERS.remove(user_id)
+            break
+
         try:
             sent_msg = await client.copy_message(
                 chat_id=user_id,
@@ -227,17 +263,33 @@ async def send_story_files_start(client, user_id, story, first_id, last_id, clea
             sent_messages_obj.append(sent_msg)
             sent_message_ids.append(sent_msg.id)
             success_count += 1
-            await asyncio.sleep(1.1)
+
+            # Update Live Progress Message with Inline Stop Keyboard
+            try:
+                await progress_msg.edit_text(
+                    f"📦 <b>ᴅᴇʟɪᴠᴇʀɪɴɢ ғɪʟᴇs...</b>\n\n"
+                    f"📖 <b>Story:</b> {clean_title}\n"
+                    f"📊 <b>Progress:</b> {success_count} / {total_files} Files Sent\n\n"
+                    f"<i>अगर आप डिलीवरी बीच में रोकना चाहते हैं तो नीचे 'Stop' बटन दबाएं:</i>",
+                    reply_markup=stop_keyboard
+                )
+            except Exception:
+                pass
+
+            await asyncio.sleep(1.0)
         except Exception as e:
             print(f"Error copying message {msg.id}: {e}")
 
+    # Cleanup Status Sticker and Progress Tracker
     try:
-        await status_msg.delete()
+        await status_sticker.delete()
+        await progress_msg.delete()
     except Exception:
         pass
 
     ep_range = get_exact_episode_range(sent_messages_obj) if sent_messages_obj else f"Files Range"
 
+    # Clean Chat Keyboard Setup
     if sent_message_ids:
         first_sent_id = sent_message_ids[0]
         last_sent_id = sent_message_ids[-1]
@@ -248,13 +300,15 @@ async def send_story_files_start(client, user_id, story, first_id, last_id, clea
     else:
         clean_kb = None
 
+    status_header = "🛑 <b>ᴅᴇʟɪᴠᴇʀʏ sᴛᴏᴘᴘᴇᴅ ʙʏ ᴜsᴇʀ!</b>" if is_stopped_by_user else "🎉 <b>ғɪʟᴇs ᴅᴇʟɪᴠᴇʀᴇᴅ sᴜᴄᴄᴇssғᴜʟʟʏ!</b>"
+
     await client.send_message(
         chat_id=user_id,
-        text=f"🎉 <b>ғɪʟᴇs ᴅᴇʟɪᴠᴇʀᴇᴅ sᴜᴄᴄᴇssғᴜʟʟʏ!</b>\n\n"
+        text=f"{status_header}\n\n"
              f"📖 <b>sᴛᴏʀʏ:</b> {clean_title}\n"
              f"🎧 <b>ʀᴀɴɢᴇ:</b> {ep_range} {custom_range_text}\n"
              f"📦 <b>ᴅᴇʟɪᴠᴇʀᴇᴅ:</b> {success_count} / {total_files} Files\n\n"
-             f"👇 <i>सुनने के बाद चैट साफ़ करने के लिए नीचे बटन पर क्लिक करें:</i>",
+             f"👇 <i>सुनने के बाद मैसेज / फाइल्स साफ़ करने के लिए नीचे बटन पर क्लिक करें:</i>",
         reply_markup=clean_kb
     )
     
@@ -661,9 +715,7 @@ async def start_handler(client, message):
     except Exception as db_err:
         print(f"Database Error in /start registration: {db_err}")
 
-    # ==========================
-    # Deep-Link Logic (Files Delivery & Story Viewing)
-    # ==========================
+    # Deep-Link Logic
     if len(args) > 1 and args[1].startswith("get_"):
         raw_param = args[1]
         try:
@@ -700,10 +752,8 @@ async def start_handler(client, message):
         total_files = (last_id - first_id) + 1
         custom_ranges = story.get('custom_ranges', [])
 
-        # Save Active Story context for processing user reply keyboard click
         USER_ACTIVE_STORY[user.id] = story
 
-        # If custom ranges are set, show Reply Keyboard with 2/2 grid layout
         if custom_ranges:
             reply_kb = build_custom_range_reply_keyboard(custom_ranges)
             return await message.reply_text(
