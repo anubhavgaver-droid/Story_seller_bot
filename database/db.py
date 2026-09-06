@@ -27,14 +27,14 @@ def extract_ep_from_file_or_caption(message) -> int:
     if not message:
         return None
         
-    caption_text = message.caption or message.text or ""
+    caption_text = getattr(message, 'caption', None) or getattr(message, 'text', None) or ""
     
     file_name = ""
-    if message.document and message.document.file_name:
+    if getattr(message, 'document', None) and message.document.file_name:
         file_name = message.document.file_name
-    elif message.audio and message.audio.file_name:
+    elif getattr(message, 'audio', None) and message.audio.file_name:
         file_name = message.audio.file_name
-    elif message.video and message.video.file_name:
+    elif getattr(message, 'video', None) and message.video.file_name:
         file_name = message.video.file_name
 
     # Pattern for Ep, Episode, Eps, etc.
@@ -90,21 +90,28 @@ async def is_user_registered(user_id: int) -> bool:
         return user.get("is_registered", False)
     return False
 
-async def register_user(user_id: int, first_name: str, username: str = None):
+async def register_user(user_id: int, first_name: str, username: str = None, referred_by: int = None):
     """नए यूज़र को रजिस्टर करेगा और Default Wallet Balance (0.0) सेट करेगा"""
+    update_data = {
+        "user_id": user_id,
+        "first_name": first_name,
+        "username": username,
+        "is_registered": True
+    }
+    
+    set_on_insert = {
+        "wallet_balance": 0.0,
+        "lang_code": "en"
+    }
+    
+    if referred_by and referred_by != user_id:
+        set_on_insert["referred_by"] = referred_by
+
     await users_col.update_one(
         {"user_id": user_id},
         {
-            "$set": {
-                "user_id": user_id,
-                "first_name": first_name,
-                "username": username,
-                "is_registered": True
-            },
-            "$setOnInsert": {
-                "wallet_balance": 0.0,
-                "lang_code": "en"
-            }
+            "$set": update_data,
+            "$setOnInsert": set_on_insert
         },
         upsert=True
     )
@@ -190,6 +197,7 @@ async def add_story_db(data: dict):
     if "title" in data:
         data["title"] = data["title"].strip().split("\n")[0]
     
+    clean_title = data["title"]
     demo_enabled = data.get("demo_enabled", False)
     demo_msg_ids = data.get("demo_msg_ids", [])
     first_msg_id = data.get("first_msg_id", 0)
@@ -204,7 +212,7 @@ async def add_story_db(data: dict):
         episodes = "N/A"
 
     story_doc = {
-        "title": data["title"],
+        "title": clean_title,
         "category": data.get("category", "Pocket FM"),
         "platform": data.get("platform", data.get("category", "Pocket FM")),
         "status": data.get("status", "Completed"),
@@ -222,7 +230,7 @@ async def add_story_db(data: dict):
     }
 
     await stories_col.update_one(
-        {"title": data["title"]},
+        {"title": clean_title},
         {"$set": story_doc},
         upsert=True
     )
@@ -267,6 +275,9 @@ async def get_all_stories():
     return await cursor.to_list(length=None)
 
 async def get_stories_by_cat(category, page=1, limit=10):
+    """
+    कैटेगरी-वाइज़ पेजिनेटेड स्टोरीज़ रिटर्न करता है।
+    """
     skip = (page - 1) * limit
     cursor = stories_col.find({"category": category}).skip(skip).limit(limit)
     stories = await cursor.to_list(length=limit)
@@ -275,8 +286,16 @@ async def get_stories_by_cat(category, page=1, limit=10):
     return stories, total_pages
 
 async def search_stories_db(query, page=1, limit=10):
+    """
+    टाइटल या विवरण के आधार पर पेजिनेटेड सर्च परिणाम देता है।
+    """
     skip = (page - 1) * limit
-    filter_q = {"$or": [{"title": {"$regex": query, "$options": "i"}}, {"desc": {"$regex": query, "$options": "i"}}]}
+    filter_q = {
+        "$or": [
+            {"title": {"$regex": query, "$options": "i"}},
+            {"desc": {"$regex": query, "$options": "i"}}
+        ]
+    }
     cursor = stories_col.find(filter_q).skip(skip).limit(limit)
     stories = await cursor.to_list(length=limit)
     total = await stories_col.count_documents(filter_q)
@@ -284,5 +303,6 @@ async def search_stories_db(query, page=1, limit=10):
     return stories, total_pages
 
 async def get_story_by_title(title: str):
+    """टाइटल के आधार पर स्टोरी ढूँढता है"""
     clean_title = title.strip().split("\n")[0]
     return await stories_col.find_one({"title": clean_title})
