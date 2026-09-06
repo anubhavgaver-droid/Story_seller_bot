@@ -2,9 +2,8 @@ import json
 import asyncio
 import time
 import re
-from urllib.parse import quote as url_quote
+from urllib.parse import quote
 from pyrogram import Client, filters, enums
-from pyrogram.errors import FloodWait, MessageNotModified
 from pyrogram.types import (
     ReplyKeyboardMarkup, 
     KeyboardButton, 
@@ -81,6 +80,7 @@ def build_custom_range_reply_keyboard(custom_ranges):
     keyboard_rows = []
     current_row = []
 
+    # Custom Ranges को 2-Column Grid में सेट करना
     for r in custom_ranges:
         btn_text = f"Files {r['name']}"
         current_row.append(KeyboardButton(btn_text))
@@ -92,13 +92,16 @@ def build_custom_range_reply_keyboard(custom_ranges):
     if current_row:
         keyboard_rows.append(current_row)
 
+    # Full Delivery / All Files Button
     keyboard_rows.append([KeyboardButton("📦 Full Delivery (All Files)")])
+
+    # Cancel Button
     keyboard_rows.append([KeyboardButton("❌ Cancel")])
 
     return ReplyKeyboardMarkup(
         keyboard=keyboard_rows,
         resize_keyboard=True,
-        one_time_keyboard=False  
+        one_time_keyboard=True
     )
 
 # ------------------ Global Close Callback Handler ------------------
@@ -163,68 +166,48 @@ def get_message_searchable_text(msg) -> str:
 
     return " | ".join(combined_texts)
 
-# ------------------ Helper: Smart File Delivery Function ------------------
+# ------------------ Helper: Advanced Smart File Delivery Function (With Stop Button) ------------------
 async def send_story_files_start(client, user_id, story, first_id, last_id, clean_title, custom_range_text="", target_start_ep=None, target_end_ep=None):
     sent_messages_obj = []
     sent_message_ids = []
     success_count = 0
 
+    # Reset user's stop delivery status
     if user_id in STOP_DELIVERY_USERS:
         STOP_DELIVERY_USERS.remove(user_id)
 
     chosen_sticker = SEARCH_RANGE_STICKER_ID if target_start_ep is not None else DELIVERY_STICKER_ID
 
-    stop_reply_keyboard = ReplyKeyboardMarkup(
-        [[KeyboardButton("🛑 STOP DELIVERY")]],
-        resize_keyboard=True
+    status_sticker = await client.send_sticker(
+        chat_id=user_id,
+        sticker=chosen_sticker
     )
 
-    try:
-        status_sticker = await client.send_sticker(
-            chat_id=user_id,
-            sticker=chosen_sticker,
-            reply_markup=stop_reply_keyboard
-        )
-    except Exception:
-        status_sticker = None
-
     msg_ids_to_fetch = list(range(first_id, last_id + 1))
-    
-    # Batch size reduced to 20 for rate safety
-    chunk_size = 20
+    chunk_size = 200
     matching_messages = []
 
     for i in range(0, len(msg_ids_to_fetch), chunk_size):
         chunk = msg_ids_to_fetch[i:i + chunk_size]
-        
-        while True:
-            try:
-                channel_msgs = await client.get_messages(chat_id=CHANNEL_ID, message_ids=chunk)
-                if not isinstance(channel_msgs, list):
-                    channel_msgs = [channel_msgs]
+        try:
+            channel_msgs = await client.get_messages(chat_id=CHANNEL_ID, message_ids=chunk)
+            if not isinstance(channel_msgs, list):
+                channel_msgs = [channel_msgs]
 
-                for msg in channel_msgs:
-                    if not msg or msg.empty:
-                        continue
-                    
-                    searchable_text = get_message_searchable_text(msg)
-                    ep_num = extract_episode_number(searchable_text)
+            for msg in channel_msgs:
+                if not msg or msg.empty:
+                    continue
+                
+                searchable_text = get_message_searchable_text(msg)
+                ep_num = extract_episode_number(searchable_text)
 
-                    if target_start_ep is not None and target_end_ep is not None:
-                        if ep_num is not None and target_start_ep <= ep_num <= target_end_ep:
-                            matching_messages.append((ep_num, msg))
-                    else:
-                        matching_messages.append((ep_num or 0, msg))
-                break  # Successful fetch, break retry loop
-
-            except FloodWait as e:
-                print(f"[FloodWait] Fetching messages limit reached. Waiting {e.value} seconds...")
-                await asyncio.sleep(e.value + 1)
-            except Exception as e:
-                print(f"Error fetching channel messages batch: {e}")
-                break
-
-        await asyncio.sleep(1.2)
+                if target_start_ep is not None and target_end_ep is not None:
+                    if ep_num is not None and target_start_ep <= ep_num <= target_end_ep:
+                        matching_messages.append((ep_num, msg))
+                else:
+                    matching_messages.append((ep_num or 0, msg))
+        except Exception as e:
+            print(f"Error fetching channel messages batch: {e}")
 
     if target_start_ep is not None and target_end_ep is not None:
         matching_messages.sort(key=lambda x: x[0])
@@ -235,9 +218,10 @@ async def send_story_files_start(client, user_id, story, first_id, last_id, clea
     total_files = len(messages_to_send)
 
     if total_files == 0:
-        if status_sticker:
-            try: await status_sticker.delete()
-            except Exception: pass
+        try:
+            await status_sticker.delete()
+        except Exception:
+            pass
 
         return await client.send_message(
             chat_id=user_id,
@@ -246,67 +230,66 @@ async def send_story_files_start(client, user_id, story, first_id, last_id, clea
             reply_markup=MAIN_MENU
         )
 
+    # Dynamic Inline Keyboard for Stop Delivery
+    stop_keyboard = InlineKeyboardMarkup([
+        [InlineKeyboardButton("🛑 sᴛᴏᴘ ᴅᴇʟɪᴠᴇʀʏ", callback_data="stop_delivery")]
+    ])
+
     progress_msg = await client.send_message(
         chat_id=user_id,
         text=f"📦 <b>ᴅᴇʟɪᴠᴇʀɪɴɢ ғɪʟᴇs...</b>\n\n"
              f"📖 <b>Story:</b> {clean_title}\n"
              f"📊 <b>Progress:</b> 0 / {total_files} Files Sent\n\n"
-             f"<i>रोकने के लिए नीचे दिए गए '🛑 STOP DELIVERY' बटन को दबाएं।</i>",
-        reply_markup=stop_reply_keyboard
+             f"<i>अगर आप डिलीवरी रोकना चाहते हैं तो नीचे 'Stop' बटन दबाएं:</i>",
+        reply_markup=stop_keyboard
     )
 
     is_stopped_by_user = False
 
     for msg in messages_to_send:
+        # Stop Check Before Copying File
         if user_id in STOP_DELIVERY_USERS:
             is_stopped_by_user = True
             STOP_DELIVERY_USERS.remove(user_id)
             break
 
-        while True:
+        try:
+            sent_msg = await client.copy_message(
+                chat_id=user_id,
+                from_chat_id=CHANNEL_ID,
+                message_id=msg.id,
+                protect_content=True
+            )
+            sent_messages_obj.append(sent_msg)
+            sent_message_ids.append(sent_msg.id)
+            success_count += 1
+
+            # Update Live Progress Message with Inline Stop Keyboard
             try:
-                sent_msg = await client.copy_message(
-                    chat_id=user_id,
-                    from_chat_id=CHANNEL_ID,
-                    message_id=msg.id,
-                    protect_content=True
+                await progress_msg.edit_text(
+                    f"📦 <b>ᴅᴇʟɪᴠᴇʀɪɴɢ ғɪʟᴇs...</b>\n\n"
+                    f"📖 <b>Story:</b> {clean_title}\n"
+                    f"📊 <b>Progress:</b> {success_count} / {total_files} Files Sent\n\n"
+                    f"<i>अगर आप डिलीवरी बीच में रोकना चाहते हैं तो नीचे 'Stop' बटन दबाएं:</i>",
+                    reply_markup=stop_keyboard
                 )
-                sent_messages_obj.append(sent_msg)
-                sent_message_ids.append(sent_msg.id)
-                success_count += 1
+            except Exception:
+                pass
 
-                if success_count % 3 == 0 or success_count == total_files:
-                    try:
-                        await progress_msg.edit_text(
-                            f"📦 <b>ᴅᴇʟɪᴠᴇʀɪɴɢ ғɪʟᴇs...</b>\n\n"
-                            f"📖 <b>Story:</b> {clean_title}\n"
-                            f"📊 <b>Progress:</b> {success_count} / {total_files} Files Sent\n\n"
-                            f"<i>रोकने के लिए नीचे दिए गए '🛑 STOP DELIVERY' बटन को दबाएं।</i>"
-                        )
-                    except MessageNotModified:
-                        pass
-                    except Exception:
-                        pass
-                break  # Successful copy, break retry loop
+            await asyncio.sleep(1.0)
+        except Exception as e:
+            print(f"Error copying message {msg.id}: {e}")
 
-            except FloodWait as e:
-                print(f"[FloodWait] Copying message limit reached. Waiting {e.value} seconds...")
-                await asyncio.sleep(e.value + 1)
-            except Exception as e:
-                print(f"Error copying message {msg.id}: {e}")
-                break
-
-        # Dynamic Delay between sending files to stay within rate limits
-        await asyncio.sleep(2.0)
-
+    # Cleanup Status Sticker and Progress Tracker
     try:
-        if status_sticker: await status_sticker.delete()
+        await status_sticker.delete()
         await progress_msg.delete()
     except Exception:
         pass
 
     ep_range = get_exact_episode_range(sent_messages_obj) if sent_messages_obj else f"Files Range"
 
+    # Clean Chat Keyboard Setup
     if sent_message_ids:
         first_sent_id = sent_message_ids[0]
         last_sent_id = sent_message_ids[-1]
@@ -329,6 +312,7 @@ async def send_story_files_start(client, user_id, story, first_id, last_id, clea
         reply_markup=clean_kb
     )
     
+    # Restore Main Menu Keyboard
     await client.send_message(chat_id=user_id, text="👇 <b>Main Menu:</b>", reply_markup=MAIN_MENU)
 
 # ------------------ Range-Based Clean Chat Callback Handler ------------------
@@ -351,9 +335,7 @@ async def range_clean_chat_handler(client, callback_query):
             batch = msg_ids_to_delete[i:i + chunk_size]
             try:
                 await client.delete_messages(chat_id=user_id, message_ids=batch)
-                await asyncio.sleep(0.5)
-            except FloodWait as e:
-                await asyncio.sleep(e.value + 1)
+                await asyncio.sleep(0.2)
             except Exception as e:
                 print(f"Error deleting batch: {e}")
 
@@ -381,18 +363,19 @@ async def web_app_data_handler(client, message):
         if action in ["view_demo", "demo", "get_demo"]:
             story = await get_story_by_title(story_title)
             if not story or not story.get("demo_enabled"):
-                return await message.reply_text("⚠️ <b>इस स्टोरी का डेमो उपलब्ध नहीं है!</b>")
+                return await message.reply_text("⚠️ <b>इस स्टोरी का डेमो उपलब्ध नहीं है!</b>", quote=True)
 
             demo_ids = story.get("demo_msg_ids", [])
             if not demo_ids:
-                return await message.reply_text("❌ <b>डेमो फाइल्स नहीं मिलीं!</b>")
+                return await message.reply_text("❌ <b>डेमो फाइल्स नहीं मिलीं!</b>", quote=True)
 
             user_id = message.from_user.id
             sent_messages = []
 
             header_msg = await message.reply_text(
                 f"🎬 <b>ᴅᴇᴍᴏ / ᴘʀᴇᴠɪᴇᴡ ғᴏᴏᴛᴀɢᴇ:</b> <code>{story['title']}</code>\n\n"
-                f"⏰ <i>यह डेमो सैंपल 10 मिनट बाद अपने आप डिलीट हो जाएगा!</i>"
+                f"⏰ <i>यह डेमो सैंपल 10 मिनट बाद अपने आप डिलीट हो जाएगा!</i>",
+                quote=True
             )
             sent_messages.append(header_msg)
 
@@ -405,9 +388,6 @@ async def web_app_data_handler(client, message):
                         caption=f"🎧 <b>Demo Sample</b> - {story['title']}"
                     )
                     sent_messages.append(copied_msg)
-                    await asyncio.sleep(1.5)
-                except FloodWait as e:
-                    await asyncio.sleep(e.value + 1)
                 except Exception as e:
                     print(f"Error copying demo msg {msg_id}: {e}")
 
@@ -425,7 +405,7 @@ async def web_app_data_handler(client, message):
         elif action == "buy_story":
             story = await get_story_by_title(story_title)
             if not story:
-                return await message.reply_text("❌ <b>sᴛᴏʀʏ ɴᴏᴛ ғᴏᴜɴᴅ.</b>")
+                return await message.reply_text("❌ <b>sᴛᴏʀʏ ɴᴏᴛ ғᴏᴜɴᴅ.</b>", quote=True)
 
             clean_title = story_title.strip().split("\n")[0]
             encoded_title = clean_title.replace(" ", "_")
@@ -457,9 +437,9 @@ async def web_app_data_handler(client, message):
             )
             
             try:
-                await message.reply_photo(photo=photo_url, caption=caption_text, reply_markup=btn)
+                await message.reply_photo(photo=photo_url, caption=caption_text, reply_markup=btn, quote=True)
             except Exception:
-                await message.reply_text(caption_text, reply_markup=btn)
+                await message.reply_text(caption_text, reply_markup=btn, quote=True)
     except Exception as e:
         print(f"WebApp Data Error: {e}")
 
@@ -499,9 +479,6 @@ async def view_demo_callback(client: Client, callback_query: CallbackQuery):
                     caption=f"🎧 <b>Demo Sample</b> - {story['title']}"
                 )
                 sent_messages.append(copied_msg)
-                await asyncio.sleep(1.5)
-            except FloodWait as e:
-                await asyncio.sleep(e.value + 1)
             except Exception as e:
                 print(f"Error copying demo msg {msg_id}: {e}")
 
@@ -577,12 +554,12 @@ async def process_start_range_input(client, message):
         
     text = message.text.strip()
     if "-" not in text:
-        return await message.reply_text("❌ <b>गलत फॉर्मेट!</b> कृपया सही फॉर्मेट में लिखें, जैसे: <code>1-5</code>")
+        return await message.reply_text("❌ <b>गलत फॉर्मेट!</b> कृपया सही फॉर्मेट में लिखें, जैसे: <code>1-5</code>", quote=True)
         
     try:
         start_ep, end_ep = map(int, text.split("-"))
     except ValueError:
-        return await message.reply_text("❌ <b>केवल नंबर लिखें</b> (जैसे <code>1-5</code>)।")
+        return await message.reply_text("❌ <b>केवल नंबर लिखें</b> (जैसे <code>1-5</code>)।", quote=True)
         
     data = START_RANGE_WAITING.get(user_id)
     story = data['story']
@@ -591,7 +568,7 @@ async def process_start_range_input(client, message):
     db_last = story['last_msg_id']
     
     if start_ep < 1 or start_ep > end_ep:
-        return await message.reply_text("❌ <b>अमान्य रेंज!</b> शुरुआत का नंबर 1 से कम या अंत वाले नंबर से बड़ा नहीं हो सकता।")
+        return await message.reply_text("❌ <b>अमान्य रेंज!</b> शुरुआत का नंबर 1 से कम या अंत वाले नंबर से बड़ा नहीं हो सकता।", quote=True)
 
     START_RANGE_WAITING.pop(user_id, None)
 
@@ -609,15 +586,11 @@ async def process_start_range_input(client, message):
         target_end_ep=end_ep
     )
 
-# ------------------ Reply Keyboard Action Handler ------------------
+# ------------------ Reply Keyboard Action Handler (For Range Buttons) ------------------
 @Client.on_message(filters.private & filters.text, group=2)
 async def handle_range_reply_buttons(client, message):
     user_id = message.from_user.id
     text = message.text.strip()
-
-    if re.search(r"(?i)(stop delivery|sᴛᴏᴘ ᴅᴇʟɪᴠᴇʀʏ|🛑)", text):
-        STOP_DELIVERY_USERS.add(user_id)
-        return await message.reply_text("🛑 <b>डिलीवरी रोकी जा रही है... कृपया प्रतीक्षा करें!</b>")
 
     if user_id not in USER_ACTIVE_STORY:
         return message.continue_propagation()
@@ -625,14 +598,17 @@ async def handle_range_reply_buttons(client, message):
     story = USER_ACTIVE_STORY[user_id]
     clean_title = story['title'].strip().split("\n")[0]
 
+    # 1. Cancel Clicked
     if text.lower() in ["❌ cancel", "cancel"]:
         USER_ACTIVE_STORY.pop(user_id, None)
         return await message.reply_text(
             "❌ <b>Process Cancelled.</b>", 
-            reply_markup=MAIN_MENU
+            reply_markup=MAIN_MENU,
+            quote=True
         )
 
-    elif re.search(r"(?i)(full delivery|all files|📦)", text):
+    # 2. Full Delivery Clicked
+    elif "full delivery" in text.lower() or "all files" in text.lower():
         USER_ACTIVE_STORY.pop(user_id, None)
         await send_story_files_start(
             client=client,
@@ -643,6 +619,7 @@ async def handle_range_reply_buttons(client, message):
             clean_title=clean_title
         )
 
+    # 3. Custom Range Button Clicked (e.g. "Files 2401 - 2500")
     elif text.startswith("Files "):
         range_name = text.replace("Files ", "").strip()
         custom_ranges = story.get('custom_ranges', [])
@@ -671,6 +648,7 @@ async def start_handler(client, message):
     user = message.from_user
     args = message.text.split(maxsplit=1)
     
+    # Refer & Earn Logic
     try:
         registered = await is_user_registered(user.id)
         
@@ -681,7 +659,8 @@ async def start_handler(client, message):
                 if referrer_id == user.id:
                     await message.reply_text(
                         "⚠️ <b>Hey dude, don't try to use your own referral link!</b>\n"
-                        "<i>Share this link with your friends to earn rewards.</i>"
+                        "<i>Share this link with your friends to earn rewards.</i>", 
+                        quote=True
                     )
                 elif not registered:
                     await register_user(user.id, user.first_name, user.username)
@@ -714,7 +693,8 @@ async def start_handler(client, message):
                 else:
                     await message.reply_text(
                         "⚠️ <b>You are already an existing user of this bot!</b>\n"
-                        "<i>Referral bonus is only valid for new users.</i>"
+                        "<i>Referral bonus is only valid for new users.</i>", 
+                        quote=True
                     )
             except Exception as ref_err:
                 print(f"Referral processing error: {ref_err}")
@@ -742,11 +722,11 @@ async def start_handler(client, message):
             encoded_title = raw_param.replace("get_", "")
             story_title = encoded_title.replace("_", " ")
         except Exception:
-            return await message.reply_text("❌ <b>ɪɴᴠᴀʟɪᴅ ᴏʀ ᴄᴏʀʀᴜᴘᴛᴇᴅ ʟɪɴᴋ!</b>")
+            return await message.reply_text("❌ <b>ɪɴᴠᴀʟɪᴅ ᴏʀ ᴄᴏʀʀᴜᴘᴛᴇᴅ ʟɪɴᴋ!</b>", quote=True)
 
         story = await get_story_by_title(story_title)
         if not story:
-            return await message.reply_text("❌ <b>sᴛᴏʀʏ ɴᴏᴛ ғᴏᴜɴᴅ ɪɴ ᴅᴀᴛᴀʙᴀsᴇ!</b>")
+            return await message.reply_text("❌ <b>sᴛᴏʀʏ ɴᴏᴛ ғᴏᴜɴᴅ ɪɴ ᴅᴀᴛᴀʙᴀsᴇ!</b>", quote=True)
 
         clean_title = story['title'].strip().split("\n")[0]
 
@@ -759,15 +739,17 @@ async def start_handler(client, message):
                 f"🔒 <b>ᴀᴄᴄᴇss ᴅᴇɴɪᴇᴅ!</b>\n\n"
                 f"You haven't purchased <b>{clean_title}</b> yet.\n"
                 f"Please buy it first to unlock access.",
-                reply_markup=buy_btn
+                reply_markup=buy_btn,
+                quote=True
             )
 
         first_id = story.get('first_msg_id')
         last_id = story.get('last_msg_id')
 
         if not first_id or not last_id:
-            return await message.reply_text("⚠️ <b>ɴᴏ ғɪʟᴇs ᴀssᴏᴄɪᴀᴛᴇᴅ ᴡɪᴛʜ ᴛʜɪs sᴛᴏʀʏ!</b>\nPlease contact support.")
+            return await message.reply_text("⚠️ <b>ɴᴏ ғɪʟᴇs ᴀssᴏᴄɪᴀᴛᴇᴅ ᴡɪᴛʜ ᴛʜɪs sᴛᴏʀʏ!</b>\nPlease contact support.", quote=True)
 
+        total_files = (last_id - first_id) + 1
         custom_ranges = story.get('custom_ranges', [])
 
         USER_ACTIVE_STORY[user.id] = story
@@ -778,7 +760,8 @@ async def start_handler(client, message):
                 f"Select Files:\n\n"
                 f"Which part would you like to receive?\n"
                 f"Please use the keyboard options below.",
-                reply_markup=reply_kb
+                reply_markup=reply_kb,
+                quote=True
             )
 
         await send_story_files_start(client, user.id, story, first_id, last_id, clean_title)
@@ -836,11 +819,11 @@ async def start_handler(client, message):
             )
             
             try:
-                return await message.reply_photo(photo=photo_url, caption=caption_text, reply_markup=btn)
+                return await message.reply_photo(photo=photo_url, caption=caption_text, reply_markup=btn, quote=True)
             except Exception:
-                return await message.reply_text(caption_text, reply_markup=btn)
+                return await message.reply_text(caption_text, reply_markup=btn, quote=True)
         else:
-            return await message.reply_text("❌ <b>ᴛʜɪs sᴛᴏʀʏ ɪs ɴᴏᴛ ᴀᴠᴀɪʟᴀʙʟᴇ.</b>", reply_markup=MAIN_MENU)
+            return await message.reply_text("❌ <b>ᴛʜɪs sᴛᴏʀʏ ɪs ɴᴏᴛ ᴀᴠᴀɪʟᴀʙʟᴇ.</b>", reply_markup=MAIN_MENU, quote=True)
 
     # Normal /start Welcome Message
     welcome_text = (
@@ -850,7 +833,7 @@ async def start_handler(client, message):
         f"<b>HELLO {user.first_name}! 👋</b>\n\n"
         f"<b>USE THE BUTTONS BELOW TO SEARCH OR PURCHASE YOUR FAVORITE STORIES.</b>"
     )
-    await message.reply_text(welcome_text, reply_markup=MAIN_MENU)
+    await message.reply_text(welcome_text, reply_markup=MAIN_MENU, quote=True)
 
 # ------------------ Wallet System Handlers ------------------
 
@@ -871,7 +854,7 @@ async def wallet_handler(client, message):
         [InlineKeyboardButton("➕ ᴀᴅᴅ ᴍᴏɴᴇʏ / ᴛᴏᴘ-ᴜᴘ", callback_data="add_wallet_funds")]
     ])
     
-    await message.reply_text(text, reply_markup=kb)
+    await message.reply_text(text, reply_markup=kb, quote=True)
 
 @Client.on_callback_query(filters.regex("^add_wallet_funds$"))
 async def add_funds_callback(client, callback_query):
@@ -904,17 +887,17 @@ async def refer_earn_handler(client, message):
         f"<code>{refer_link}</code>"
     )
     
-    share_text = url_quote("✨ सुनो! इस बॉट पर ऑडियो स्टोरीज़ और पॉडकास्ट आसानी से मिल जाते हैं। तुरंत जॉइन करो:")
-    share_url = f"https://t.me/share/url?url={url_quote(refer_link)}&text={share_text}"
+    share_text = quote("✨ सुनो! इस बॉट पर ऑडियो स्टोरीज़ और पॉडकास्ट आसानी से मिल जाते हैं। तुरंत जॉइन करो:")
+    share_url = f"https://t.me/share/url?url={quote(refer_link)}&text={share_text}"
     
     kb = InlineKeyboardMarkup([
         [InlineKeyboardButton("🚀 दोस्तों को शेयर करें", url=share_url)],
         [InlineKeyboardButton("❌ ᴄʟᴏsᴇ", callback_data="close_message")]
     ])
     
-    await message.reply_text(text, reply_markup=kb, disable_web_page_preview=True)
+    await message.reply_text(text, reply_markup=kb, disable_web_page_preview=True, quote=True)
 
-# ------------------ Dynamic Button Handlers ------------------
+# ------------------ Dynamic Button Handlers (With Close Buttons) ------------------
 
 @Client.on_message(filters.regex("^(🚀 ᴏᴘᴇɴ ᴍɪɴɪ ᴀᴘᴘ|🚀 Open Mini App)$") & filters.private)
 async def open_miniapp_handler(client, message):
@@ -926,7 +909,7 @@ async def open_miniapp_handler(client, message):
         [InlineKeyboardButton("🚀 ʟᴀᴜɴᴄʜ ᴍɪɴɪ ᴀᴘᴘ", web_app=WebAppInfo(url=WEB_APP_URL))],
         [InlineKeyboardButton("❌ ᴄʟᴏsᴇ", callback_data="close_message")]
     ])
-    await message.reply_text(text, reply_markup=btn)
+    await message.reply_text(text, reply_markup=btn, quote=True)
 
 @Client.on_message(filters.regex("^(📢 ᴜᴘᴅᴀᴛᴇs ᴄʜᴀɴɴᴇʟ|📢 Updates Channel)$") & filters.private)
 async def updates_handler(client, message):
@@ -934,7 +917,7 @@ async def updates_handler(client, message):
         [InlineKeyboardButton("📢 ᴊᴏɪɴ ᴄʜᴀɴɴᴇʟ", url="https://t.me/freestoryhubMR")],
         [InlineKeyboardButton("❌ ᴄʟᴏsᴇ", callback_data="close_message")]
     ])
-    await message.reply_text("<b>📢 ᴜᴘᴅᴀᴛᴇs ᴄʜᴀɴɴᴇʟ:</b>\n\nᴊᴏɪɴ ᴏᴜʀ ᴄʜᴀɴɴᴇʟ ғᴏᴏʀ ᴛʜᴇ ʟᴀᴛᴇsᴛ ᴜᴘᴅᴀᴛᴇs ᴀɴᴅ ɴᴇᴡ sᴛᴏʀɪᴇs!", reply_markup=kb)
+    await message.reply_text("<b>📢 ᴜᴘᴅᴀᴛᴇs ᴄʜᴀɴɴᴇʟ:</b>\n\nᴊᴏɪɴ ᴏᴜʀ ᴄʜᴀɴɴᴇʟ ғᴏʀ ᴛʜᴇ ʟᴀᴛᴇsᴛ ᴜᴘᴅᴀᴛᴇs ᴀɴᴅ ɴᴇᴡ sᴛᴏʀɪᴇs!", reply_markup=kb, quote=True)
 
 @Client.on_message(filters.regex("^(👤 ᴍʏ ᴀᴄᴄᴏᴜɴᴛ|👤 My Account)$") & filters.private)
 async def account_handler(client, message):
@@ -971,7 +954,7 @@ async def account_handler(client, message):
             
     buttons.append([InlineKeyboardButton("❌ ᴄʟᴏsᴇ", callback_data="close_message")])
     reply_markup = InlineKeyboardMarkup(buttons)
-    await message.reply_text(acc_text, reply_markup=reply_markup)
+    await message.reply_text(acc_text, reply_markup=reply_markup, quote=True)
 
 @Client.on_message(filters.regex("^(📞 sᴜᴘᴘᴏʀᴛ|📞 Support)$") & filters.private)
 async def support_handler(client, message):
@@ -979,4 +962,4 @@ async def support_handler(client, message):
         [InlineKeyboardButton("💬 ᴄᴏɴᴛᴀᴄᴛ sᴜᴘᴘᴏʀᴛ", url="https://t.me/pratilipifm0900")],
         [InlineKeyboardButton("❌ ᴄʟᴏsᴇ", callback_data="close_message")]
     ])
-    await message.reply_text("<b>📞 ᴄᴜsᴛᴏᴍᴇʀ sᴜᴘᴘᴏʀᴛ:</b>\n\nɪғ ʏᴏᴜ ғᴀᴄᴇ ᴀɴʏ ɪssᴜᴇs, ғᴇᴇʟ ғʀᴇᴇ ᴛᴏ ᴄᴏɴᴛᴀᴄᴛ support.", reply_markup=kb)
+    await message.reply_text("<b>📞 ᴄᴜsᴛᴏᴍᴇʀ sᴜᴘᴘᴏʀᴛ:</b>\n\nɪғ ʏᴏᴜ ғᴀᴄᴇ ᴀɴʏ ɪssᴜᴇs, ғᴇᴇʟ ғʀᴇᴇ ᴛᴏ ᴄᴏɴᴛᴀᴄᴛ support.", reply_markup=kb, quote=True)
