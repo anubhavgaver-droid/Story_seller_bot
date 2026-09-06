@@ -73,6 +73,12 @@ async def category_handler(client, message):
 async def back_to_menu_handler(client, message):
     user_id = message.from_user.id
     SEARCH_WAITING.pop(user_id, None)
+
+    
+    await message.reply_text(
+        "", 
+        reply_markup=ReplyKeyboardRemove()
+    )
     
     user = message.from_user
     welcome_msg = (
@@ -103,7 +109,6 @@ async def back_to_menu_handler(client, message):
     # सीधे इनलाइन मेनू भेजेंगे और ReplyKeyboardRemove से पुराना कीबोर्ड अपने आप हट जाएगा
     await message.reply_text(
         text=welcome_msg,
-        reply_markup=ReplyKeyboardRemove(),
         reply_markup=main_inline_kb,
         quote=True
     )
