@@ -44,7 +44,7 @@ MARKET_MENU = ReplyKeyboardMarkup(
 async def category_handler(client, message):
     cat_map = {
         "📻 ᴘᴏᴄᴋᴇᴛ ғᴍ": "pocket_fm", "📻 Pocket FM": "pocket_fm", "📻 POCKET FM": "pocket_fm",
-        "📚 ᴘʀᴀᴛɪʟɪపి ғᴍ": "pratilipi_fm", "📚 Pratilipi FM": "pratilipi_fm", "📚 PRATILIPI FM": "pratilipi_fm"
+        "📚 ᴘʀᴀᴛɪʟɪᴘɪ ғᴍ": "pratilipi_fm", "📚 Pratilipi FM": "pratilipi_fm", "📚 PRATILIPI FM": "pratilipi_fm"
     }
     cat_key = cat_map[message.text]
     stories, total_pages = await get_stories_by_cat(cat_key, page=1, limit=50)
