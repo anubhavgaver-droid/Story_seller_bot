@@ -11,7 +11,8 @@ from pyrogram.types import (
     InlineKeyboardButton, 
     ForceReply,
     WebAppInfo,
-    CallbackQuery
+    CallbackQuery,
+    ReplyKeyboardRemove
 )
 
 # Required Database functions
@@ -41,18 +42,19 @@ from config import (
 
 REFER_BONUS = 1.0  # ₹1.00 Per Referral
 
-# Storage Dictionary for Range Input
+# Storage Dictionary for Range Input & Selected Story
 START_RANGE_WAITING = {}
+USER_ACTIVE_STORY = {}
 
 # 1. Main Menu Keyboard Layout (With Refer & Earn Added)
 MAIN_MENU = ReplyKeyboardMarkup(
     [
         [KeyboardButton("🚀 ᴏᴘᴇɴ ᴍɪɴɪ ᴀᴘᴘ")],
-        [KeyboardButton("💼 ᴍʏ ᴡᴀʟʟᴇᴛ", style=enums.ButtonStyle.SUCCESS), KeyboardButton("👤 ᴍʏ ᴀᴄᴄᴏᴜɴᴛ", style=enums.ButtonStyle.PRIMARY)],
-        [KeyboardButton("🎁 ʀᴇғᴇʀ & ᴇᴀʀɴ", style=enums.ButtonStyle.SUCCESS)],
-        [KeyboardButton("🔎 sᴇᴀʀᴄʜ sᴛᴏʀʏ", style=enums.ButtonStyle.SUCCESS), KeyboardButton("📻 ᴘᴏᴄᴋᴇᴛ ғᴍ", style=enums.ButtonStyle.DANGER)],
-        [KeyboardButton("📚 ᴘʀᴀᴛɪʟɪᴘɪ ғᴍ", style=enums.ButtonStyle.DANGER), KeyboardButton("📢 ᴜᴘᴅᴀᴛᴇs ᴄʜᴀɴɴᴇʟ", style=enums.ButtonStyle.PRIMARY)],
-        [KeyboardButton("📞 sᴜᴘᴘᴏʀᴛ", style=enums.ButtonStyle.SUCCESS)]
+        [KeyboardButton("💼 ᴍʏ ᴡᴀʟʟᴇᴛ"), KeyboardButton("👤 ᴍʏ ᴀᴄᴄᴏᴜɴᴛ")],
+        [KeyboardButton("🎁 ʀᴇғᴇʀ & ᴇᴀʀɴ")],
+        [KeyboardButton("🔎 sᴇᴀʀᴄʜ sᴛᴏʀʏ"), KeyboardButton("📻 ᴘᴏᴄᴋᴇᴛ ғᴍ")],
+        [KeyboardButton("📚 ᴘʀᴀᴛɪʟɪᴘɪ ғᴍ"), KeyboardButton("📢 ᴜᴘᴅᴀᴛᴇs ᴄʜᴀɴɴᴇʟ")],
+        [KeyboardButton("📞 sᴜᴘᴘᴏʀᴛ")]
     ],
     resize_keyboard=True
 )
@@ -62,6 +64,35 @@ async def web_app_filter(_, __, message):
     return bool(message.web_app_data)
 
 filter_webapp = filters.create(web_app_filter)
+
+# ------------------ Helper: Dynamic Reply Keyboard Grid Generator ------------------
+def build_custom_range_reply_keyboard(custom_ranges):
+    keyboard_rows = []
+    current_row = []
+
+    # 1. Custom Ranges को 2/2 की Grid (2-Column Grid) में सेट करना
+    for r in custom_ranges:
+        btn_text = f"Files {r['name']}"
+        current_row.append(KeyboardButton(btn_text))
+        
+        if len(current_row) == 2:
+            keyboard_rows.append(current_row)
+            current_row = []
+
+    if current_row:
+        keyboard_rows.append(current_row)
+
+    # 2. Full Delivery / All Files Button (Full Width)
+    keyboard_rows.append([KeyboardButton("📦 Full Delivery (All Files)")])
+
+    # 3. Cancel Button (Full Width)
+    keyboard_rows.append([KeyboardButton("❌ Cancel")])
+
+    return ReplyKeyboardMarkup(
+        keyboard=keyboard_rows,
+        resize_keyboard=True,
+        one_time_keyboard=True
+    )
 
 # ------------------ Global Close Callback Handler ------------------
 @Client.on_callback_query(filters.regex("^close_message$"))
@@ -181,7 +212,8 @@ async def send_story_files_start(client, user_id, story, first_id, last_id, clea
         return await client.send_message(
             chat_id=user_id,
             text=f"❌ <b>ɴᴏ ᴍᴀᴛᴄʜɪɴɢ ᴇᴘɪsᴏᴅᴇs ғᴏᴜɴᴅ!</b>\n\n"
-                 f"रेंज <b>{custom_range_text}</b> के एपिसोड्स उपलब्ध नहीं हैं।"
+                 f"रेंज <b>{custom_range_text}</b> के एपिसोड्स उपलब्ध नहीं हैं।",
+            reply_markup=MAIN_MENU
         )
 
     for msg in messages_to_send:
@@ -225,6 +257,9 @@ async def send_story_files_start(client, user_id, story, first_id, last_id, clea
              f"👇 <i>सुनने के बाद चैट साफ़ करने के लिए नीचे बटन पर क्लिक करें:</i>",
         reply_markup=clean_kb
     )
+    
+    # Restore Main Menu Keyboard
+    await client.send_message(chat_id=user_id, text="👇 <b>Main Menu:</b>", reply_markup=MAIN_MENU)
 
 # ------------------ Range-Based Clean Chat Callback Handler ------------------
 @Client.on_callback_query(filters.regex(r"^rangechatclean_"))
@@ -262,7 +297,7 @@ async def range_clean_chat_handler(client, callback_query):
         print(f"Clean chat error: {e}")
         await callback_query.answer("❌ फाइल्स पहले ही डिलीट हो चुकी हैं!", show_alert=True)
 
-# ------------------ Mini App Web Data Receiver (UPDATED FOR DEMO) ------------------
+# ------------------ Mini App Web Data Receiver ------------------
 @Client.on_message(filters.service & filter_webapp & filters.private)
 async def web_app_data_handler(client, message):
     try:
@@ -271,7 +306,6 @@ async def web_app_data_handler(client, message):
         story_title = data.get("title")
         price = float(data.get("price", 0))
         
-        # 1. Mini App से Demo फ़ाइल माँगने पर
         if action in ["view_demo", "demo", "get_demo"]:
             story = await get_story_by_title(story_title)
             if not story or not story.get("demo_enabled"):
@@ -314,7 +348,6 @@ async def web_app_data_handler(client, message):
             asyncio.create_task(auto_delete_task(sent_messages))
             return
 
-        # 2. Mini App से Buy Story ट्रिगर होने पर
         elif action == "buy_story":
             story = await get_story_by_title(story_title)
             if not story:
@@ -356,7 +389,7 @@ async def web_app_data_handler(client, message):
     except Exception as e:
         print(f"WebApp Data Error: {e}")
 
-# ------------------ View Demo Callback Handler (10 Min Auto Delete) ------------------
+# ------------------ View Demo Callback Handler ------------------
 @Client.on_callback_query(filters.regex(r"^viewdemo_"))
 async def view_demo_callback(client: Client, callback_query: CallbackQuery):
     try:
@@ -458,70 +491,6 @@ async def process_wallet_payment(client, callback_query):
         print(f"Error processing wallet payment: {e}")
         await callback_query.answer("❌ Error processing wallet payment!", show_alert=True)
 
-# ------------------ Start Batch Callback Router ------------------
-@Client.on_callback_query(filters.regex(r"^(sendall_|sendcustom_|askrange_)"))
-async def start_batch_callback_router(client, callback_query):
-    data = callback_query.data
-    user_id = callback_query.from_user.id
-    
-    if data.startswith("sendall_"):
-        encoded_title = data.split("sendall_")[1]
-        story_title = encoded_title.replace("_", " ")
-        story = await get_story_by_title(story_title)
-        if not story:
-            return await callback_query.answer("❌ Story not found!", show_alert=True)
-            
-        await callback_query.message.delete()
-        clean_title = story['title'].strip().split("\n")[0]
-        await send_story_files_start(client, user_id, story, story['first_msg_id'], story['last_msg_id'], clean_title)
-        await callback_query.answer()
-
-    elif data.startswith("sendcustom_"):
-        parts = data.split(":")
-        encoded_title = parts[0].replace("sendcustom_", "")
-        range_idx = int(parts[1])
-
-        story_title = encoded_title.replace("_", " ")
-        story = await get_story_by_title(story_title)
-        if not story:
-            return await callback_query.answer("❌ Story not found!", show_alert=True)
-
-        custom_ranges = story.get('custom_ranges', [])
-        if range_idx >= len(custom_ranges):
-            return await callback_query.answer("❌ Invalid Range Selected!", show_alert=True)
-
-        selected_range = custom_ranges[range_idx]
-        range_name = selected_range['name']
-        f_id = selected_range['first_id']
-        l_id = selected_range['last_id']
-
-        await callback_query.message.delete()
-        clean_title = story['title'].strip().split("\n")[0]
-        await send_story_files_start(client, user_id, story, f_id, l_id, clean_title, custom_range_text=f"({range_name})")
-        await callback_query.answer()
-        
-    elif data.startswith("askrange_"):
-        encoded_title = data.split("askrange_")[1]
-        story_title = encoded_title.replace("_", " ")
-        story = await get_story_by_title(story_title)
-        if not story:
-            return await callback_query.answer("❌ Story not found!", show_alert=True)
-        
-        START_RANGE_WAITING[user_id] = {
-            "story": story,
-            "encoded_title": encoded_title
-        }
-        
-        total_episodes = (story['last_msg_id'] - story['first_msg_id']) + 1
-        
-        await callback_query.message.reply_text(
-            f"🔢 <b>Enter Episode Range (1 - {total_episodes}):</b>\n\n"
-            f"कृपया रेंज दर्ज करें कि आपको कहाँ से कहाँ तक एपिसोड चाहिए।\n"
-            f"<i>(उदाहरण के लिए लिखें: <code>1-5</code> या <code>110-120</code>)</i>",
-            reply_markup=ForceReply(selective=True)
-        )
-        await callback_query.answer()
-
 # ------------------ Process Start Custom Range Input Text ------------------
 @Client.on_message(filters.private & filters.text, group=4)
 async def process_start_range_input(client, message):
@@ -563,6 +532,62 @@ async def process_start_range_input(client, message):
         target_end_ep=end_ep
     )
 
+# ------------------ Reply Keyboard Action Handler (For Range Buttons) ------------------
+@Client.on_message(filters.private & filters.text, group=2)
+async def handle_range_reply_buttons(client, message):
+    user_id = message.from_user.id
+    text = message.text.strip()
+
+    if user_id not in USER_ACTIVE_STORY:
+        return message.continue_propagation()
+
+    story = USER_ACTIVE_STORY[user_id]
+    clean_title = story['title'].strip().split("\n")[0]
+
+    # 1. Cancel Clicked
+    if text.lower() in ["❌ cancel", "cancel"]:
+        USER_ACTIVE_STORY.pop(user_id, None)
+        return await message.reply_text(
+            "❌ <b>Process Cancelled.</b>", 
+            reply_markup=MAIN_MENU,
+            quote=True
+        )
+
+    # 2. Full Delivery Clicked
+    elif "full delivery" in text.lower() or "all files" in text.lower():
+        USER_ACTIVE_STORY.pop(user_id, None)
+        await send_story_files_start(
+            client=client,
+            user_id=user_id,
+            story=story,
+            first_id=story['first_msg_id'],
+            last_id=story['last_msg_id'],
+            clean_title=clean_title
+        )
+
+    # 3. Custom Range Button Clicked (e.g. "Files 2401 - 2500")
+    elif text.startswith("Files "):
+        range_name = text.replace("Files ", "").strip()
+        custom_ranges = story.get('custom_ranges', [])
+        
+        target_range = next((r for r in custom_ranges if r['name'] == range_name), None)
+        
+        if target_range:
+            USER_ACTIVE_STORY.pop(user_id, None)
+            await send_story_files_start(
+                client=client,
+                user_id=user_id,
+                story=story,
+                first_id=target_range['first_id'],
+                last_id=target_range['last_id'],
+                clean_title=clean_title,
+                custom_range_text=f"({range_name})"
+            )
+        else:
+            return message.continue_propagation()
+    else:
+        return message.continue_propagation()
+
 # ------------------ Start & Deep-Link Batch Delivery Handler ------------------
 @Client.on_message(filters.command("start") & filters.private)
 async def start_handler(client, message):
@@ -573,26 +598,22 @@ async def start_handler(client, message):
     try:
         registered = await is_user_registered(user.id)
         
-        # Check if the user used a referral link
         if len(args) > 1 and args[1].startswith("ref_"):
             try:
                 referrer_id = int(args[1].split("_")[1])
                 
-                # 1. Self-Referral Check
                 if referrer_id == user.id:
                     await message.reply_text(
                         "⚠️ <b>Hey dude, don't try to use your own referral link!</b>\n"
                         "<i>Share this link with your friends to earn rewards.</i>", 
                         quote=True
                     )
-                # 2. New User Referral Check
                 elif not registered:
                     await register_user(user.id, user.first_name, user.username)
                     await users_col.update_one({"user_id": user.id}, {"$set": {"referred_by": referrer_id}})
                     
                     new_bal = await add_wallet_balance(referrer_id, REFER_BONUS)
                     
-                    # Notify the Referrer
                     try:
                         await client.send_message(
                             chat_id=referrer_id,
@@ -604,7 +625,6 @@ async def start_handler(client, message):
                     except Exception:
                         pass
                         
-                    # Admin Log for Referral Registration
                     try:
                         log_text = (
                             f"<b>🆕 ɴᴇᴡ ᴜsᴇʀ ʀᴇɢɪsᴛᴇʀᴇᴅ (Vɪᴀ Rᴇғᴇʀʀᴀʟ)!</b>\n"
@@ -616,7 +636,6 @@ async def start_handler(client, message):
                         await send_log(client, log_text)
                     except Exception:
                         pass
-                # 3. Existing User Warning
                 else:
                     await message.reply_text(
                         "⚠️ <b>You are already an existing user of this bot!</b>\n"
@@ -626,7 +645,6 @@ async def start_handler(client, message):
             except Exception as ref_err:
                 print(f"Referral processing error: {ref_err}")
 
-        # Normal Registration (If no referral link was used and user is new)
         elif not registered:
             await register_user(user.id, user.first_name, user.username)
             try:
@@ -682,31 +700,17 @@ async def start_handler(client, message):
         total_files = (last_id - first_id) + 1
         custom_ranges = story.get('custom_ranges', [])
 
+        # Save Active Story context for processing user reply keyboard click
+        USER_ACTIVE_STORY[user.id] = story
+
+        # If custom ranges are set, show Reply Keyboard with 2/2 grid layout
         if custom_ranges:
-            buttons = []
-            for idx, r in enumerate(custom_ranges):
-                buttons.append([InlineKeyboardButton(f"📁 {r['name']}", callback_data=f"sendcustom_{encoded_title}:{idx}")])
-            
-            buttons.append([InlineKeyboardButton(f"📦 All Episodes ({total_files} Files)", callback_data=f"sendall_{encoded_title}")])
-
-            choice_kb = InlineKeyboardMarkup(buttons)
+            reply_kb = build_custom_range_reply_keyboard(custom_ranges)
             return await message.reply_text(
-                f"📚 <b>{clean_title}</b>\n\n"
-                f"⚠️ इस स्टोरी में कुल <b>{total_files}</b> फाइल्स उपलब्ध हैं।\n"
-                f"कृपया अपना पसंदीदा भाग चुनें या इच्छित रेंज टाइप करें:",
-                reply_markup=choice_kb,
-                quote=True
-            )
-
-        if total_files > 100:
-            choice_kb = InlineKeyboardMarkup([
-                [InlineKeyboardButton(f"📦 All Episodes ({total_files} Files)", callback_data=f"sendall_{encoded_title}")]
-            ])
-            return await message.reply_text(
-                f"📚 <b>{clean_title}</b>\n\n"
-                f"⚠️ इस स्टोरी में कुल <b>{total_files}</b> फाइल्स उपलब्ध हैं।\n"
-                f"आप सभी एपिसोड्स एक साथ पाना चाहते हैं या कुछ खास रेंज?",
-                reply_markup=choice_kb,
+                f"Select Files:\n\n"
+                f"Which part would you like to receive?\n"
+                f"Please use the keyboard options below.",
+                reply_markup=reply_kb,
                 quote=True
             )
 
@@ -771,9 +775,7 @@ async def start_handler(client, message):
         else:
             return await message.reply_text("❌ <b>ᴛʜɪs sᴛᴏʀʏ ɪs ɴᴏᴛ ᴀᴠᴀɪʟᴀʙʟᴇ.</b>", reply_markup=MAIN_MENU, quote=True)
 
-    # ==========================
     # Normal /start Welcome Message
-    # ==========================
     welcome_text = (
         f"<b>━━━━━━━━━━━━━━━━━━━━━━</b>\n"
         f"🌟 <b>STORY SELLER BOT</b> 🌟\n"
