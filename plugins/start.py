@@ -195,7 +195,9 @@ async def send_story_files_start(client, user_id, story, first_id, last_id, clea
         status_sticker = None
 
     msg_ids_to_fetch = list(range(first_id, last_id + 1))
-    chunk_size = 200
+    
+    # ⚡ Batch fetch setup: reduced to 50 items to protect against rate limits
+    chunk_size = 20
     matching_messages = []
 
     for i in range(0, len(msg_ids_to_fetch), chunk_size):
@@ -219,6 +221,9 @@ async def send_story_files_start(client, user_id, story, first_id, last_id, clea
                     matching_messages.append((ep_num or 0, msg))
         except Exception as e:
             print(f"Error fetching channel messages batch: {e}")
+
+        # ⏱️ Brief delay between batch requests
+        await asyncio.sleep(1.0)
 
     if target_start_ep is not None and target_end_ep is not None:
         matching_messages.sort(key=lambda x: x[0])
@@ -282,12 +287,12 @@ async def send_story_files_start(client, user_id, story, first_id, last_id, clea
                 except Exception:
                     pass
 
-            # ⏱️ हर फ़ाइल भेजने के बाद exact 1.2 सेकंड का टाइमर
-            await asyncio.sleep(1.2)
+            # ⏱️ Delay of 1.8 seconds between sending individual messages to strictly prevent FloodWait
+            await asyncio.sleep(1.8)
             
         except Exception as e:
             print(f"Error copying message {msg.id}: {e}")
-            await asyncio.sleep(1.2)
+            await asyncio.sleep(2.0)
 
     # Cleanup Status Sticker and Progress Tracker
     try:
