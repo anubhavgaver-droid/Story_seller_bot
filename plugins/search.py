@@ -44,7 +44,7 @@ MARKET_MENU = ReplyKeyboardMarkup(
 async def category_handler(client, message):
     cat_map = {
         "📻 ᴘᴏᴄᴋᴇᴛ ғᴍ": "pocket_fm", "📻 Pocket FM": "pocket_fm", "📻 POCKET FM": "pocket_fm",
-        "📚 ᴘʀᴀᴛɪʟɪᴘɪ ғᴍ": "pratilipi_fm", "📚 Pratilipi FM": "pratilipi_fm", "📚 PRATILIPI FM": "pratilipi_fm"
+        "📚 ᴘʀᴀᴛɪʟɪపి ғᴍ": "pratilipi_fm", "📚 Pratilipi FM": "pratilipi_fm", "📚 PRATILIPI FM": "pratilipi_fm"
     }
     cat_key = cat_map[message.text]
     stories, total_pages = await get_stories_by_cat(cat_key, page=1, limit=50)
@@ -68,19 +68,12 @@ async def category_handler(client, message):
         quote=True
     )
 
-# 3. Back to Menu Handler (Keyboards को हटाकर सीधे इनलाइन मेनू भेजेगा)
+# 3. Back to Menu Handler (कीबोर्ड हटाकर सीधे वेलकम मैसेज और इनलाइन मेनू भेजेगा)
 @Client.on_message(filters.regex("^(🔙 ʙᴀᴄᴋ ᴛᴏ ᴍᴇɴᴜ|🔙 Back to Menu|🔙 BACK TO MENU)$") & filters.private)
 async def back_to_menu_handler(client, message):
     user_id = message.from_user.id
     SEARCH_WAITING.pop(user_id, None)
     
-    # 1. पहले नीचे वाले कस्टम कीबोर्ड को पूरी तरह गायब/हटाएं
-    await message.reply_text(
-        "_", 
-        reply_markup=ReplyKeyboardRemove()
-    )
-    
-    # 2. यूज़र का नाम फेच करके वेलकम मैसेज और इनलाइन बटन भेजें
     user = message.from_user
     welcome_msg = (
         f"<b>━━━━━━━━━━━━━━━━━━━━━━</b>\n"
@@ -107,6 +100,7 @@ async def back_to_menu_handler(client, message):
         ]
     ])
 
+    # सीधे इनलाइन मेनू भेजेंगे और ReplyKeyboardRemove से पुराना कीबोर्ड अपने आप हट जाएगा
     await message.reply_text(
         text=welcome_msg, 
         reply_markup=main_inline_kb,
