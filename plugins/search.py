@@ -7,6 +7,7 @@ from pyrogram import Client, filters, enums
 from pyrogram.types import (
     ReplyKeyboardMarkup, 
     KeyboardButton, 
+    ReplyKeyboardRemove,
     InlineKeyboardMarkup, 
     InlineKeyboardButton, 
     ForceReply, 
@@ -27,6 +28,15 @@ from config import BOT_USERNAME, CHANNEL_ID
 # State and Storage Dictionaries
 SEARCH_WAITING = {}
 
+# Keyboard for Selecting Platforms
+PLATFORM_KEYBOARD = ReplyKeyboardMarkup(
+    [
+        [KeyboardButton("📻 ᴘᴏᴄᴋᴇᴛ ғᴍ"), KeyboardButton("📚 ᴘʀᴀᴛɪʟɪᴘɪ ғᴍ")],
+        [KeyboardButton("🔎 sᴇᴀʀᴄʜ sᴛᴏʀʏ")]
+    ],
+    resize_keyboard=True
+)
+
 # 1. Pocket FM / Pratilipi FM Category Handler
 @Client.on_message(filters.regex("^(📻 ᴘᴏᴄᴋᴇᴛ ғᴍ|📚 ᴘʀᴀᴛɪʟɪᴘɪ ғᴍ|📻 Pocket FM|📚 Pratilipi FM)$") & filters.private)
 async def category_handler(client, message):
@@ -38,13 +48,37 @@ async def category_handler(client, message):
     stories, total_pages = await get_stories_by_cat(cat_key, page=1, limit=50)
     
     if not stories:
-        return await message.reply_text(f"❌ <b>ɴᴏ sᴛᴏʀɪᴇs ᴀᴠᴀɪʟᴀʙʟᴇ ɪɴ {message.text}.</b>", quote=True)
+        return await message.reply_text(
+            f"❌ <b>ɴᴏ sᴛᴏʀɪᴇs ᴀᴠᴀɪʟᴀʙʟᴇ ɪɴ {message.text}.</b>", 
+            reply_markup=PLATFORM_KEYBOARD, 
+            quote=True
+        )
         
     keyboard_buttons = [[KeyboardButton(f"📖 {s['title'].strip().splitlines()[0]}")] for s in stories]
+    # Back button to return to Platform Menu
+    keyboard_buttons.append([KeyboardButton("🔙 ʙᴀᴄᴋ ᴛᴏ ᴘʟᴀᴛғᴏʀᴍs")])
+    
     category_keyboard = ReplyKeyboardMarkup(keyboard_buttons, resize_keyboard=True)
-    await message.reply_text(f"<b>📚 ᴀᴠᴀɪʟᴀʙʟᴇ sᴛᴏʀɪᴇs ({message.text}):</b>\n\nsᴇʟᴇᴄᴛ ʏᴏᴜʀ sᴛᴏʀʏ ғᴏʀ ᴅᴇᴛᴀɪʟs:", reply_markup=category_keyboard, quote=True)
+    await message.reply_text(
+        f"<b>📚 ᴀᴠᴀɪʟᴀʙʟᴇ sᴛᴏʀɪᴇs ({message.text}):</b>\n\nsᴇʟᴇᴄᴛ ʏᴏᴜʀ sᴛᴏʀʏ ғᴏʀ ᴅᴇᴛᴀɪʟs:", 
+        reply_markup=category_keyboard, 
+        quote=True
+    )
 
-# 2. Story Selection Click Handler
+# 2. Back to Platforms Keyboard Handler
+@Client.on_message(filters.regex("^(🔙 ʙᴀᴄᴋ ᴛᴏ ᴘʟᴀᴛғᴏʀᴍs|🔙 Back to Platforms)$") & filters.private)
+async def back_to_platforms_handler(client, message):
+    user_id = message.from_user.id
+    SEARCH_WAITING.pop(user_id, None)
+    
+    # Send platform selection menu directly
+    await message.reply_text(
+        "<b> choose a platform below:</b>", 
+        reply_markup=PLATFORM_KEYBOARD, 
+        quote=True
+    )
+
+# 3. Story Selection Click Handler
 @Client.on_message(filters.regex("^📖 ") & filters.private)
 async def story_selected_handler(client, message):
     user_id = message.from_user.id
@@ -87,7 +121,7 @@ async def story_selected_handler(client, message):
     except Exception:
         await message.reply_text(caption_text, reply_markup=btn, quote=True)
 
-# 3. View Demo Callback Handler
+# 4. View Demo Callback Handler
 @Client.on_callback_query(filters.regex(r"^viewdemo_"))
 async def view_demo_callback(client: Client, callback_query: CallbackQuery):
     try:
@@ -139,7 +173,7 @@ async def view_demo_callback(client: Client, callback_query: CallbackQuery):
         print(f"Error in view_demo_callback: {e}")
         await callback_query.answer("❌ Failed to send Demo files!", show_alert=True)
 
-# 4. Wallet Deduction Payment Callback Handler
+# 5. Wallet Deduction Payment Callback Handler
 @Client.on_callback_query(filters.regex(r"^walletpay_"))
 async def process_wallet_payment(client, callback_query):
     try:
@@ -188,7 +222,7 @@ async def process_wallet_payment(client, callback_query):
         print(f"Error in process_wallet_payment: {e}")
         await callback_query.answer("❌ Error processing wallet payment!", show_alert=True)
 
-# 5. Search Prompt Handler
+# 6. Search Prompt Handler
 @Client.on_message(filters.regex("^(🔎 sᴇᴀʀᴄʜ sᴛᴏʀʏ|🔎 Search Story)$") & filters.private)
 async def search_prompt(client, message):
     user_id = message.from_user.id
@@ -202,12 +236,12 @@ async def search_prompt(client, message):
         quote=True
     )
 
-# 6. Enhanced Fuzzy Search Process Logic
+# 7. Enhanced Fuzzy Search Process Logic
 @Client.on_message(
     filters.private 
     & filters.text 
     & ~filters.command(["start", "addstory", "deletestory", "allstories", "cancel", "addmoney", "broadcast", "refreshstories"]) 
-    & ~filters.regex("^(🚀 ᴏᴘᴇɴ ᴍɪɴɪ ᴀᴘᴘ|💼 ᴍʏ ᴡᴀʟʟᴇᴛ|📢 ᴜᴘᴅᴀᴛᴇs ᴄʜᴀɴɴᴇʟ|👤 ᴍʏ ᴀᴄᴄᴏᴜɴᴛ|📞 sᴜᴘᴘᴏʀᴛ|📻 ᴘᴏᴄᴋᴇᴛ ғᴍ|📚 ᴘʀᴀᴛɪʟɪᴘɪ ғᴍ|🎁 ʀᴇғᴇʀ & ᴇᴀʀɴ|🎁 Refer & Earn|🛑 sᴛᴏᴘ ᴅᴇʟɪᴠᴇʀʏ|🛑 Stop Delivery|stop delivery|📖 |🔎 sᴇᴀʀᴄʜ sᴛᴏʀʏ|🚀 Open Mini App|💼 My Wallet|📢 Updates Channel|👤 My Account|📞 Support|📻 Pocket FM|📚 Pratilipi FM|🔎 Search Story)"),
+    & ~filters.regex("^(🚀 ᴏᴘᴇɴ ᴍɪɴɪ ᴀᴘᴘ|💼 ᴍʏ ᴡᴀʟʟᴇᴛ|📢 ᴜᴘᴅᴀᴛᴇs ᴄʜᴀɴɴᴇʟ|👤 ᴍʏ ᴀᴄᴄᴏᴜɴᴛ|📞 sᴜᴘᴘᴏʀᴛ|📻 ᴘᴏᴄᴋᴇᴛ ғᴍ|📚 ᴘʀᴀᴛɪʟɪᴘɪ ғᴍ|🎁 ʀᴇғᴇʀ & ᴇᴀʀɴ|🎁 Refer & Earn|🛑 sᴛᴏᴘ ᴅᴇʟɪᴠᴇʀʏ|🛑 Stop Delivery|stop delivery|🔙 ʙᴀᴄᴋ ᴛᴏ ᴘʟᴀᴛғᴏʀᴍs|🔙 Back to Platforms|📖 |🔎 sᴇᴀʀᴄʜ sᴛᴏʀʏ|🚀 Open Mini App|💼 My Wallet|📢 Updates Channel|👤 My Account|📞 Support|📻 Pocket FM|📚 Pratilipi FM|🔎 Search Story)"),
     group=2
 )
 async def process_search(client, message):
@@ -240,8 +274,10 @@ async def process_search(client, message):
         matched_stories = db_stories or []
     
     if not matched_stories:
-        return await message.reply_text(f"❌ <b>ɴᴏ sᴛᴏʀʏ ғᴏᴜɴᴅ ᴡɪᴛʜ ɴᴀᴍᴇ '{query}'!</b>", quote=True)
+        return await message.reply_text(f"❌ <b>ɴᴏ sᴛᴏʀʏ ғᴏᴜɴᴅ ᴡɪᴛʜ ɴᴀᴍᴇ '{query}'!</b>", reply_markup=PLATFORM_KEYBOARD, quote=True)
         
     keyboard_buttons = [[KeyboardButton(f"📖 {s['title'].strip().splitlines()[0]}")] for s in matched_stories]
+    keyboard_buttons.append([KeyboardButton("🔙 ʙᴀᴄᴋ ᴛᴏ ᴘʟᴀᴛғᴏʀᴍs")])
+    
     search_keyboard = ReplyKeyboardMarkup(keyboard_buttons, resize_keyboard=True)
     await message.reply_text(f"🔍 <b>ғᴏᴜɴᴅ sᴛᴏʀɪᴇs ᴍᴀᴛᴄʜɪɴɢ '{query}':</b>", reply_markup=search_keyboard, quote=True)
