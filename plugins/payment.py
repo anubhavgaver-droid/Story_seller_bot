@@ -1,7 +1,7 @@
 import urllib.parse
 from pyrogram import Client, filters
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ForceReply
-from config import UPI_ID, ADMIN_ID, BOT_USERNAME
+from config import UPI_ID, ADMIN_ID, BOT_USERNAME, LOG_CHANNEL
 from database.db import get_story_by_title, add_user_purchase, add_wallet_balance
 
 # Waiting States
@@ -127,7 +127,7 @@ async def ask_screenshot(client, callback):
     )
     await callback.answer()
 
-# 6. Capture Screenshot Photo & Send to Admin
+# 6. Capture Screenshot Photo & Send to Admin and Log Channel
 @Client.on_message(filters.private & filters.photo, group=2)
 async def receive_screenshot(client, message):
     user_id = message.from_user.id
@@ -159,23 +159,44 @@ async def receive_screenshot(client, message):
         ]
     ])
     
+    # 1. Send photo to ADMIN
     await client.send_photo(
         chat_id=ADMIN_ID,
         photo=message.photo.file_id,
         caption=admin_text,
         reply_markup=btn
     )
+
+    # 2. Send photo to LOG_CHANNEL for record
+    if LOG_CHANNEL and LOG_CHANNEL != 0:
+        try:
+            log_text = (
+                f"📥 <b>ɴᴇᴡ ᴘᴀʏᴍᴇɴᴛ ʀᴇǫᴜᴇsᴛ ʀᴇᴄᴇɪᴠᴇᴅ</b>\n\n"
+                f"👤 <b>User:</b> {user.first_name} (<code>{user.id}</code>)\n"
+                f"📌 <b>Type:</b> {req_type}\n"
+                f"💰 <b>Amount:</b> ₹{price}\n"
+                f"⏳ <b>Status:</b> Pending Admin Verification"
+            )
+            await client.send_photo(
+                chat_id=LOG_CHANNEL,
+                photo=message.photo.file_id,
+                caption=log_text
+            )
+        except Exception as e:
+            print(f"Log Channel Error: {e}")
     
     await message.reply_text("✅ <b>sᴄʀᴇᴇɴsʜᴏᴛ ʀᴇᴄᴇɪᴠᴇᴅ!</b>\nʏᴏᴜʀ ᴘᴀʏᴍᴇɴᴛ ɪs ᴜɴᴅᴇʀ ᴠᴇʀɪғɪᴄᴀᴛɪᴏɴ ʙʏ ᴀᴅᴍɪɴ.")
     del PAYMENT_WAITING[user_id]
 
-# 7. Approve Payment Handler (Auto Detects Wallet vs Story Purchase)
+# 7. Approve Payment Handler (Auto Detects Wallet vs Story Purchase & Logs with Photo)
 @Client.on_callback_query(filters.regex("^app_") & filters.user(ADMIN_ID))
 async def approve_order(client, callback):
     data = callback.data.split("_")
     user_id = int(data[1])
     price = float(data[-1])
     title = "_".join(data[2:-1]).replace("_", " ")
+    
+    photo_file_id = callback.message.photo.file_id if callback.message.photo else None
     
     # CASE 1: WALLET TOPUP APPROVAL
     if title == "WalletTopup":
@@ -191,6 +212,24 @@ async def approve_order(client, callback):
                 )
             )
             await callback.message.edit_caption(caption=f"{callback.message.caption.html}\n\n✅ <b>WALLETTOPUP APPROVED</b>")
+            
+            # Send Approval Log with Photo to LOG_CHANNEL
+            if LOG_CHANNEL and LOG_CHANNEL != 0:
+                try:
+                    log_text = (
+                        f"✅ <b>ᴘᴀʏᴍᴇɴᴛ ᴀᴘᴘʀᴏᴠᴇᴅ (ᴡᴀʟʟᴇᴛ ᴛᴏᴘ-ᴜᴘ)</b>\n\n"
+                        f"👤 <b>User ID:</b> <code>{user_id}</code>\n"
+                        f"💰 <b>Amount Added:</b> ₹{price}\n"
+                        f"👛 <b>Updated Balance:</b> ₹{new_balance}\n"
+                        f"👑 <b>Approved By:</b> Admin"
+                    )
+                    if photo_file_id:
+                        await client.send_photo(chat_id=LOG_CHANNEL, photo=photo_file_id, caption=log_text)
+                    else:
+                        await client.send_message(chat_id=LOG_CHANNEL, text=log_text)
+                except Exception as log_err:
+                    print(f"Log Error: {log_err}")
+
             return await callback.answer("Wallet Topup Approved & Balance Added!", show_alert=True)
         except Exception as e:
             return await callback.answer(f"Error notifying user: {e}", show_alert=True)
@@ -223,16 +262,36 @@ async def approve_order(client, callback):
             protect_content=True
         )
         await callback.message.edit_caption(caption=f"{callback.message.caption.html}\n\n✅ <b>ᴀᴘᴘʀᴏᴠᴇᴅ ʙʏ ᴀᴅᴍɪɴ</b>")
+        
+        # Send Approval Log with Photo to LOG_CHANNEL
+        if LOG_CHANNEL and LOG_CHANNEL != 0:
+            try:
+                log_text = (
+                    f"✅ <b>ᴘᴀʏᴍᴇɴᴛ ᴀᴘᴘʀᴏᴠᴇᴅ (sᴛᴏʀʏ ᴘᴜʀᴄʜᴀsᴇ)</b>\n\n"
+                    f"👤 <b>User ID:</b> <code>{user_id}</code>\n"
+                    f"📖 <b>Story:</b> {clean_title}\n"
+                    f"💰 <b>Amount Paid:</b> ₹{price}\n"
+                    f"👑 <b>Approved By:</b> Admin"
+                )
+                if photo_file_id:
+                    await client.send_photo(chat_id=LOG_CHANNEL, photo=photo_file_id, caption=log_text)
+                else:
+                    await client.send_message(chat_id=LOG_CHANNEL, text=log_text)
+            except Exception as log_err:
+                print(f"Log Error: {log_err}")
+
         await callback.answer("Approved & Saved to DB Successfully!", show_alert=True)
     except Exception as e:
         await callback.answer(f"Error sending message to user: {e}", show_alert=True)
 
-# 8. Reject Payment Handler
+# 8. Reject Payment Handler (Logs with Photo)
 @Client.on_callback_query(filters.regex("^rej_") & filters.user(ADMIN_ID))
 async def reject_order(client, callback):
     data = callback.data.split("_")
     user_id = int(data[1])
     title = "_".join(data[2:]).replace("_", " ")
+    
+    photo_file_id = callback.message.photo.file_id if callback.message.photo else None
     
     try:
         await client.send_message(
@@ -244,6 +303,23 @@ async def reject_order(client, callback):
             )
         )
         await callback.message.edit_caption(caption=f"{callback.message.caption.html}\n\n❌ <b>ʀᴇᴊᴇᴄᴛᴇᴅ ʙʏ ᴀᴅᴍɪɴ</b>")
+        
+        # Send Rejection Log with Photo to LOG_CHANNEL
+        if LOG_CHANNEL and LOG_CHANNEL != 0:
+            try:
+                log_text = (
+                    f"❌ <b>ᴘᴀʏᴍᴇɴᴛ ʀᴇᴊᴇᴄᴛᴇᴅ</b>\n\n"
+                    f"👤 <b>User ID:</b> <code>{user_id}</code>\n"
+                    f"📌 <b>Item/Type:</b> {title}\n"
+                    f"👑 <b>Rejected By:</b> Admin"
+                )
+                if photo_file_id:
+                    await client.send_photo(chat_id=LOG_CHANNEL, photo=photo_file_id, caption=log_text)
+                else:
+                    await client.send_message(chat_id=LOG_CHANNEL, text=log_text)
+            except Exception as log_err:
+                print(f"Log Error: {log_err}")
+
         await callback.answer("Payment Rejected!", show_alert=True)
     except Exception as e:
         await callback.answer(f"Error sending rejection to user: {e}", show_alert=True)
