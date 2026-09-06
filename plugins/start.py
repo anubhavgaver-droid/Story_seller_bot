@@ -55,7 +55,8 @@ MAIN_MENU = ReplyKeyboardMarkup(
     [
         [KeyboardButton("🚀 ᴏᴘᴇɴ ᴍɪɴɪ ᴀᴘᴘ")],
         [KeyboardButton("🔎 sᴇᴀʀᴄʜ sᴛᴏʀʏ")],
-        [KeyboardButton("📻 ᴘᴏᴄᴋᴇᴛ ғᴍ"), KeyboardButton("📚 ᴘʀᴀᴛɪʟɪᴘɪ ғᴍ")]
+        [KeyboardButton("📻 ᴘᴏᴄᴋᴇᴛ ғᴍ"), KeyboardButton("📚 ᴘʀᴀᴛɪʟɪᴘɪ ғᴍ")],
+        [KeyboardButton("🔙 ʙᴀᴄᴋ ᴛᴏ ᴍᴇɴᴜ")]
     ],
     resize_keyboard=True
 )
@@ -196,14 +197,12 @@ async def send_story_files_start(client, user_id, story, first_id, last_id, clea
 
     is_stopped_by_user = False
 
-    # 1. एक-एक करके मैसेज आईडी फ़ेच और सेंड होगी (API Load Error फ़िक्स)
     for msg_id in range(first_id, last_id + 1):
         if user_id in STOP_DELIVERY_USERS:
             is_stopped_by_user = True
             STOP_DELIVERY_USERS.remove(user_id)
             break
 
-        # चैनल से सिंगल मैसेज फ़ेच करना
         msg = None
         while True:
             try:
@@ -219,7 +218,6 @@ async def send_story_files_start(client, user_id, story, first_id, last_id, clea
         if not msg or msg.empty:
             continue
 
-        # एपिसोड नंबर और फ़िल्टर चेक
         searchable_text = get_message_searchable_text(msg)
         ep_num = extract_episode_number(searchable_text)
 
@@ -227,7 +225,6 @@ async def send_story_files_start(client, user_id, story, first_id, last_id, clea
             if ep_num is None or not (target_start_ep <= ep_num <= target_end_ep):
                 continue
 
-        # 2. यूजर को एक-एक करके मैसेज कॉपी करना
         while True:
             try:
                 sent_msg = await client.copy_message(
@@ -240,7 +237,6 @@ async def send_story_files_start(client, user_id, story, first_id, last_id, clea
                 sent_message_ids.append(sent_msg.id)
                 success_count += 1
 
-                # हर 3 फाइल्स के बाद प्रोग्रेस अपडेट
                 if success_count % 3 == 0:
                     try:
                         await progress_msg.edit_text(
@@ -260,17 +256,14 @@ async def send_story_files_start(client, user_id, story, first_id, last_id, clea
                 print(f"Error copying msg {msg.id}: {e}")
                 break
 
-        # हर एक फाइल के बाद सेफ टाइम डिले (1.8s)
         await asyncio.sleep(1.8)
 
-    # स्टिकर और स्टेटस मैसेज डिलीट
     try:
         if status_sticker: await status_sticker.delete()
         await progress_msg.delete()
     except Exception:
         pass
 
-    # अगर कोई फाइल नहीं मिली
     if success_count == 0:
         return await client.send_message(
             chat_id=user_id,
@@ -641,6 +634,38 @@ async def handle_range_reply_buttons(client, message):
     else:
         return message.continue_propagation()
 
+# ------------------ Back to Main Menu Handler ------------------
+@Client.on_message(filters.regex("^(🔙 ʙᴀᴄᴋ ᴛᴏ ᴍᴇɴᴜ|🔙 Back to Menu|Back)$") & filters.private)
+async def back_to_main_menu_text_handler(client, message):
+    user = message.from_user
+    
+    welcome_text = (
+        f"<b>━━━━━━━━━━━━━━━━━━━━━━</b>\n"
+        f"🌟 <b>STORY SELLER BOT</b> 🌟\n"
+        f"<b>━━━━━━━━━━━━━━━━━━━━━━</b>\n\n"
+        f"<b>HELLO {user.first_name}! 👋</b>\n\n"
+        f"हमारे बॉट में आपका स्वागत है। मार्केट ओपन करने या अपना वॉलेट/अकाउंट देखने के लिए नीचे दिए गए बटन पर क्लिक करें:"
+    )
+
+    start_inline_kb = InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("🛒 ᴏᴘᴇɴ ᴍᴀʀᴋᴇᴛ / sᴛᴏʀᴇ", callback_data="open_market_cb")
+        ],
+        [
+            InlineKeyboardButton("💼 ᴍʏ ᴡᴀʟʟᴇᴛ", callback_data="open_wallet_cb"),
+            InlineKeyboardButton("👤 ᴍʏ ᴀᴄᴄᴏᴜɴᴛ", callback_data="open_account_cb")
+        ],
+        [
+            InlineKeyboardButton("🎁 ʀᴇғᴇʀ & ᴇᴀʀɴ", callback_data="open_refer_cb")
+        ],
+        [
+            InlineKeyboardButton("📢 ᴜᴘᴅᴀᴛᴇs", url="https://t.me/freestoryhubMR"),
+            InlineKeyboardButton("📞 sᴜᴘᴘᴏʀᴛ", url="https://t.me/pratilipifm0900")
+        ]
+    ])
+
+    await message.reply_text(welcome_text, reply_markup=start_inline_kb)
+
 # ------------------ Start & Deep-Link Batch Delivery Handler ------------------
 @Client.on_message(filters.command("start") & filters.private)
 async def start_handler(client, message):
@@ -844,21 +869,18 @@ async def start_handler(client, message):
         ]
     ])
 
-    # ReplyKeyboardRemove() से कीबोर्ड छुपा रहेगा जब तक Open Market पर क्लिक न हो
     await message.reply_text(welcome_text, reply_markup=start_inline_kb)
 
-# ------------------ Open Market Callback Handler (Auto-Delete Welcome Msg) ------------------
+# ------------------ Open Market Callback Handler ------------------
 @Client.on_callback_query(filters.regex("^open_market_cb$"))
 async def open_market_callback(client, callback_query):
     await callback_query.answer("🛒 Market Opened!")
     
-    # 1. पुराना वेलकम मैसेज डिलीट करना
     try:
         await callback_query.message.delete()
     except Exception as e:
         print(f"Error deleting welcome msg: {e}")
 
-    # 2. नया मार्केट मैसेज और सर्च कीबोर्ड भेजना
     await client.send_message(
         chat_id=callback_query.from_user.id,
         text="🛒 <b>ᴍᴀʀᴋᴇᴛ & sᴇᴀʀᴄʜ ᴍᴇɴᴜ</b>\n\n"
@@ -1039,7 +1061,7 @@ async def account_handler(client, message):
     acc_text = (
         f"<b>👤 ᴀᴄᴄᴏᴜɴᴛ ᴅᴇᴛᴀɪʟs:</b>\n"
         f"━━━━━━━━━━━━━━━━━━━\n"
-        f"<b>ɴᴀ姆:</b> {user.first_name}\n"
+        f"<b>ɴᴀᴍᴇ:</b> {user.first_name}\n"
         f"<b>ᴜsᴇʀ ɪᴅ:</b> <code>{user.id}</code>\n"
         f"<b>ᴜsᴇʀɴᴀᴍᴇ:</b> @{user.username if user.username else 'N/A'}\n"
         f"<b>👛 ᴡᴀʟʟᴇᴛ ʙᴀʟᴀɴᴄᴇ:</b> ₹{balance}\n"
