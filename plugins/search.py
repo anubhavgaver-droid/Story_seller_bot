@@ -24,8 +24,7 @@ from database.db import (
     is_story_unlocked
 )
 from config import BOT_USERNAME, CHANNEL_ID
-from plugins.start import welcome_text, start_inline_kb
-# State and Storage Dictionaries
+
 SEARCH_WAITING = {}
 
 
@@ -35,7 +34,7 @@ MARKET_MENU = ReplyKeyboardMarkup(
         [KeyboardButton("🚀 OPEN MINI APP")],
         [KeyboardButton("🔎 SEARCH STORY")],
         [KeyboardButton("📻 POCKET FM"), KeyboardButton("📚 PRATILIPI FM")],
-        [KeyboardButton("🔙 BACK TO MENU")]  # <--- 5th Button
+        [KeyboardButton("🔙 ʙᴀᴄᴋ ᴛᴏ ᴍᴇɴᴜ")]  # <--- 5th Button
     ],
     resize_keyboard=True
 )
