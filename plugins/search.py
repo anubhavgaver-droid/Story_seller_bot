@@ -75,10 +75,15 @@ async def back_to_menu_handler(client, message):
     SEARCH_WAITING.pop(user_id, None)
 
     
-    await message.reply_text(
-        "", 
-        reply_markup=ReplyKeyboardRemove()
-    )
+    try:
+        temp_msg = await message.reply_text(
+            "_", 
+            reply_markup=ReplyKeyboardRemove()
+        )
+        await asyncio.sleep(0.1)  # यहाँ समय 1 सेकंड सेट है (आप चाहें तो 0.5 भी कर सकते हैं)
+        await temp_msg.delete()
+    except Exception:
+        pass
     
     user = message.from_user
     welcome_msg = (
