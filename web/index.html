@@ -119,7 +119,7 @@
             text-transform: uppercase;
         }
 
-        /* ---------------- WELCOME SPLASH SCREEN ---------------- */
+        /* ---------------- WELCOME SPLASH SCREEN (HD STACK REPLICA) ---------------- */
         #splash-screen {
             position: fixed;
             top: 0; left: 0;
@@ -153,7 +153,7 @@
 
         .hd-stack-card {
             position: absolute;
-            width: 215px;
+            width: 215px; /* बड़ा और HD पोस्टर साइज़ */
             height: 310px;
             border-radius: 20px;
             object-fit: cover;
@@ -164,19 +164,75 @@
             will-change: transform, opacity;
         }
 
-        .hd-stack-card.pos-front { transform: translate3d(0, 0, 0) rotate(0deg) scale(1); z-index: 5; opacity: 1; filter: brightness(1); }
-        .hd-stack-card.pos-next-1 { transform: translate3d(22px, 8px, -20px) rotate(6deg) scale(0.96); z-index: 4; opacity: 0.95; filter: brightness(0.9); }
-        .hd-stack-card.pos-next-2 { transform: translate3d(40px, 16px, -40px) rotate(11deg) scale(0.92); z-index: 3; opacity: 0.85; filter: brightness(0.8); }
-        .hd-stack-card.pos-next-3 { transform: translate3d(55px, 24px, -60px) rotate(15deg) scale(0.88); z-index: 2; opacity: 0.7; filter: brightness(0.7); }
-        .hd-stack-card.pos-back-slide { transform: translate3d(-15px, 20px, -80px) rotate(-4deg) scale(0.85); z-index: 1; opacity: 0.2; }
+        /* EXACT STACK POSITIONS (video directional flow) */
+        .hd-stack-card.pos-front {
+            transform: translate3d(0, 0, 0) rotate(0deg) scale(1);
+            z-index: 5;
+            opacity: 1;
+            filter: brightness(1);
+        }
 
-        .splash-text-group { text-align: center; max-width: 320px; }
+        .hd-stack-card.pos-next-1 {
+            transform: translate3d(22px, 8px, -20px) rotate(6deg) scale(0.96);
+            z-index: 4;
+            opacity: 0.95;
+            filter: brightness(0.9);
+        }
+
+        .hd-stack-card.pos-next-2 {
+            transform: translate3d(40px, 16px, -40px) rotate(11deg) scale(0.92);
+            z-index: 3;
+            opacity: 0.85;
+            filter: brightness(0.8);
+        }
+
+        .hd-stack-card.pos-next-3 {
+            transform: translate3d(55px, 24px, -60px) rotate(15deg) scale(0.88);
+            z-index: 2;
+            opacity: 0.7;
+            filter: brightness(0.7);
+        }
+
+        .hd-stack-card.pos-back-slide {
+            transform: translate3d(-15px, 20px, -80px) rotate(-4deg) scale(0.85);
+            z-index: 1;
+            opacity: 0.2;
+        }
+
+        .splash-text-group {
+            text-align: center;
+            max-width: 320px;
+        }
+
         .splash-title { font-size: 21px; font-weight: 900; letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 8px; text-align: center; color: #ffffff; }
         .splash-sub { font-size: 12px; opacity: 0.7; text-align: center; line-height: 1.45; font-weight: 500; color: #d1d5db; }
         
-        .loader-spinner { width: 26px; height: 26px; position: relative; display: inline-block; margin-bottom: 10px; }
-        .loader-spinner div { transform-origin: 13px 13px; animation: loader-spinner-fade 1.2s linear infinite; }
-        .loader-spinner div:after { content: " "; display: block; position: absolute; top: 2px; left: 12px; width: 2.5px; height: 6.5px; border-radius: 20%; background: #ffffff; }
+        /* DOT SPINNER STYLES */
+        .loader-spinner {
+            width: 26px;
+            height: 26px;
+            position: relative;
+            display: inline-block;
+            margin-bottom: 10px;
+        }
+
+        .loader-spinner div {
+            transform-origin: 13px 13px;
+            animation: loader-spinner-fade 1.2s linear infinite;
+        }
+
+        .loader-spinner div:after {
+            content: " ";
+            display: block;
+            position: absolute;
+            top: 2px;
+            left: 12px;
+            width: 2.5px;
+            height: 6.5px;
+            border-radius: 20%;
+            background: #ffffff;
+        }
+
         .loader-spinner div:nth-child(1) { transform: rotate(0deg); animation-delay: -1.1s; }
         .loader-spinner div:nth-child(2) { transform: rotate(30deg); animation-delay: -1s; }
         .loader-spinner div:nth-child(3) { transform: rotate(60deg); animation-delay: -0.9s; }
@@ -190,13 +246,39 @@
         .loader-spinner div:nth-child(11) { transform: rotate(300deg); animation-delay: -0.1s; }
         .loader-spinner div:nth-child(12) { transform: rotate(330deg); animation-delay: 0s; }
 
-        @keyframes loader-spinner-fade { 0% { opacity: 1; } 100% { opacity: 0.15; } }
+        @keyframes loader-spinner-fade {
+            0% { opacity: 1; }
+            100% { opacity: 0.15; }
+        }
 
         /* ---------------- MAIN UI STYLES ---------------- */
-        .top-bar { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; background: var(--box-bg); border-bottom: 2.5px solid var(--border); position: sticky; top: 0; z-index: 100; }
+        .top-bar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 16px;
+            background: var(--box-bg);
+            border-bottom: 2.5px solid var(--border);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
         .brand-logo { font-size: 20px; font-weight: 900; letter-spacing: -0.5px; color: var(--text); }
         .header-chips { display: flex; gap: 6px; align-items: center; }
-        .chip { padding: 6px 12px; border-radius: 20px; border: 2px solid var(--border); font-size: 11px; font-weight: 800; background: var(--box-bg); color: var(--text); box-shadow: 2px 2px 0px var(--border); display: inline-flex; align-items: center; gap: 4px; cursor: pointer; }
+        .chip {
+            padding: 6px 12px;
+            border-radius: 20px;
+            border: 2px solid var(--border);
+            font-size: 11px;
+            font-weight: 800;
+            background: var(--box-bg);
+            color: var(--text);
+            box-shadow: 2px 2px 0px var(--border);
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            cursor: pointer;
+        }
         .chip-yellow { background: var(--accent); color: #000000; }
 
         .container { padding: 16px; }
@@ -204,130 +286,133 @@
         .tab-content.active { display: block; }
 
         .search-wrapper { position: relative; margin-bottom: 16px; }
-        .search-input { width: 100%; padding: 12px 16px 12px 40px; border-radius: 14px; border: 2.5px solid var(--border); background: var(--box-bg); color: var(--text); font-weight: 600; font-size: 13px; box-sizing: border-box; box-shadow: var(--shadow); outline: none; }
+        .search-input {
+            width: 100%;
+            padding: 12px 16px 12px 40px;
+            border-radius: 14px;
+            border: 2.5px solid var(--border);
+            background: var(--box-bg);
+            color: var(--text);
+            font-weight: 600;
+            font-size: 13px;
+            box-sizing: border-box;
+            box-shadow: var(--shadow);
+            outline: none;
+        }
         .search-icon { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); font-size: 14px; }
 
-        .story-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 14px; }
-        .card { background: var(--card-bg); border: 2.5px solid var(--border); border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow); display: flex; flex-direction: column; cursor: pointer; position: relative; transition: transform 0.1s ease; }
+        .story-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+            gap: 14px;
+        }
+        .card {
+            background: var(--card-bg);
+            border: 2.5px solid var(--border);
+            border-radius: var(--radius);
+            overflow: hidden;
+            box-shadow: var(--shadow);
+            display: flex;
+            flex-direction: column;
+            cursor: pointer;
+            position: relative;
+            transition: transform 0.1s ease;
+        }
         .card:active { transform: translate(2px, 2px); box-shadow: 0px 0px 0px var(--border); }
         .card-img { width: 100%; height: 145px; object-fit: cover; border-bottom: 2px solid var(--border); }
         
-        .card-fav-btn { position: absolute; top: 8px; right: 8px; width: 32px; height: 32px; background: var(--box-bg); border: 2px solid var(--border); border-radius: 50%; display: flex; justify-content: center; align-items: center; font-size: 14px; cursor: pointer; z-index: 10; box-shadow: 2px 2px 0px var(--border); }
+        .card-fav-btn {
+            position: absolute;
+            top: 8px; right: 8px;
+            width: 32px; height: 32px;
+            background: var(--box-bg);
+            border: 2px solid var(--border);
+            border-radius: 50%;
+            display: flex; justify-content: center; align-items: center;
+            font-size: 14px;
+            cursor: pointer;
+            z-index: 10;
+            box-shadow: 2px 2px 0px var(--border);
+        }
 
         .card-body { padding: 10px; display: flex; flex-direction: column; flex-grow: 1; }
-        .badge { align-self: flex-start; background: #000000; color: #ffffff; font-size: 9px; font-weight: 800; padding: 3px 8px; border-radius: 6px; border: 1.5px solid var(--border); text-transform: uppercase; margin-bottom: 6px; }
-        body.theme-black .badge { background: #ffffff; color: #000000; }
+        .badge {
+            align-self: flex-start;
+            background: #000000;
+            color: #ffffff;
+            font-size: 9px;
+            font-weight: 800;
+            padding: 3px 8px;
+            border-radius: 6px;
+            border: 1.5px solid var(--border);
+            text-transform: uppercase;
+            margin-bottom: 6px;
+        }
+        body.theme-black .badge {
+            background: #ffffff;
+            color: #000000;
+        }
         .title { font-size: 13px; font-weight: 800; margin: 0 0 4px 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text); }
         .price-tag { font-size: 15px; font-weight: 900; margin: 6px 0; color: var(--text); }
         
-        .btn-action { width: 100%; padding: 9px 0; background: var(--accent); color: #000000; border: 2px solid var(--border); border-radius: 10px; font-weight: 800; font-size: 12px; cursor: pointer; box-shadow: 2px 2px 0px var(--border); text-transform: uppercase; letter-spacing: 0.5px; }
-        .btn-action:active { transform: translate(2px, 2px); box-shadow: 0px 0px 0px var(--border); }
-
-        .btn-demo { background: var(--item-bg); color: var(--text); border: 2px solid var(--border); border-radius: 10px; font-weight: 800; font-size: 12px; cursor: pointer; padding: 12px 18px; box-shadow: 2px 2px 0px var(--border); text-transform: uppercase; letter-spacing: 0.5px; display: flex; align-items: center; justify-content: center; gap: 6px; }
-        .btn-demo:active { transform: translate(2px, 2px); box-shadow: 0px 0px 0px var(--border); }
-
-        /* ---------------- ORDER CARD STYLES (VERTICAL LAYOUT) ---------------- */
-        .order-card {
-            display: flex;
-            flex-direction: column;
-            background: var(--item-bg);
-            border: 2px solid var(--border);
-            border-radius: 14px;
-            padding: 12px;
-            margin-bottom: 12px;
-            box-shadow: var(--shadow);
-            gap: 12px;
-        }
-
-        .order-top-content {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }
-
-        .order-thumb {
-            width: 65px;
-            height: 65px;
-            border-radius: 12px;
-            border: 2px solid var(--border);
-            object-fit: cover;
-            flex-shrink: 0;
-            box-shadow: 2px 2px 0px var(--border);
-        }
-
-        .order-info {
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            min-width: 0;
-            flex: 1;
-        }
-
-        .order-title {
-            font-size: 14px;
-            font-weight: 900;
-            color: var(--text);
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            margin-bottom: 4px;
-        }
-
-        .order-status {
-            font-size: 11px;
-            font-weight: 800;
-            color: #10b981;
-            display: inline-flex;
-            align-items: center;
-            gap: 4px;
-        }
-
-        .order-actions {
-            display: flex;
-            gap: 8px;
+        .btn-action {
             width: 100%;
-        }
-
-        .btn-order-view {
-            flex: 1;
-            padding: 10px;
-            border-radius: 10px;
-            border: 2px solid var(--border);
-            background: var(--box-bg);
-            color: var(--text);
-            font-size: 11px;
-            font-weight: 800;
-            cursor: pointer;
-            box-shadow: 2px 2px 0px var(--border);
-            text-transform: uppercase;
-        }
-
-        .btn-order-get {
-            flex: 1.5;
-            padding: 10px;
-            border-radius: 10px;
-            border: 2px solid var(--border);
+            padding: 9px 0;
             background: var(--accent);
             color: #000000;
-            font-size: 11px;
-            font-weight: 900;
+            border: 2px solid var(--border);
+            border-radius: 10px;
+            font-weight: 800;
+            font-size: 12px;
             cursor: pointer;
             box-shadow: 2px 2px 0px var(--border);
             text-transform: uppercase;
+            letter-spacing: 0.5px;
         }
+        .btn-action:active { transform: translate(2px, 2px); box-shadow: 0px 0px 0px var(--border); }
 
-        .btn-order-view:active, .btn-order-get:active {
-            transform: translate(1px, 1px);
-            box-shadow: 0px 0px 0px var(--border);
+        .btn-demo {
+            background: var(--item-bg);
+            color: var(--text);
+            border: 2px solid var(--border);
+            border-radius: 10px;
+            font-weight: 800;
+            font-size: 12px;
+            cursor: pointer;
+            padding: 12px 18px;
+            box-shadow: 2px 2px 0px var(--border);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
         }
+        .btn-demo:active { transform: translate(2px, 2px); box-shadow: 0px 0px 0px var(--border); }
 
         /* ---------------- FULL SCREEN STORY DETAIL MODAL ---------------- */
-        .modal-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: var(--bg); z-index: 1000; display: flex; flex-direction: column; opacity: 0; visibility: hidden; transition: opacity 0.3s ease, visibility 0.3s ease; }
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100vw; height: 100vh;
+            background: var(--bg);
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.3s ease, visibility 0.3s ease;
+        }
         .modal-overlay.active { opacity: 1; visibility: visible; }
         .modal-content { width: 100%; height: 100%; display: flex; flex-direction: column; position: relative; background: var(--bg); overflow: hidden; }
         .modal-hero { position: relative; width: 100%; height: 42vh; background: #000000; overflow: hidden; flex-shrink: 0; }
         .modal-bg-img { width: 100%; height: 100%; object-fit: cover; opacity: 0.65; filter: blur(4px); transform: scale(1.1); }
-        .modal-close-btn { position: absolute; top: 16px; right: 16px; width: 36px; height: 36px; background: var(--box-bg); color: var(--text); border: 2.5px solid var(--border); border-radius: 50%; font-weight: 900; font-size: 16px; display: flex; justify-content: center; align-items: center; cursor: pointer; box-shadow: var(--shadow); z-index: 10; }
+        .modal-close-btn {
+            position: absolute; top: 16px; right: 16px; width: 36px; height: 36px;
+            background: var(--box-bg); color: var(--text); border: 2.5px solid var(--border);
+            border-radius: 50%; font-weight: 900; font-size: 16px; display: flex;
+            justify-content: center; align-items: center; cursor: pointer;
+            box-shadow: var(--shadow); z-index: 10;
+        }
         .modal-poster-wrapper { position: absolute; bottom: 16px; left: 16px; z-index: 5; }
         .modal-poster-img { width: 105px; height: 140px; object-fit: cover; border-radius: 14px; border: 2.5px solid var(--border); box-shadow: var(--shadow); background: var(--box-bg); }
         .modal-body { flex-grow: 1; padding: 20px 16px 90px 16px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; background: var(--bg); }
@@ -344,7 +429,17 @@
         .modal-bottom-bar { position: absolute; bottom: 0; left: 0; right: 0; background: var(--box-bg); border-top: 2.5px solid var(--border); padding: 14px 16px; display: flex; align-items: center; justify-content: space-between; gap: 10px; z-index: 20; }
         .modal-price { font-size: 22px; font-weight: 900; color: var(--text); }
 
-        .profile-card { background: var(--box-bg); border: 2.5px solid var(--border); border-radius: 20px; padding: 16px; box-shadow: var(--shadow); display: flex; align-items: center; gap: 14px; margin-bottom: 16px; }
+        .profile-card {
+            background: var(--box-bg);
+            border: 2.5px solid var(--border);
+            border-radius: 20px;
+            padding: 16px;
+            box-shadow: var(--shadow);
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            margin-bottom: 16px;
+        }
         .avatar { width: 62px; height: 62px; border-radius: 16px; border: 2.5px solid var(--border); object-fit: cover; }
         .id-badge { display: inline-block; background: var(--accent); color: #000000; border: 1.5px solid var(--border); padding: 3px 10px; border-radius: 10px; font-size: 11px; font-weight: 800; margin-top: 4px; }
 
@@ -358,63 +453,33 @@
         .item-row { display: flex; justify-content: space-between; align-items: center; padding: 12px; border: 2px solid var(--border); border-radius: 12px; margin-bottom: 8px; background: var(--item-bg); cursor: pointer; color: var(--text); }
         .item-row:active { transform: translate(1px, 1px); }
 
-        .btn-support { background: var(--accent) !important; color: #000000 !important; }
+        .btn-support {
+            background: var(--accent) !important;
+            color: #000000 !important;
+        }
+
         .theme-grid { display: flex; gap: 8px; margin-top: 8px; }
         .theme-btn { flex: 1; padding: 10px; border: 2px solid var(--border); border-radius: 10px; font-size: 11px; font-weight: 800; cursor: pointer; text-align: center; box-shadow: 2px 2px 0px var(--border); }
 
-        /* ---------------- FIX: UPDATED BOTTOM NAV STYLES ---------------- */
-        .bottom-nav { 
-            position: fixed; 
-            bottom: 0; 
-            left: 0; 
-            width: 100%; 
-            background: var(--box-bg); 
-            border-top: 2.5px solid var(--border); 
-            display: flex; 
-            justify-content: space-around; 
-            align-items: center; 
-            padding: 8px 4px; 
-            z-index: 100; 
+        .bottom-nav {
+            position: fixed;
+            bottom: 0; left: 0; width: 100%;
+            background: var(--box-bg);
+            border-top: 2.5px solid var(--border);
+            display: flex;
+            justify-content: space-around;
+            padding: 8px 0;
+            z-index: 100;
         }
-
-        .nav-link { 
-            display: flex; 
-            flex-direction: column; 
-            align-items: center; 
-            justify-content: center; 
-            font-size: 9px; 
-            font-weight: 900; 
-            color: var(--text); 
-            text-decoration: none; 
-            opacity: 0.6; 
-            cursor: pointer; 
-            flex: 1; 
-            text-align: center; 
-        }
-
-        .nav-link.active { 
-            opacity: 1; 
-            color: var(--text); 
-        }
-
-        .nav-link.active .nav-icon { 
-            background: var(--accent); 
-            color: #000000; 
-            border: 1.5px solid var(--border); 
-            border-radius: 10px; 
-            padding: 2px 10px; 
-            box-shadow: 1.5px 1.5px 0px var(--border); 
-        }
-
-        .nav-icon { 
-            font-size: 16px; 
-            margin-bottom: 3px; 
-            display: inline-block; 
-        }
+        .nav-link { display: flex; flex-direction: column; align-items: center; font-size: 9px; font-weight: 900; color: var(--text); text-decoration: none; opacity: 0.6; cursor: pointer; }
+        .nav-link.active { opacity: 1; color: var(--text); }
+        .nav-link.active .nav-icon { background: var(--accent); color: #000000; border: 1.5px solid var(--border); border-radius: 10px; padding: 2px 10px; box-shadow: 1.5px 1.5px 0px var(--border); }
+        .nav-icon { font-size: 16px; margin-bottom: 2px; }
     </style>
 </head>
 <body>
 
+    <!-- DIRECT STORY REDIRECT LOADER OVERLAY -->
     <div id="redirect-loader">
         <img src="https://picsum.photos/200" class="loader-anime-img" id="loaderAnimeImg" alt="Story Icon">
         <div class="redirect-title">REDIRECTING...</div>
@@ -423,6 +488,7 @@
         <div class="loading-lbl">LOADING STORY</div>
     </div>
 
+    <!-- WELCOME SPLASH SCREEN ANIMATION -->
     <div id="splash-screen">
         <div class="cards-stack-wrapper" id="cardsWrapper"></div>
         <div class="splash-text-group">
@@ -432,9 +498,11 @@
         <div class="loader-spinner">
             <div></div><div></div><div></div><div></div>
             <div></div><div></div><div></div><div></div>
+            <div></div><div></div><div></div><div></div>
         </div>
     </div>
 
+    <!-- TOP BAR -->
     <div class="top-bar">
         <div class="brand-logo">AC PREMIUM</div>
         <div class="header-chips">
@@ -443,7 +511,9 @@
         </div>
     </div>
 
+    <!-- MAIN CONTAINER -->
     <div class="container">
+        <!-- TAB 1: HOME/STORE -->
         <div id="tab-home" class="tab-content active">
             <div class="search-wrapper">
                 <span class="search-icon">🔍</span>
@@ -452,6 +522,7 @@
             <div class="story-grid" id="homeGrid"></div>
         </div>
 
+        <!-- TAB 2: EXPLORE -->
         <div id="tab-explore" class="tab-content">
             <div class="section-box">
                 <div class="section-title">Categories & Platforms</div>
@@ -465,6 +536,7 @@
             <div class="story-grid" id="exploreGrid"></div>
         </div>
 
+        <!-- TAB 3: ORDERS -->
         <div id="tab-orders" class="tab-content">
             <div class="section-box">
                 <div class="section-title">Unlocked Library 📚</div>
@@ -474,6 +546,7 @@
             </div>
         </div>
 
+        <!-- TAB 4: PROFILE -->
         <div id="tab-profile" class="tab-content">
             <div class="profile-card">
                 <img id="uPhoto" src="https://picsum.photos/100" class="avatar" alt="Avatar">
@@ -523,6 +596,7 @@
         </div>
     </div>
 
+    <!-- FULL SCREEN STORY DETAIL MODAL -->
     <div class="modal-overlay" id="storyModal">
         <div class="modal-content">
             <div class="modal-hero">
@@ -574,6 +648,7 @@
         </div>
     </div>
 
+    <!-- BOTTOM NAVIGATION -->
     <div class="bottom-nav">
         <div class="nav-link active" onclick="switchTab('home')">
             <span class="nav-icon">🏠</span>HOME
@@ -591,7 +666,7 @@
 
     <script>
         const tg = window.Telegram.WebApp;
-        const DELIVERY_BOT_USERNAME = "storysellerbyACbot";
+        const BOT_USERNAME = "storysellerbyACbot";
 
         let stories = [];
         let userPurchases = [];
@@ -626,8 +701,9 @@
 
         /* --- WISHLIST SYSTEM --- */
         function getWishlist() {
-            try { return JSON.parse(localStorage.getItem('user_wishlist')) || []; } 
-            catch(e) { return []; }
+            try {
+                return JSON.parse(localStorage.getItem('user_wishlist')) || [];
+            } catch(e) { return []; }
         }
 
         function toggleWishlist(e, storyId) {
@@ -638,8 +714,11 @@
             const strId = String(storyId);
             const index = wishlist.indexOf(strId);
 
-            if (index > -1) wishlist.splice(index, 1);
-            else wishlist.push(strId);
+            if (index > -1) {
+                wishlist.splice(index, 1);
+            } else {
+                wishlist.push(strId);
+            }
 
             localStorage.setItem('user_wishlist', JSON.stringify(wishlist));
             renderGrid(stories, 'homeGrid');
@@ -652,7 +731,7 @@
             if (!container) return;
 
             const wishlistIds = getWishlist();
-            const favStories = stories.filter(s => wishlistIds.includes(String(s.id || s._id)) || wishlistIds.includes(String(s.title)));
+            const favStories = stories.filter(s => wishlistIds.includes(String(s.id)) || wishlistIds.includes(String(s.title)));
 
             if (favStories.length === 0) {
                 container.innerHTML = '<p style="font-size:12px; font-weight:700; opacity:0.7;">No saved stories yet!</p>';
@@ -660,7 +739,7 @@
             }
 
             container.innerHTML = favStories.map(s => {
-                const sKey = s.id || s._id || s.title;
+                const sKey = s.id !== undefined ? s.id : s.title;
                 return `
                 <div class="item-row">
                     <div>
@@ -686,10 +765,12 @@
             let current = 0;
             const interval = setInterval(() => {
                 current += 2;
+                
                 if (current >= 100) {
                     current = 100;
                     counter.innerText = '100%';
                     clearInterval(interval);
+                    
                     setTimeout(() => {
                         loader.classList.remove('active');
                         if (callback) callback();
@@ -715,17 +796,17 @@
                 const cleanParam = targetParam.replace(/^story_/, '').toLowerCase().trim();
                 
                 const foundStory = stories.find(s => {
-                    const sid = String(s.id || s._id || '').toLowerCase().trim();
-                    const idMatch = sid && sid === cleanParam;
+                    const idMatch = s.id && String(s.id).toLowerCase().trim() === cleanParam;
                     const titleMatch = s.title && s.title.toLowerCase().replace(/\s+/g, '_').trim() === cleanParam;
                     return idMatch || titleMatch;
                 });
 
                 if (foundStory) {
-                    const photo = foundStory.photo || foundStory.image || 'https://picsum.photos/200';
-                    document.getElementById('loaderAnimeImg').src = photo;
+                    if (foundStory.photo) {
+                        document.getElementById('loaderAnimeImg').src = foundStory.photo;
+                    }
                     runDirectRedirectAnimation(() => {
-                        openStoryModal(foundStory.id || foundStory._id || foundStory.title);
+                        openStoryModal(foundStory.id !== undefined ? foundStory.id : foundStory.title);
                     });
                     return true;
                 }
@@ -733,7 +814,7 @@
             return false;
         }
 
-        /* --- HD STACK CAROUSEL ROTATION --- */
+        /* --- HD STACK CAROUSEL ROTATION (EXACT REPLICA) --- */
         function setupSplashScreen(list) {
             const wrapper = document.getElementById('cardsWrapper');
             if(!wrapper) return;
@@ -742,9 +823,9 @@
             const shuffled = [...list].sort(() => 0.5 - Math.random());
             const picked = shuffled.slice(0, 5);
             
-            picked.forEach((story) => {
+            picked.forEach((story, idx) => {
                 const img = document.createElement('img');
-                img.src = story.photo || story.image || 'https://picsum.photos/400/600';
+                img.src = story.photo || 'https://picsum.photos/400/600';
                 img.className = 'hd-stack-card';
                 img.alt = "Splash HD Poster";
                 wrapper.appendChild(img);
@@ -769,8 +850,10 @@
             }
 
             rotateStack();
+            // 1.1 सेकंड्स की रफ़्तार में वीडियो जैसा मोशन
             splashInterval = setInterval(rotateStack, 1100);
             
+            // Auto hide splash screen
             setTimeout(() => {
                 const splash = document.getElementById('splash-screen');
                 if(splash) splash.classList.add('hidden');
@@ -814,86 +897,34 @@
             } catch(e) { console.error(e); }
         }
 
-        /* --- UNLOCKED ORDERS LIST --- */
         function renderUnlockedList() {
-            const countEl = document.getElementById('unlockedCount');
-            if (countEl) countEl.innerText = userPurchases.length;
-            
+            document.getElementById('unlockedCount').innerText = userPurchases.length;
             if (document.getElementById('pUnlocked')) {
                 document.getElementById('pUnlocked').innerText = userPurchases.length;
             }
             
             const box = document.getElementById('unlockedList');
-            if (!box) return;
+            if(!box) return;
 
-            if (userPurchases.length === 0) {
+            if(userPurchases.length === 0) {
                 box.innerHTML = '<p style="font-size:12px; font-weight:700;">No unlocked stories. Claim or buy stories to access here!</p>';
                 return;
             }
             
             box.innerHTML = userPurchases.map(p => {
                 const title = p.story_title || p.title;
-                const storyId = p.id || p._id || p.story_id || '';
-                const sKey = storyId || title;
-                const photo = p.photo || p.image || p.cover || 'https://picsum.photos/200';
+                const cleanTitle = title.replace(/\s+/g, '_');
+                const deliveryLink = p.link || `https://t.me/${BOT_USERNAME}?start=get_${cleanTitle}`;
                 
                 return `
-                <div class="order-card">
-                    <div class="order-top-content">
-                        <img src="${photo}" class="order-thumb" alt="${title}">
-                        <div class="order-info">
-                            <div class="order-title">${title}</div>
-                            <div class="order-status">✔ UNLOCKED</div>
-                        </div>
+                <div class="item-row">
+                    <div>
+                        <div style="font-weight:900; font-size:13px;">${title}</div>
+                        <span style="font-size:10px; font-weight:800; color:#10b981;">✓ UNLOCKED</span>
                     </div>
-                    <div class="order-actions">
-                        <button class="btn-order-view" onclick="openStoryModal('${encodeURIComponent(sKey)}')">VIEW STORY</button>
-                        <button class="btn-order-get" onclick="handleFileDelivery('${encodeURIComponent(title)}', '${storyId}')">
-                            GET FILES ➔
-                        </button>
-                    </div>
+                    <button class="chip chip-yellow" onclick="openStoryLink('${deliveryLink}')">ACCESS</button>
                 </div>
             `}).join('');
-        }
-
-        /* --- UNIFIED TELEGRAM BOT REDIRECT & FILE DELIVERY --- */
-        function handleFileDelivery(storyTitleRaw, storyId) {
-            triggerHaptic('success');
-            const title = decodeURIComponent(storyTitleRaw);
-            const cleanTitle = encodeURIComponent(title.replace(/\s+/g, "_"));
-            
-            const payload = (storyId && storyId !== 'undefined' && storyId !== '') 
-                ? `get_${storyId}` 
-                : `get_${cleanTitle}`;
-
-            const currentBot = tg.initDataUnsafe?.bot_username || "";
-            const isSameBot = (currentBot.toLowerCase() === DELIVERY_BOT_USERNAME.toLowerCase());
-
-            if (tg && tg.initData && isSameBot) {
-                tg.sendData(JSON.stringify({
-                    action: "get_files",
-                    story_id: storyId,
-                    title: title
-                }));
-
-                if (tg.showAlert) {
-                    tg.showAlert("✅ Check your PM! Story files have been sent to your chat.");
-                } else {
-                    alert("✅ Check your PM! Story files have been sent to your chat.");
-                }
-                
-                setTimeout(() => { tg.close(); }, 1200);
-
-            } else {
-                const targetDeepLink = `https://t.me/${DELIVERY_BOT_USERNAME}?start=${payload}`;
-
-                if (tg && tg.openTelegramLink) {
-                    tg.openTelegramLink(targetDeepLink);
-                    tg.close();
-                } else {
-                    window.location.href = targetDeepLink;
-                }
-            }
         }
 
         function renderGrid(list, target) {
@@ -907,16 +938,14 @@
             const wishlist = getWishlist();
 
             el.innerHTML = list.map((s) => {
-                const sKey = s.id || s._id || s.title;
+                const sKey = s.id !== undefined ? s.id : s.title;
                 const isFav = wishlist.includes(String(sKey));
-                const photo = s.photo || s.image || 'https://picsum.photos/200';
-
                 return `
                 <div class="card" onclick="openStoryModal('${encodeURIComponent(sKey)}')">
                     <div class="card-fav-btn" onclick="toggleWishlist(event, '${encodeURIComponent(sKey)}')">
                         ${isFav ? '❤️' : '🤍'}
                     </div>
-                    <img src="${photo}" class="card-img" alt="${s.title}">
+                    <img src="${s.photo || 'https://picsum.photos/200'}" class="card-img" alt="${s.title}">
                     <div class="card-body">
                         <span class="badge">${s.platform || 'AUDIO'}</span>
                         <h4 class="title">${s.title}</h4>
@@ -927,14 +956,13 @@
             `}).join('');
         }
 
-        /* --- UPDATED STORY MODAL WITH "VIEW ORDER" LOGIC --- */
         function openStoryModal(storyKeyRaw) {
             triggerHaptic('light');
             const storyKey = decodeURIComponent(storyKeyRaw);
-            let story = stories.find(s => String(s.id || s._id) === String(storyKey) || String(s.title) === String(storyKey));
+            let story = stories.find(s => String(s.id) === String(storyKey) || String(s.title) === String(storyKey));
             if (!story) return;
 
-            const photoUrl = story.photo || story.image || 'https://picsum.photos/200';
+            const photoUrl = story.photo || 'https://picsum.photos/200';
             document.getElementById('mBgImg').src = photoUrl;
             document.getElementById('mPosterImg').src = photoUrl;
             document.getElementById('mTitle').innerText = story.title;
@@ -945,35 +973,19 @@
             
             const priceText = story.price == 0 ? 'FREE' : `₹${story.price}`;
             document.getElementById('mPrice').innerText = priceText;
+            document.getElementById('mAccessType').innerText = story.price == 0 ? '🎁 FREE ACCESS' : '💎 PAID SHOW';
             document.getElementById('mDesc').innerText = story.description || story.desc || 'Complete audio series package with high quality audio episodes. Instant access after unlocking.';
 
-            const storyId = story.id || story._id || '';
-
-            const isAlreadyUnlocked = userPurchases.some(p => 
-                (p.id && String(p.id) === String(storyId)) || 
-                (p._id && String(p._id) === String(storyId)) || 
-                (p.story_title === story.title || p.title === story.title)
-            );
-
             const buyBtn = document.getElementById('mBuyBtn');
-
-            if (isAlreadyUnlocked) {
-                document.getElementById('mAccessType').innerText = '✔ UNLOCKED';
-                buyBtn.innerText = 'VIEW ORDER ➔';
-                buyBtn.onclick = function() { 
-                    closeModal();
-                    switchTab('orders');
-                };
-            } else if (story.price == 0) {
-                document.getElementById('mAccessType').innerText = '🎁 FREE ACCESS';
+            if (story.price == 0) {
                 buyBtn.innerText = 'CLAIM NOW (FREE)';
                 buyBtn.onclick = function() { claimFreeStory(story); };
             } else {
-                document.getElementById('mAccessType').innerText = '💎 PAID SHOW';
                 buyBtn.innerText = 'BUY & UNLOCK';
-                buyBtn.onclick = function() { buyStory(story.title, story.price, storyId); };
+                buyBtn.onclick = function() { buyStory(story.title, story.price); };
             }
 
+            // Demo Sync setup
             const demoBtn = document.getElementById('mDemoBtn');
             const hasDemoAvailable = story.has_demo || story.demo_enabled || (story.demo_msg_ids && story.demo_msg_ids.length > 0);
             
@@ -995,7 +1007,7 @@
         function playDemo(story) {
             triggerHaptic('medium');
             const cleanTitle = encodeURIComponent(story.title.replace(/\s+/g, "_"));
-            const demoLink = story.demo_link || `https://t.me/${DELIVERY_BOT_USERNAME}?start=demo_${cleanTitle}`;
+            const demoLink = story.demo_link || `https://t.me/${BOT_USERNAME}?start=demo_${cleanTitle}`;
 
             if (tg && tg.openTelegramLink) {
                 tg.openTelegramLink(demoLink);
@@ -1008,14 +1020,10 @@
         function claimFreeStory(story) {
             triggerHaptic('success');
             
-            const storyId = story.id || story._id || '';
             const alreadyUnlocked = userPurchases.some(p => (p.story_title === story.title || p.title === story.title));
-            
             if (!alreadyUnlocked) {
                 userPurchases.push({
-                    id: storyId,
                     story_title: story.title,
-                    photo: story.photo || story.image,
                     link: story.link || '#'
                 });
                 renderUnlockedList();
@@ -1031,12 +1039,11 @@
             }
         }
 
-        function buyStory(title, price, storyId) {
+        function buyStory(title, price) {
             triggerHaptic('success');
 
             const cleanTitle = encodeURIComponent(title.replace(/\s+/g, "_"));
-            const payload = storyId ? `story_${storyId}` : `story_${cleanTitle}`;
-            const deepLink = `https://t.me/${DELIVERY_BOT_USERNAME}?start=${payload}`;
+            const deepLink = `https://t.me/${BOT_USERNAME}?start=story_${cleanTitle}`;
 
             if (tg && tg.openTelegramLink) {
                 tg.openTelegramLink(deepLink);
