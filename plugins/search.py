@@ -45,7 +45,7 @@ MARKET_MENU = ReplyKeyboardMarkup(
 async def category_handler(client, message):
     cat_map = {
         "📻 ᴘᴏᴄᴋᴇᴛ ғᴍ": "pocket_fm", "📻 Pocket FM": "pocket_fm", "📻 POCKET FM": "pocket_fm",
-        "📚 ᴘʀᴀᴛɪʟɪᴘɪ ғᴍ": "pratilipi_fm", "📚 Pratilipi FM": "pratilipi_fm", "📚 PRATILIPI FM": "pratilipi_fm"
+        "📚 ᴘʀᴀᴛɪʟɪపి ғᴍ": "pratilipi_fm", "📚 Pratilipi FM": "pratilipi_fm", "📚 PRATILIPI FM": "pratilipi_fm"
     }
     cat_key = cat_map[message.text]
     stories, total_pages = await get_stories_by_cat(cat_key, page=1, limit=50)
@@ -59,8 +59,8 @@ async def category_handler(client, message):
         
     keyboard_buttons = [[KeyboardButton(f"📖 {s['title'].strip().splitlines()[0]}")] for s in stories]
     
-    # स्टोरी लिस्ट के अंत में 🔙 BACK TO MENU बटन
-    keyboard_buttons.append([KeyboardButton("🔙 BACK TO MENU")])
+    # स्टोरी लिस्ट के अंत में 🔙 BACK TO PLATFORM बटन (बदलाव यहाँ किया गया है)
+    keyboard_buttons.append([KeyboardButton("🔙 BACK TO PLATFORM")])
     
     category_keyboard = ReplyKeyboardMarkup(keyboard_buttons, resize_keyboard=True)
     await message.reply_text(
@@ -80,10 +80,19 @@ async def back_to_menu_handler(client, message):
         reply_markup=ReplyKeyboardRemove()
     )
     
-    # 2. तुरंत बाद start.py वाला वेलकम मैसेज और इनलाइन कीबोर्ड भेजें
+    # तुरंत बाद start.py वाला वेलकम मैसेज और इनलाइन कीबोर्ड भेजें
     await message.reply_text(
         text=welcome_text, 
         reply_markup=start_inline_kb,
+        quote=True
+    )
+
+# 3.1 Back to Platform Handler (पॉकेट/प्रतिलिपि लिस्ट से वापस 5 मेन मार्केट बटन्स पर जाने के लिए)
+@Client.on_message(filters.regex("^(🔙 ʙᴀᴄᴋ ᴛᴏ ᴘʟᴀᴛғᴏʀᴍ|🔙 Back to Platform|🔙 BACK TO PLATFORM)$") & filters.private)
+async def back_to_platform_handler(client, message):
+    await message.reply_text(
+        "<b>🏠 MAIN MARKET / PLATFORM:</b>\n\nनीचे दिए गए ऑप्शंस में से चुनें:",
+        reply_markup=MARKET_MENU,
         quote=True
     )
 
@@ -250,7 +259,7 @@ async def search_prompt(client, message):
     filters.private 
     & filters.text 
     & ~filters.command(["start", "addstory", "deletestory", "allstories", "cancel", "addmoney", "broadcast", "refreshstories"]) 
-    & ~filters.regex("^(🚀 ᴏᴘᴇɴ ᴍɪɴɪ ᴀᴘᴘ|🚀 OPEN MINI APP|💼 ᴍʏ ᴡᴀʟʟᴇᴛ|📢 ᴜᴘᴅᴀᴛᴇs ᴄʜᴀɴɴᴇʟ|👤 ᴍʏ ᴀᴄᴄᴏᴜɴᴛ|📞 sᴜᴘᴘᴏʀᴛ|📻 ᴘᴏᴄᴋᴇᴛ ғᴍ|📚 ᴘʀᴀᴛɪʟɪᴘɪ ғᴍ|🎁 ʀᴇғᴇʀ & ᴇᴀʀɴ|🎁 Refer & Earn|🛑 sᴛᴏᴘ ᴅᴇʟɪᴠᴇʀʏ|🛑 Stop Delivery|stop delivery|🔙 ʙᴀᴄᴋ ᴛᴏ ᴍᴇɴᴜ|🔙 Back to Menu|🔙 BACK TO MENU|📖 |🔎 sᴇᴀʀᴄʜ sᴛᴏʀʏ|🔎 SEARCH STORY|🚀 Open Mini App|💼 My Wallet|📢 Updates Channel|👤 My Account|📞 Support|📻 Pocket FM|📚 Pratilipi FM|🔎 Search Story)"),
+    & ~filters.regex("^(🚀 ᴏᴘᴇɴ ᴍɪɴɪ ᴀᴘᴘ|🚀 OPEN MINI APP|💼 ᴍʏ ᴡᴀʟʟᴇᴛ|📢 ᴜᴘᴅᴀᴛᴇs ᴄʜᴀɴɴᴇʟ|👤 ᴍʏ ᴀᴄᴄᴏᴜɴᴛ|📞 sᴜᴘᴘᴏʀᴛ|📻 ᴘᴏᴄᴋᴇᴛ ғᴍ|📚 ᴘʀᴀᴛɪʟɪᴘɪ ғᴍ|🎁 ʀᴇғᴇʀ & ᴇᴀʀɴ|🎁 Refer & Earn|🛑 sᴛᴏᴘ ᴅᴇʟɪᴠᴇʀʏ|🛑 Stop Delivery|stop delivery|🔙 ʙᴀᴄᴋ ᴛᴏ ᴍᴇɴᴜ|🔙 Back to Menu|🔙 BACK TO MENU|🔙 ʙᴀᴄᴋ ᴛᴏ ᴘʟᴀᴛғᴏʀᴍ|🔙 Back to Platform|🔙 BACK TO PLATFORM|📖 |🔎 sᴇᴀʀᴄʜ sᴛᴏʀʏ|🔎 SEARCH STORY|🚀 Open Mini App|💼 My Wallet|📢 Updates Channel|👤 My Account|📞 Support|📻 Pocket FM|📚 Pratilipi FM|🔎 Search Story)"),
     group=2
 )
 async def process_search(client, message):
@@ -286,7 +295,7 @@ async def process_search(client, message):
         return await message.reply_text(f"❌ <b>NO STORY FOUND WITH NAME '{query}'!</b>", reply_markup=MARKET_MENU, quote=True)
         
     keyboard_buttons = [[KeyboardButton(f"📖 {s['title'].strip().splitlines()[0]}")] for s in matched_stories]
-    keyboard_buttons.append([KeyboardButton("🔙 BACK TO MENU")])
+    keyboard_buttons.append([KeyboardButton("🔙 BACK TO PLATFORM")])
     
     search_keyboard = ReplyKeyboardMarkup(keyboard_buttons, resize_keyboard=True)
     await message.reply_text(f"🔍 <b>FOUND STORIES MATCHING '{query}':</b>", reply_markup=search_keyboard, quote=True)
