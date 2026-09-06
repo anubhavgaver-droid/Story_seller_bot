@@ -77,10 +77,10 @@ async def back_to_menu_handler(client, message):
     
     try:
         temp_msg = await message.reply_text(
-            "_", 
+            "Pʟᴇᴀsᴇ Wᴀɪᴛ", 
             reply_markup=ReplyKeyboardRemove()
         )
-        await asyncio.sleep(0.1)  # यहाँ समय 1 सेकंड सेट है (आप चाहें तो 0.5 भी कर सकते हैं)
+        await asyncio.sleep(0.5)  # यहाँ समय 1 सेकंड सेट है (आप चाहें तो 0.5 भी कर सकते हैं)
         await temp_msg.delete()
     except Exception:
         pass
