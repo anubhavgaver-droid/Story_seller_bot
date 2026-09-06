@@ -296,7 +296,7 @@ async def send_story_files_start(client, user_id, story, first_id, last_id, clea
         reply_markup=clean_kb
     )
     
-    await client.send_message(chat_id=user_id, text="👇 <b>Main Menu:</b>", reply_markup=MAIN_MENU)
+    await client.send_message(chat_id=user_id, text="", reply_markup=start_inline_kb)
 
 # ------------------ Range-Based Clean Chat Callback Handler ------------------
 @Client.on_callback_query(filters.regex(r"^rangechatclean_"))
