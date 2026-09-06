@@ -634,47 +634,7 @@ async def handle_range_reply_buttons(client, message):
     else:
         return message.continue_propagation()
 
-# ------------------ Back to Main Menu Handler ------------------
-@Client.on_message(filters.regex("^(🔙 ʙᴀᴄᴋ ᴛᴏ ᴍᴇɴᴜ|🔙 Back to Menu|Back)$") & filters.private)
-async def back_to_main_menu_text_handler(client, message):
-    user = message.from_user
-    
-    welcome_text = (
-        f"<b>━━━━━━━━━━━━━━━━━━━━━━</b>\n"
-        f"🌟 <b>STORY SELLER BOT</b> 🌟\n"
-        f"<b>━━━━━━━━━━━━━━━━━━━━━━</b>\n\n"
-        f"<b>HELLO {user.first_name}! 👋</b>\n\n"
-        f"हमारे बॉट में आपका स्वागत है। मार्केट ओपन करने या अपना वॉलेट/अकाउंट देखने के लिए नीचे दिए गए बटन पर क्लिक करें:"
-    )
 
-    start_inline_kb = InlineKeyboardMarkup([
-        [
-            InlineKeyboardButton("🛒 ᴏᴘᴇɴ ᴍᴀʀᴋᴇᴛ / sᴛᴏʀᴇ", callback_data="open_market_cb")
-        ],
-        [
-            InlineKeyboardButton("💼 ᴍʏ ᴡᴀʟʟᴇᴛ", callback_data="open_wallet_cb"),
-            InlineKeyboardButton("👤 ᴍʏ ᴀᴄᴄᴏᴜɴᴛ", callback_data="open_account_cb")
-        ],
-        [
-            InlineKeyboardButton("🎁 ʀᴇғᴇʀ & ᴇᴀʀɴ", callback_data="open_refer_cb")
-        ],
-        [
-            InlineKeyboardButton("📢 ᴜᴘᴅᴀᴛᴇs", url="https://t.me/freestoryhubMR"),
-            InlineKeyboardButton("📞 sᴜᴘᴘᴏʀᴛ", url="https://t.me/pratilipifm0900")
-        ]
-    ])
-
-    # 1. ReplyKeyboardRemove() की मदद से रिप्लाई कीबोर्ड हाइड हो जाएगा
-    await message.reply_text(
-        text=welcome_text, 
-        reply_markup=ReplyKeyboardRemove()
-    )
-    
-    # 2. इसके बाद इनलाइन बटन्स वाला मेनू आ जाएगा
-    await message.reply_text(
-        text="👇 <b>नीचे दिए गए ऑप्शंस चुनें:</b>", 
-        reply_markup=start_inline_kb
-    )
 
 # ------------------ Start & Deep-Link Batch Delivery Handler ------------------
 @Client.on_message(filters.command("start") & filters.private)
