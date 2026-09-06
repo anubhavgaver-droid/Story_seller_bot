@@ -24,39 +24,10 @@ from database.db import (
     is_story_unlocked
 )
 from config import BOT_USERNAME, CHANNEL_ID
-
+from plugins.start import welcome_text, start_inline_kb
 # State and Storage Dictionaries
 SEARCH_WAITING = {}
 
-
-
-    # Normal /start Welcome Message with Inline Buttons
-    welcome_text = (
-        f"<b>━━━━━━━━━━━━━━━━━━━━━━</b>\n"
-        f"🌟 <b>STORY SELLER BOT</b> 🌟\n"
-        f"<b>━━━━━━━━━━━━━━━━━━━━━━</b>\n\n"
-        f"<b>HELLO {user.first_name}! 👋</b>\n\n"
-        f"हमारे बॉट में आपका स्वागत है। मार्केट ओपन करने या अपना वॉलेट/अकाउंट देखने के लिए नीचे दिए गए बटन पर क्लिक करें:"
-    )
-
-    start_inline_kb = InlineKeyboardMarkup([
-        [
-            InlineKeyboardButton("🛒 ᴏᴘᴇɴ ᴍᴀʀᴋᴇᴛ / sᴛᴏʀᴇ", callback_data="open_market_cb")
-        ],
-        [
-            InlineKeyboardButton("💼 ᴍʏ ᴡᴀʟʟᴇᴛ", callback_data="open_wallet_cb"),
-            InlineKeyboardButton("👤 ᴍʏ ᴀᴄᴄᴏᴜɴᴛ", callback_data="open_account_cb")
-        ],
-        [
-            InlineKeyboardButton("🎁 ʀᴇғᴇʀ & ᴇᴀʀɴ", callback_data="open_refer_cb")
-        ],
-        [
-            InlineKeyboardButton("📢 ᴜᴘᴅᴀᴛᴇs", url="https://t.me/freestoryhubMR"),
-            InlineKeyboardButton("📞 sᴜᴘᴘᴏʀᴛ", url="https://t.me/pratilipifm0900")
-        ]
-    ])
-
-    await message.reply_text(welcome_text, reply_markup=start_inline_kb)
 
 # 1. Main Market / Platform Keyboard (5 Buttons - 5th is 🔙 BACK TO MENU)
 MARKET_MENU = ReplyKeyboardMarkup(
@@ -105,11 +76,16 @@ async def back_to_menu_handler(client, message):
     SEARCH_WAITING.pop(user_id, None)
     
     await message.reply_text(
-        text=welcome_text, 
-        reply_markup=start_inline_kb,
+        "_", 
         reply_markup=ReplyKeyboardRemove()
     )
     
+    # 2. तुरंत बाद start.py वाला वेलकम मैसेज और इनलाइन कीबोर्ड भेजें
+    await message.reply_text(
+        text=welcome_text, 
+        reply_markup=start_inline_kb,
+        quote=True
+    )
 
 # 4. Story Selection Click Handler
 @Client.on_message(filters.regex("^📖 ") & filters.private)
