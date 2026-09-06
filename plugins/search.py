@@ -102,7 +102,8 @@ async def back_to_menu_handler(client, message):
 
     # सीधे इनलाइन मेनू भेजेंगे और ReplyKeyboardRemove से पुराना कीबोर्ड अपने आप हट जाएगा
     await message.reply_text(
-        text=welcome_msg, 
+        text=welcome_msg,
+        reply_markup=ReplyKeyboardRemove(),
         reply_markup=main_inline_kb,
         quote=True
     )
