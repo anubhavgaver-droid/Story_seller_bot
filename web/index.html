@@ -119,7 +119,7 @@
             text-transform: uppercase;
         }
 
-        /* ---------------- WELCOME SPLASH SCREEN (HD STACK REPLICA) ---------------- */
+        /* ---------------- WELCOME SPLASH SCREEN ---------------- */
         #splash-screen {
             position: fixed;
             top: 0; left: 0;
@@ -164,7 +164,6 @@
             will-change: transform, opacity;
         }
 
-        /* EXACT STACK POSITIONS */
         .hd-stack-card.pos-front {
             transform: translate3d(0, 0, 0) rotate(0deg) scale(1);
             z-index: 5;
@@ -207,7 +206,6 @@
         .splash-title { font-size: 21px; font-weight: 900; letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 8px; text-align: center; color: #ffffff; }
         .splash-sub { font-size: 12px; opacity: 0.7; text-align: center; line-height: 1.45; font-weight: 500; color: #d1d5db; }
         
-        /* DOT SPINNER STYLES */
         .loader-spinner {
             width: 26px;
             height: 26px;
@@ -389,6 +387,95 @@
             gap: 6px;
         }
         .btn-demo:active { transform: translate(2px, 2px); box-shadow: 0px 0px 0px var(--border); }
+
+        /* ---------------- ORDERS CARD STYLES ---------------- */
+        .order-card {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: var(--item-bg);
+            border: 2px solid var(--border);
+            border-radius: 14px;
+            padding: 10px 12px;
+            margin-bottom: 10px;
+            box-shadow: var(--shadow);
+            gap: 10px;
+        }
+
+        .order-left {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex: 1;
+            min-width: 0;
+        }
+
+        .order-thumb {
+            width: 48px;
+            height: 48px;
+            border-radius: 10px;
+            border: 1.5px solid var(--border);
+            object-fit: cover;
+            flex-shrink: 0;
+        }
+
+        .order-info {
+            display: flex;
+            flex-direction: column;
+            min-width: 0;
+        }
+
+        .order-title {
+            font-size: 13px;
+            font-weight: 800;
+            color: var(--text);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .order-status {
+            font-size: 10px;
+            font-weight: 800;
+            color: #10b981;
+            margin-top: 2px;
+        }
+
+        .order-actions {
+            display: flex;
+            gap: 6px;
+            align-items: center;
+            flex-shrink: 0;
+        }
+
+        .btn-order-view {
+            padding: 6px 10px;
+            border-radius: 8px;
+            border: 1.5px solid var(--border);
+            background: var(--box-bg);
+            color: var(--text);
+            font-size: 10px;
+            font-weight: 800;
+            cursor: pointer;
+            box-shadow: 1.5px 1.5px 0px var(--border);
+        }
+
+        .btn-order-get {
+            padding: 6px 10px;
+            border-radius: 8px;
+            border: 1.5px solid var(--border);
+            background: var(--accent);
+            color: #000000;
+            font-size: 10px;
+            font-weight: 900;
+            cursor: pointer;
+            box-shadow: 1.5px 1.5px 0px var(--border);
+        }
+
+        .btn-order-view:active, .btn-order-get:active {
+            transform: translate(1px, 1px);
+            box-shadow: 0px 0px 0px var(--border);
+        }
 
         /* ---------------- FULL SCREEN STORY DETAIL MODAL ---------------- */
         .modal-overlay {
@@ -666,7 +753,7 @@
 
     <script>
         const tg = window.Telegram.WebApp;
-        const BOT_USERNAME = "storysellerbyACbot";
+        const DELIVERY_BOT_USERNAME = "storysellerbyACbot";
 
         let stories = [];
         let userPurchases = [];
@@ -895,34 +982,82 @@
             } catch(e) { console.error(e); }
         }
 
+        /* --- ENHANCED UNLOCKED LIST RENDER WITH SMALL IMAGE & BUTTONS --- */
         function renderUnlockedList() {
-            document.getElementById('unlockedCount').innerText = userPurchases.length;
+            const countEl = document.getElementById('unlockedCount');
+            if (countEl) countEl.innerText = userPurchases.length;
+            
             if (document.getElementById('pUnlocked')) {
                 document.getElementById('pUnlocked').innerText = userPurchases.length;
             }
             
             const box = document.getElementById('unlockedList');
-            if(!box) return;
+            if (!box) return;
 
-            if(userPurchases.length === 0) {
+            if (userPurchases.length === 0) {
                 box.innerHTML = '<p style="font-size:12px; font-weight:700;">No unlocked stories. Claim or buy stories to access here!</p>';
                 return;
             }
             
             box.innerHTML = userPurchases.map(p => {
                 const title = p.story_title || p.title;
-                const cleanTitle = title.replace(/\s+/g, '_');
-                const deliveryLink = p.link || `https://t.me/${BOT_USERNAME}?start=get_${cleanTitle}`;
+                const sKey = p.id || title;
+                const photo = p.photo || p.image || 'https://picsum.photos/100';
                 
                 return `
-                <div class="item-row">
-                    <div>
-                        <div style="font-weight:900; font-size:13px;">${title}</div>
-                        <span style="font-size:10px; font-weight:800; color:#10b981;">✓ UNLOCKED</span>
+                <div class="order-card">
+                    <div class="order-left">
+                        <img src="${photo}" class="order-thumb" alt="${title}">
+                        <div class="order-info">
+                            <div class="order-title">${title}</div>
+                            <div class="order-status">✔ UNLOCKED</div>
+                        </div>
                     </div>
-                    <button class="chip chip-yellow" onclick="openStoryLink('${deliveryLink}')">ACCESS</button>
+                    <div class="order-actions">
+                        <button class="btn-order-view" onclick="openStoryModal('${encodeURIComponent(sKey)}')">VIEW STORY</button>
+                        <button class="btn-order-get" onclick="handleFileDelivery('${encodeURIComponent(title)}', '${p.id || ''}')">
+                            GET FILES ➔
+                        </button>
+                    </div>
                 </div>
             `}).join('');
+        }
+
+        /* --- SMART TELEGRAM BOT REDIRECT & FILE DELIVERY --- */
+        function handleFileDelivery(storyTitleRaw, storyId) {
+            triggerHaptic('success');
+            const title = decodeURIComponent(storyTitleRaw);
+            const cleanTitle = encodeURIComponent(title.replace(/\s+/g, "_"));
+            const payload = storyId ? `get_${storyId}` : `get_${cleanTitle}`;
+
+            const currentBot = tg.initDataUnsafe?.bot_username || "";
+            const isSameBot = (currentBot.toLowerCase() === DELIVERY_BOT_USERNAME.toLowerCase());
+
+            if (tg && tg.initData && isSameBot) {
+                tg.sendData(JSON.stringify({
+                    action: "get_files",
+                    story_id: storyId,
+                    title: title
+                }));
+
+                if (tg.showAlert) {
+                    tg.showAlert("✅ Check your PM! Story files have been sent to your chat.");
+                } else {
+                    alert("✅ Check your PM! Story files have been sent to your chat.");
+                }
+                
+                setTimeout(() => { tg.close(); }, 1200);
+
+            } else {
+                const targetDeepLink = `https://t.me/${DELIVERY_BOT_USERNAME}?start=${payload}`;
+
+                if (tg && tg.openTelegramLink) {
+                    tg.openTelegramLink(targetDeepLink);
+                    tg.close();
+                } else {
+                    window.location.href = targetDeepLink;
+                }
+            }
         }
 
         function renderGrid(list, target) {
@@ -954,6 +1089,7 @@
             `}).join('');
         }
 
+        /* --- UPDATED STORY MODAL WITH UNLOCKED CHECK --- */
         function openStoryModal(storyKeyRaw) {
             triggerHaptic('light');
             const storyKey = decodeURIComponent(storyKeyRaw);
@@ -971,14 +1107,28 @@
             
             const priceText = story.price == 0 ? 'FREE' : `₹${story.price}`;
             document.getElementById('mPrice').innerText = priceText;
-            document.getElementById('mAccessType').innerText = story.price == 0 ? '🎁 FREE ACCESS' : '💎 PAID SHOW';
             document.getElementById('mDesc').innerText = story.description || story.desc || 'Complete audio series package with high quality audio episodes. Instant access after unlocking.';
 
+            const isAlreadyUnlocked = userPurchases.some(p => 
+                (p.id && String(p.id) === String(story.id)) || 
+                (p.story_title === story.title || p.title === story.title)
+            );
+
             const buyBtn = document.getElementById('mBuyBtn');
-            if (story.price == 0) {
+
+            if (isAlreadyUnlocked) {
+                document.getElementById('mAccessType').innerText = '✔ UNLOCKED';
+                buyBtn.innerText = 'GET FILES IN TELEGRAM';
+                buyBtn.onclick = function() { 
+                    closeModal();
+                    handleFileDelivery(story.title, story.id); 
+                };
+            } else if (story.price == 0) {
+                document.getElementById('mAccessType').innerText = '🎁 FREE ACCESS';
                 buyBtn.innerText = 'CLAIM NOW (FREE)';
                 buyBtn.onclick = function() { claimFreeStory(story); };
             } else {
+                document.getElementById('mAccessType').innerText = '💎 PAID SHOW';
                 buyBtn.innerText = 'BUY & UNLOCK';
                 buyBtn.onclick = function() { buyStory(story.title, story.price); };
             }
@@ -1004,7 +1154,7 @@
         function playDemo(story) {
             triggerHaptic('medium');
             const cleanTitle = encodeURIComponent(story.title.replace(/\s+/g, "_"));
-            const demoLink = story.demo_link || `https://t.me/${BOT_USERNAME}?start=demo_${cleanTitle}`;
+            const demoLink = story.demo_link || `https://t.me/${DELIVERY_BOT_USERNAME}?start=demo_${cleanTitle}`;
 
             if (tg && tg.openTelegramLink) {
                 tg.openTelegramLink(demoLink);
@@ -1020,7 +1170,9 @@
             const alreadyUnlocked = userPurchases.some(p => (p.story_title === story.title || p.title === story.title));
             if (!alreadyUnlocked) {
                 userPurchases.push({
+                    id: story.id,
                     story_title: story.title,
+                    photo: story.photo,
                     link: story.link || '#'
                 });
                 renderUnlockedList();
@@ -1040,7 +1192,7 @@
             triggerHaptic('success');
 
             const cleanTitle = encodeURIComponent(title.replace(/\s+/g, "_"));
-            const deepLink = `https://t.me/${BOT_USERNAME}?start=story_${cleanTitle}`;
+            const deepLink = `https://t.me/${DELIVERY_BOT_USERNAME}?start=story_${cleanTitle}`;
 
             if (tg && tg.openTelegramLink) {
                 tg.openTelegramLink(deepLink);
