@@ -813,7 +813,12 @@ async def start_handler(client, message):
         else:
             return await message.reply_text("❌ <b>ᴛʜɪs sᴛᴏʀʏ ɪs ɴᴏᴛ ᴀᴠᴀɪʟᴀʙʟᴇ.</b>", reply_markup=MAIN_MENU)
 
-    # Normal /start Welcome Message with Inline Buttons
+    # ------------------ Normal /start Welcome Message with Delay ------------------
+    sent_msg = await message.reply_text("Pʟᴇᴀsᴇ Wᴀɪᴛ...")
+    
+    # 0.5 सेकंड का इंतज़ार (डिले)
+    await asyncio.sleep(0.5)
+
     welcome_text = (
         f"<b>━━━━━━━━━━━━━━━━━━━━━━</b>\n"
         f"🌟 <b>STORY SELLER BOT</b> 🌟\n"
@@ -827,7 +832,7 @@ async def start_handler(client, message):
             InlineKeyboardButton("🛒 ᴏᴘᴇɴ ᴍᴀʀᴋᴇᴛ / sᴛᴏʀᴇ", callback_data="open_market_cb")
         ],
         [
-            InlineKeyboardButton("💼 ᴍʏ ᴡᴀʟʟᴇᴛ", callback_data="open_wallet_cb"),
+            InlineKeyboardButton("💼 ᴍʏ ᴡᴀʟʟᴇ́t", callback_data="open_wallet_cb"),
             InlineKeyboardButton("👤 ᴍʏ ᴀᴄᴄᴏᴜɴᴛ", callback_data="open_account_cb")
         ],
         [
@@ -839,7 +844,8 @@ async def start_handler(client, message):
         ]
     ])
 
-    await message.reply_text(welcome_text, reply_markup=start_inline_kb)
+    # "Pʟᴇᴀsᴇ Wᴀɪᴛ..." वाले मैसेज को ही एडिट करके मुख्य वेलकम मैसेज दिखा दें
+    await sent_msg.edit_text(welcome_text, reply_markup=start_inline_kb)
 
 # ------------------ Open Market Callback Handler ------------------
 @Client.on_callback_query(filters.regex("^open_market_cb$"))
