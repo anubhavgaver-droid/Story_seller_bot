@@ -664,7 +664,17 @@ async def back_to_main_menu_text_handler(client, message):
         ]
     ])
 
-    await message.reply_text(welcome_text, reply_markup=start_inline_kb)
+    # 1. ReplyKeyboardRemove() की मदद से रिप्लाई कीबोर्ड हाइड हो जाएगा
+    await message.reply_text(
+        text=welcome_text, 
+        reply_markup=ReplyKeyboardRemove()
+    )
+    
+    # 2. इसके बाद इनलाइन बटन्स वाला मेनू आ जाएगा
+    await message.reply_text(
+        text="👇 <b>नीचे दिए गए ऑप्शंस चुनें:</b>", 
+        reply_markup=start_inline_kb
+    )
 
 # ------------------ Start & Deep-Link Batch Delivery Handler ------------------
 @Client.on_message(filters.command("start") & filters.private)
