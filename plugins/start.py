@@ -101,7 +101,7 @@ def build_custom_range_reply_keyboard(custom_ranges):
     return ReplyKeyboardMarkup(
         keyboard=keyboard_rows,
         resize_keyboard=True,
-        one_time_keyboard=False  # FIXED: Set to False so keyboard UI remains active
+        one_time_keyboard=False  
     )
 
 # ------------------ Global Close Callback Handler ------------------
@@ -180,7 +180,7 @@ async def send_story_files_start(client, user_id, story, first_id, last_id, clea
 
     # Stop Delivery Keyboard Layout
     stop_reply_keyboard = ReplyKeyboardMarkup(
-        [[KeyboardButton("🛑 sᴛᴏᴘ ᴅᴇʟɪᴠᴇʀʏ")]],
+        [[KeyboardButton("🛑 STOP DELIVERY")]],
         resize_keyboard=True
     )
 
@@ -240,13 +240,13 @@ async def send_story_files_start(client, user_id, story, first_id, last_id, clea
             reply_markup=MAIN_MENU
         )
 
-    # 2. Send Progress Message WITH Reply Keyboard (To ensure Telegram UI renders it)
+    # 2. Send Progress Message WITH Reply Keyboard
     progress_msg = await client.send_message(
         chat_id=user_id,
         text=f"📦 <b>ᴅᴇʟɪᴠᴇʀɪɴɢ ғɪʟᴇs...</b>\n\n"
              f"📖 <b>Story:</b> {clean_title}\n"
              f"📊 <b>Progress:</b> 0 / {total_files} Files Sent\n\n"
-             f"<i>रोकने के लिए नीचे दिए गए '🛑 sᴛᴏᴘ ᴅᴇʟɪᴠᴇʀʏ' बटन को दबाएं।</i>",
+             f"<i>रोकने के लिए नीचे दिए गए '🛑 STOP DELIVERY' बटन को दबाएं।</i>",
         reply_markup=stop_reply_keyboard
     )
 
@@ -270,16 +270,17 @@ async def send_story_files_start(client, user_id, story, first_id, last_id, clea
             sent_message_ids.append(sent_msg.id)
             success_count += 1
 
-            # Live Progress Update
-            try:
-                await progress_msg.edit_text(
-                    f"📦 <b>ᴅᴇʟɪᴠᴇʀɪɴɢ ғɪʟᴇs...</b>\n\n"
-                    f"📖 <b>Story:</b> {clean_title}\n"
-                    f"📊 <b>Progress:</b> {success_count} / {total_files} Files Sent\n\n"
-                    f"<i>रोकने के लिए नीचे दिए गए '🛑 sᴛᴏᴘ ᴅᴇʟɪᴠᴇʀʏ' बटन को दबाएं।</i>"
-                )
-            except Exception:
-                pass
+            # Live Progress Update (Optional / Scaled gap to avoid rate limits)
+            if success_count % 3 == 0 or success_count == total_files:
+                try:
+                    await progress_msg.edit_text(
+                        f"📦 <b>ᴅᴇʟɪᴠᴇʀɪɴɢ ғɪʟᴇs...</b>\n\n"
+                        f"📖 <b>Story:</b> {clean_title}\n"
+                        f"📊 <b>Progress:</b> {success_count} / {total_files} Files Sent\n\n"
+                        f"<i>रोकने के लिए नीचे दिए गए '🛑 STOP DELIVERY' बटन को दबाएं।</i>"
+                    )
+                except Exception:
+                    pass
 
             await asyncio.sleep(1.0)
         except Exception as e:
@@ -591,16 +592,16 @@ async def process_start_range_input(client, message):
         target_end_ep=end_ep
     )
 
-# ------------------ Reply Keyboard Action Handler (For Range & Stop Delivery Buttons) ------------------
+# ------------------ Reply Keyboard Action Handler (FIXED & IMPROVED) ------------------
 @Client.on_message(filters.private & filters.text, group=2)
 async def handle_range_reply_buttons(client, message):
     user_id = message.from_user.id
     text = message.text.strip()
 
-    # 1. Stop Delivery Action Check (Highest Priority - Checked BEFORE active story check)
-    if "stop delivery" in text.lower() or "sᴛᴏᴘ ᴅᴇʟɪᴠᴇʀʏ" in text:
+    # 1. Stop Delivery Action Check (Highest Priority)
+    if re.search(r"(?i)(stop delivery|sᴛᴏᴘ ᴅᴇʟɪᴠᴇʀʏ|🛑)", text):
         STOP_DELIVERY_USERS.add(user_id)
-        return await message.reply_text("🛑 **डिलीवरी रोकी जा रही है... कृपया प्रतीक्षा करें!**", quote=True)
+        return await message.reply_text("🛑 <b>डिलीवरी रोकी जा रही है... कृपया प्रतीक्षा करें!</b>", quote=True)
 
     if user_id not in USER_ACTIVE_STORY:
         return message.continue_propagation()
@@ -617,9 +618,9 @@ async def handle_range_reply_buttons(client, message):
             quote=True
         )
 
-    # 3. Full Delivery Clicked
-    elif "full delivery" in text.lower() or "all files" in text.lower():
-        USER_ACTIVE_STORY.pop(user_id, None)
+    # 3. Full Delivery Clicked (FIXED LOGIC HERE)
+    elif re.search(r"(?i)(full delivery|all files|📦)", text):
+        USER_ACTIVE_STORY.pop(user_id, None) # Remove state AFTER assigning to function
         await send_story_files_start(
             client=client,
             user_id=user_id,
@@ -759,7 +760,6 @@ async def start_handler(client, message):
         if not first_id or not last_id:
             return await message.reply_text("⚠️ <b>ɴᴏ ғɪʟᴇs ᴀssᴏᴄɪᴀᴛᴇᴅ ᴡɪᴛʜ ᴛʜɪs sᴛᴏʀʏ!</b>\nPlease contact support.", quote=True)
 
-        total_files = (last_id - first_id) + 1
         custom_ranges = story.get('custom_ranges', [])
 
         USER_ACTIVE_STORY[user.id] = story
@@ -907,7 +907,7 @@ async def refer_earn_handler(client, message):
     
     await message.reply_text(text, reply_markup=kb, disable_web_page_preview=True, quote=True)
 
-# ------------------ Dynamic Button Handlers (With Close Buttons) ------------------
+# ------------------ Dynamic Button Handlers ------------------
 
 @Client.on_message(filters.regex("^(🚀 ᴏᴘᴇɴ ᴍɪɴɪ ᴀᴘᴘ|🚀 Open Mini App)$") & filters.private)
 async def open_miniapp_handler(client, message):
