@@ -1,9 +1,10 @@
 import asyncio
 import os
+from datetime import datetime, timezone, timedelta
 from aiohttp import web
 import aiofiles
 from pyrogram import Client, idle, filters
-from config import API_ID, API_HASH, BOT_TOKEN, PORT, ADMIN_ID, BOT_USERNAME
+from config import API_ID, API_HASH, BOT_TOKEN, PORT, ADMIN_ID, BOT_USERNAME, LOG_CHANNEL
 from database.db import stories_col, get_user_purchases, get_story_by_title
 
 # Plugins setup
@@ -122,7 +123,30 @@ async def main():
     )
 
     await bot.start()
-    print("🤖 Telegram Bot Started Successfully!")
+    bot_info = await bot.get_me()
+    print(f"🤖 Telegram Bot Started Successfully! (@{bot_info.username})")
+
+    # Send Bot Restart Notification to Log Channel
+    if LOG_CHANNEL and LOG_CHANNEL != 0:
+        try:
+            # Get Current IST Time
+            ist_offset = timezone(timedelta(hours=5, minutes=30))
+            now = datetime.now(ist_offset)
+            time_str = now.strftime("%I:%M:%S %p")
+            date_str = now.strftime("%d %B %Y")
+
+            restart_msg = (
+                f"🚀 <b>ʙᴏᴛ ʀᴇsᴛᴀʀᴛᴇᴅ sᴜᴄᴄᴇssғᴜʟʟʏ!</b>\n\n"
+                f"🤖 <b>Bot Name:</b> {bot_info.first_name}\n"
+                f"🔖 <b>Username:</b> @{bot_info.username}\n"
+                f"⚙️ <b>Version:</b> <code>v2.0</code>\n"
+                f"📅 <b>Date:</b> <code>{date_str}</code>\n"
+                f"⏰ <b>Time:</b> <code>{time_str} (IST)</code>\n"
+                f"🟢 <b>Status:</b> Online & Ready!"
+            )
+            await bot.send_message(chat_id=LOG_CHANNEL, text=restart_msg)
+        except Exception as e:
+            print(f"Failed to send restart log: {e}")
 
     await idle()
     await bot.stop()
