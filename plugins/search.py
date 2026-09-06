@@ -11,7 +11,7 @@ from pyrogram.types import (
     InlineKeyboardButton, 
     ForceReply, 
     CallbackQuery,
-    ReplyKeyboardRemove  # Custom keyboard hide करने के लिए
+    ReplyKeyboardRemove
 )
 from database.db import (
     get_stories_by_cat, 
@@ -26,18 +26,42 @@ from database.db import (
 from config import BOT_USERNAME, CHANNEL_ID
 
 SEARCH_WAITING = {}
+PAGE_LIMIT = 10  # एक बार में दिखाने के लिए स्टोरीज की संख्या
 
 
-# 1. Main Market / Platform Keyboard (5 Buttons - 5th is 🔙 BACK TO MENU)
+# 1. Main Market / Platform Keyboard
 MARKET_MENU = ReplyKeyboardMarkup(
     [
-        [KeyboardButton("🚀 OPEN MINI APP")],
-        [KeyboardButton("🔎 SEARCH STORY")],
-        [KeyboardButton("📻 POCKET FM"), KeyboardButton("📚 PRATILIPI FM")],
-        [KeyboardButton("🔙 ʙᴀᴄᴋ ᴛᴏ ᴍᴇɴᴜ")]  # <--- 5th Button
+        [KeyboardButton("🚀 ᴏᴘᴇɴ ᴍɪɴɪ ᴀᴘᴘ")],
+        [KeyboardButton("🔎 sᴇᴀʀᴄʜ sᴛᴏʀʏ")],
+        [KeyboardButton("📻 ᴘᴏᴄᴋᴇᴛ ғᴍ"), KeyboardButton("📚 ᴘʀᴀᴛɪʟɪᴘɪ ғᴍ")],
+        [KeyboardButton("🔙 ʙᴀᴄᴋ ᴛᴏ ᴍᴇɴᴜ")]
     ],
     resize_keyboard=True
 )
+
+# Helper function to build paginated story list
+def build_story_keyboard(stories, page=1, total_pages=1, category_key=None):
+    keyboard_buttons = []
+    
+    # Story selection buttons (Only First Line Title)
+    for s in stories:
+        clean_title = s['title'].strip().splitlines()[0]
+        keyboard_buttons.append([KeyboardButton(f"📖 {clean_title}")])
+    
+    # Navigation row if pagination applies
+    nav_buttons = []
+    if page > 1:
+        nav_buttons.append(KeyboardButton("⏪ ᴘʀᴇᴠɪᴏᴜs"))
+    if page < total_pages:
+        nav_buttons.append(KeyboardButton("ɴᴇxᴛ ⏩"))
+        
+    if nav_buttons:
+        keyboard_buttons.append(nav_buttons)
+        
+    keyboard_buttons.append([KeyboardButton("🔙 ʙᴀᴄᴋ ᴛᴏ ᴘʟᴀᴛғᴏʀᴍ")])
+    return ReplyKeyboardMarkup(keyboard_buttons, resize_keyboard=True)
+
 
 # 2. Pocket FM / Pratilipi FM Category Handler
 @Client.on_message(filters.regex("^(📻 ᴘᴏᴄᴋᴇᴛ ғᴍ|📚 ᴘʀᴀᴛɪʟɪᴘɪ ғᴍ|📻 Pocket FM|📚 Pratilipi FM|📻 POCKET FM|📚 PRATILIPI FM)$") & filters.private)
@@ -47,40 +71,37 @@ async def category_handler(client, message):
         "📚 ᴘʀᴀᴛɪʟɪᴘɪ ғᴍ": "pratilipi_fm", "📚 Pratilipi FM": "pratilipi_fm", "📚 PRATILIPI FM": "pratilipi_fm"
     }
     cat_key = cat_map[message.text]
-    stories, total_pages = await get_stories_by_cat(cat_key, page=1, limit=50)
+    stories, total_pages = await get_stories_by_cat(cat_key, page=1, limit=PAGE_LIMIT)
     
     if not stories:
         return await message.reply_text(
-            f"❌ <b>ɴᴏ sᴛᴏʀɪᴇs ᴀᴠᴀɪʟᴀʙʟᴇ ɪɴ {message.text}.</b>", 
+            f"❌ <b>ɴᴏ sᴛᴏʀɪᴇs ᴀᴠᴀɪʟᴀʙʟᴇ ɪɴ {message.text.upper()}.</b>", 
             reply_markup=MARKET_MENU, 
             quote=True
         )
         
-    keyboard_buttons = [[KeyboardButton(f"📖 {s['title'].strip().splitlines()[0]}")] for s in stories]
+    category_keyboard = build_story_keyboard(stories, page=1, total_pages=total_pages, category_key=cat_key)
     
-    # स्टोरी लिस्ट के अंत में 🔙 BACK TO PLATFORM बटन
-    keyboard_buttons.append([KeyboardButton("🔙 BACK TO PLATFORM")])
-    
-    category_keyboard = ReplyKeyboardMarkup(keyboard_buttons, resize_keyboard=True)
     await message.reply_text(
-        f"<b>📚 AVAILABLE STORIES ({message.text}):</b>\n\nSELECT YOUR STORY FOR DETAILS:", 
+        f"📚 <b>ᴀᴠᴀɪʟᴀʙʟᴇ sᴛᴏʀɪᴇs ({message.text.upper()}):</b>\n\n"
+        f"<i>sᴇʟᴇᴄᴛ ʏᴏᴜʀ sᴛᴏʀʏ ʙᴇʟᴏᴡ ᴛᴏ ᴠɪᴇᴡ ᴅᴇᴛᴀɪʟs:</i>", 
         reply_markup=category_keyboard, 
         quote=True
     )
 
-# 3. Back to Menu Handler (कीबोर्ड हटाकर सीधे वेलकम मैसेज और इनलाइन मेनू भेजेगा)
+
+# 3. Back to Menu Handler
 @Client.on_message(filters.regex("^(🔙 ʙᴀᴄᴋ ᴛᴏ ᴍᴇɴᴜ|🔙 Back to Menu|🔙 BACK TO MENU)$") & filters.private)
 async def back_to_menu_handler(client, message):
     user_id = message.from_user.id
     SEARCH_WAITING.pop(user_id, None)
 
-    
     try:
         temp_msg = await message.reply_text(
-            "Pʟᴇᴀsᴇ Wᴀɪᴛ", 
+            "⏳ <i>ᴘʟᴇᴀsᴇ ᴡᴀɪᴛ...</i>", 
             reply_markup=ReplyKeyboardRemove()
         )
-        await asyncio.sleep(0.5)  # यहाँ समय 1 सेकंड सेट है (आप चाहें तो 0.5 भी कर सकते हैं)
+        await asyncio.sleep(0.3)
         await temp_msg.delete()
     except Exception:
         pass
@@ -88,10 +109,10 @@ async def back_to_menu_handler(client, message):
     user = message.from_user
     welcome_msg = (
         f"<b>━━━━━━━━━━━━━━━━━━━━━━</b>\n"
-        f"🌟 <b>STORY SELLER BOT</b> 🌟\n"
+        f"🌟 <b>sᴛᴏʀʏ sᴇʟʟᴇʀ ʙᴏᴛ</b> 🌟\n"
         f"<b>━━━━━━━━━━━━━━━━━━━━━━</b>\n\n"
-        f"<b>HELLO {user.first_name}! 👋</b>\n\n"
-        f"हमारे बॉट में आपका स्वागत है। मार्केट ओपन करने या अपना वॉलेट/अकाउंट देखने के लिए नीचे दिए गए बटन पर क्लिक करें:"
+        f"<b>ʜᴇʟʟᴏ {user.first_name}! 👋</b>\n\n"
+        f"वेलकम! मार्केट ओपन करने या अपना वॉलेट/अकाउंट देखने के लिए नीचे दिए गए बटन पर क्लिक करें:"
     )
 
     main_inline_kb = InlineKeyboardMarkup([
@@ -99,7 +120,7 @@ async def back_to_menu_handler(client, message):
             InlineKeyboardButton("🛒 ᴏᴘᴇɴ ᴍᴀʀᴋᴇᴛ / sᴛᴏʀᴇ", callback_data="open_market_cb")
         ],
         [
-            InlineKeyboardButton("💼 ᴍʏ ᴡᴀʟʟᴇ́t", callback_data="open_wallet_cb"),
+            InlineKeyboardButton("💼 ᴍʏ ᴡᴀʟʟᴇᴛ", callback_data="open_wallet_cb"),
             InlineKeyboardButton("👤 ᴍʏ ᴀᴄᴄᴏᴜɴᴛ", callback_data="open_account_cb")
         ],
         [
@@ -111,21 +132,23 @@ async def back_to_menu_handler(client, message):
         ]
     ])
 
-    # सीधे इनलाइन मेनू भेजेंगे और ReplyKeyboardRemove से पुराना कीबोर्ड अपने आप हट जाएगा
     await message.reply_text(
         text=welcome_msg,
         reply_markup=main_inline_kb,
         quote=True
     )
 
-# 3.1 Back to Platform Handler (पॉकेट/प्रतिलिपि लिस्ट से वापस 5 मेन मार्केट बटन्स पर जाने के लिए)
+
+# 3.1 Back to Platform Handler
 @Client.on_message(filters.regex("^(🔙 ʙᴀᴄᴋ ᴛᴏ ᴘʟᴀᴛғᴏʀᴍ|🔙 Back to Platform|🔙 BACK TO PLATFORM)$") & filters.private)
 async def back_to_platform_handler(client, message):
     await message.reply_text(
-        "<b>🏠 MAIN MARKET / PLATFORM:</b>\n\nनीचे दिए गए ऑप्शंस में से चुनें:",
+        "<b>🏠 ᴍᴀɪɴ ᴍᴀʀᴋᴇᴛ / ᴘʟᴀᴛғᴏʀᴍ:</b>\n\n"
+        "<i>नीचे दिए गए विकल्पों में से चुनें:</i>",
         reply_markup=MARKET_MENU,
         quote=True
     )
+
 
 # 4. Story Selection Click Handler
 @Client.on_message(filters.regex("^📖 ") & filters.private)
@@ -135,7 +158,7 @@ async def story_selected_handler(client, message):
     story = await get_story_by_title(story_title)
     
     if not story:
-        return await message.reply_text("❌ <b>ᴛʜɪs sᴛᴏʀʏ ɪs ɴᴏᴛ ᴀᴠᴀɪʟᴀʙʟᴇ.</b>", quote=True)
+        return await message.reply_text("❌ <b>ᴛʜɪs sᴛᴏʀʏ ɪs ᴄᴜʀʀᴇɴᴛʟʏ ᴜɴᴀᴠᴀɪʟᴀʙʟᴇ.</b>", quote=True)
         
     clean_title = story['title'].strip().splitlines()[0]
     encoded_title = clean_title.replace(" ", "_")
@@ -144,31 +167,32 @@ async def story_selected_handler(client, message):
     inline_buttons = []
     
     if story.get('demo_enabled', False):
-        inline_buttons.append([InlineKeyboardButton("🎬 ᴅᴇᴍᴏ / ᴘʀᴇᴠɪᴇᴡ", callback_data=f"viewdemo_{encoded_title}")])
+        inline_buttons.append([InlineKeyboardButton("🎬 ᴠɪᴇᴡ ᴅᴇᴍᴏ / ᴘʀᴇᴠɪᴇᴡ", callback_data=f"viewdemo_{encoded_title}")])
         
     inline_buttons.extend([
         [InlineKeyboardButton(f"💳 ᴅɪʀᴇᴄᴛ ᴘᴀʏ (₹{story['price']})", callback_data=f"buy_{encoded_title}_{story['price']}")],
-        [InlineKeyboardButton(f"👛 ᴘᴀʏ ᴠɪᴀ ᴡᴀʟʟᴇᴛ (Bal: ₹{wallet_bal})", callback_data=f"walletpay_{encoded_title}_{story['price']}")]
+        [InlineKeyboardButton(f"👛 ᴘᴀʏ ᴠɪᴀ ᴡᴀʟʟᴇᴛ (ʙᴀʟ: ₹{wallet_bal})", callback_data=f"walletpay_{encoded_title}_{story['price']}")]
     ])
     
     btn = InlineKeyboardMarkup(inline_buttons)
     photo_url = story.get('photo', 'https://picsum.photos/400/200')
     
     caption_text = (
-        f"♨️ <b>Story :</b> {clean_title}\n"
-        f"🔰 <b>Status :</b> {story.get('status', 'Completed')}\n"
-        f"🖥️ <b>Platform :</b> {story.get('category', 'Pocket FM')}\n"
-        f"🧩 <b>Genre :</b> {story.get('genre', 'Drama')}\n"
-        f"🎬 <b>Episodes :</b> {story.get('episodes', 'N/A')}\n\n"
-        f"░▒▓█ PRICE - ₹{story['price']} █▓▒░\n\n"
-        f"👛 <b>ʏᴏᴜʀ ᴡᴀʟʟᴇᴛ:</b> ₹{wallet_bal}\n\n"
-        f"<i>Select payment method below:</i>"
+        f"📖 <b>sᴛᴏʀʏ :</b> {clean_title}\n"
+        f"🔰 <b>sᴛᴀᴛᴜs :</b> {story.get('status', 'Completed')}\n"
+        f"🖥️ <b>ᴘʟᴀᴛғᴏʀᴍ :</b> {story.get('category', 'Pocket FM')}\n"
+        f"🎭 <b>ɢᴇɴʀᴇ :</b> {story.get('genre', 'Drama')}\n"
+        f"🎧 <b>ᴇᴘɪsᴏᴅᴇs :</b> {story.get('episodes', 'N/A')}\n\n"
+        f"░▒▓█ ᴘʀɪᴄᴇ - ₹{story['price']} █▓▒░\n\n"
+        f"👛 <b>ʏᴏᴜʀ ᴡᴀʟʟᴇᴛ :</b> ₹{wallet_bal}\n\n"
+        f"<i>👇 Select a payment method below:</i>"
     )
     
     try:
         await message.reply_photo(photo=photo_url, caption=caption_text, reply_markup=btn, quote=True)
     except Exception:
         await message.reply_text(caption_text, reply_markup=btn, quote=True)
+
 
 # 5. View Demo Callback Handler
 @Client.on_callback_query(filters.regex(r"^viewdemo_"))
@@ -183,16 +207,16 @@ async def view_demo_callback(client: Client, callback_query: CallbackQuery):
             
         demo_ids = story.get("demo_msg_ids", [])
         if not demo_ids:
-            return await callback_query.answer("❌ No Demo files available!", show_alert=True)
+            return await callback_query.answer("❌ No demo files found!", show_alert=True)
             
-        await callback_query.answer("🎬 Sending Demo files... Please check your chat!")
+        await callback_query.answer("🎬 Sending demo preview... Check your chat!")
         user_id = callback_query.from_user.id
         sent_messages = []
         
         header_msg = await client.send_message(
             chat_id=user_id,
-            text=f"🎬 <b>ᴅᴇᴍᴏ / ᴘʀᴇᴠɪᴇᴡ ғᴏʀ:</b> <code>{story['title']}</code>\n\n"
-                 f"⏰ <i>This demo preview will automatically delete in 10 minutes!</i>"
+            text=f"🎬 <b>ᴅᴇᴍᴏ ᴘʀᴇᴠɪᴇᴡ ғᴏʀ:</b> <code>{story['title'].strip().splitlines()[0]}</code>\n\n"
+                 f"⏰ <i>This demo preview will automatically auto-delete in 10 minutes!</i>"
         )
         sent_messages.append(header_msg)
         
@@ -202,7 +226,7 @@ async def view_demo_callback(client: Client, callback_query: CallbackQuery):
                     chat_id=user_id,
                     from_chat_id=CHANNEL_ID,
                     message_id=msg_id,
-                    caption=f"🎧 <b>Demo Sample</b> - {story['title']}"
+                    caption=f"🎧 <b>ᴅᴇᴍᴏ sᴀᴍᴘʟᴇ</b> - {story['title'].strip().splitlines()[0]}"
                 )
                 sent_messages.append(copied_msg)
             except Exception as e:
@@ -220,7 +244,8 @@ async def view_demo_callback(client: Client, callback_query: CallbackQuery):
 
     except Exception as e:
         print(f"Error in view_demo_callback: {e}")
-        await callback_query.answer("❌ Failed to send Demo files!", show_alert=True)
+        await callback_query.answer("❌ Failed to send demo preview!", show_alert=True)
+
 
 # 6. Wallet Deduction Payment Callback Handler
 @Client.on_callback_query(filters.regex(r"^walletpay_"))
@@ -239,7 +264,7 @@ async def process_wallet_payment(client, callback_query):
 
         if current_balance < price:
             return await callback_query.answer(
-                f"❌ Insufficient Balance!\nRequired: ₹{price}\nAvailable: ₹{current_balance}\n\nPlease top-up your wallet.",
+                f"❌ Insufficient Balance!\n\nRequired: ₹{price}\nAvailable: ₹{current_balance}\n\nPlease add money to your wallet.",
                 show_alert=True
             )
 
@@ -255,14 +280,14 @@ async def process_wallet_payment(client, callback_query):
         
         success_text = (
             f"✅ <b>ᴘᴜʀᴄʜᴀsᴇ sᴜᴄᴄᴇssғᴜʟ!</b>\n\n"
-            f"📖 <b>sᴛᴏʀʏ:</b> {clean_title}\n"
-            f"💸 <b>ᴅᴇᴅᴜᴄᴛᴇᴅ:</b> ₹{price}\n"
-            f"👛 <b>ʀᴇᴍᴀɪɴɪɴɢ ʙᴀʟᴀɴᴄᴇ:</b> ₹{new_balance}\n\n"
-            f"👇 Click below to access your story:"
+            f"📖 <b>sᴛᴏʀʏ :</b> {clean_title}\n"
+            f"💸 <b>ᴅᴇᴅᴜᴄᴛᴇᴅ :</b> ₹{price}\n"
+            f"👛 <b>ʀᴇᴍᴀɪɴɪɴɢ ʙᴀʟᴀɴᴄᴇ :</b> ₹{new_balance}\n\n"
+            f"👇 <i>Click below to unlock and access your story files:</i>"
         )
         
         access_btn = InlineKeyboardMarkup([
-            [InlineKeyboardButton("📂 ɢᴇᴛ ғɪʟᴇs (Unlocked)", url=delivery_link)]
+            [InlineKeyboardButton("📂 ɢᴇᴛ ғɪʟᴇs (ᴜɴʟᴏᴄᴋᴇᴅ)", url=delivery_link)]
         ])
         
         await callback_query.message.edit_text(success_text, reply_markup=access_btn)
@@ -271,6 +296,7 @@ async def process_wallet_payment(client, callback_query):
         print(f"Error in process_wallet_payment: {e}")
         await callback_query.answer("❌ Error processing wallet payment!", show_alert=True)
 
+
 # 7. Search Prompt Handler
 @Client.on_message(filters.regex("^(🔎 sᴇᴀʀᴄʜ sᴛᴏʀʏ|🔎 Search Story|🔎 SEARCH STORY)$") & filters.private)
 async def search_prompt(client, message):
@@ -278,19 +304,20 @@ async def search_prompt(client, message):
     SEARCH_WAITING[user_id] = True
     
     await message.reply_text(
-        "<b>NOW YOU CAN SEARCH YOUR STORY!</b> 🔍\n\n"
-        "TYPE AND SEND THE STORY NAME:\n"
-        "<i>(स्पेलिंग थोड़ी गलत होने पर भी बॉट सही रिजल्ट ढूंढ लेगा)</i>",
+        "🔎 <b>sᴇᴀʀᴄʜ ʏᴏᴜʀ ғᴀᴠᴏʀɪᴛᴇ sᴛᴏʀʏ!</b>\n\n"
+        "<i>Type and send the story title below:</i>\n"
+        "<code>(अगर स्पेलिंग में थोड़ी गलती भी होगी, तो बॉट सही रिजल्ट ढूंढ लेगा)</code>",
         reply_markup=ForceReply(selective=True, placeholder="TYPE STORY NAME HERE..."),
         quote=True
     )
+
 
 # 8. Enhanced Fuzzy Search Process Logic
 @Client.on_message(
     filters.private 
     & filters.text 
     & ~filters.command(["start", "addstory", "deletestory", "allstories", "cancel", "addmoney", "broadcast", "refreshstories"]) 
-    & ~filters.regex("^(🚀 ᴏᴘᴇɴ ᴍɪɴɪ ᴀᴘᴘ|🚀 OPEN MINI APP|💼 ᴍʏ ᴡᴀʟʟᴇᴛ|📢 ᴜᴘᴅᴀᴛᴇs ᴄʜᴀɴɴᴇʟ|👤 ᴍʏ ᴀᴄᴄᴏᴜɴᴛ|📞 sᴜᴘᴘᴏʀᴛ|📻 ᴘᴏᴄᴋᴇᴛ ғᴍ|📚 ᴘʀᴀᴛɪʟɪᴘɪ ғᴍ|🎁 ʀᴇғᴇʀ & ᴇᴀʀɴ|🎁 Refer & Earn|🛑 sᴛᴏᴘ ᴅᴇʟɪᴠᴇʀʏ|🛑 Stop Delivery|stop delivery|🔙 ʙᴀᴄᴋ ᴛᴏ ᴍᴇɴᴜ|🔙 Back to Menu|🔙 BACK TO MENU|🔙 ʙᴀᴄᴋ ᴛᴏ ᴘʟᴀᴛғᴏʀᴍ|🔙 Back to Platform|🔙 BACK TO PLATFORM|📖 |🔎 sᴇᴀʀᴄʜ sᴛᴏʀʏ|🔎 SEARCH STORY|🚀 Open Mini App|💼 My Wallet|📢 Updates Channel|👤 My Account|📞 Support|📻 Pocket FM|📚 Pratilipi FM|🔎 Search Story)"),
+    & ~filters.regex("^(🚀 ᴏᴘᴇɴ ᴍɪɴɪ ᴀᴘᴘ|🚀 OPEN MINI APP|💼 ᴍʏ ᴡᴀʟʟᴇᴛ|📢 ᴜᴘᴅᴀᴛᴇs ᴄʜᴀɴɴᴇʟ|👤 ᴍʏ ᴀᴄᴄᴏᴜɴᴛ|📞 sᴜᴘᴘᴏʀᴛ|📻 ᴘᴏᴄᴋᴇᴛ ғᴍ|📚 ᴘʀᴀᴛɪʟɪᴘɪ ғᴍ|🎁 ʀᴇғᴇʀ & ᴇᴀʀɴ|🎁 Refer & Earn|🛑 sᴛᴏᴘ ᴅᴇʟɪᴠᴇʀʏ|🛑 Stop Delivery|stop delivery|🔙 ʙᴀᴄᴋ ᴛᴏ ᴍᴇɴᴜ|🔙 Back to Menu|🔙 BACK TO MENU|🔙 ʙᴀᴄᴋ ᴛᴏ ᴘʟᴀᴛғᴏʀᴍ|🔙 Back to Platform|🔙 BACK TO PLATFORM|📖 |🔎 sᴇᴀʀᴄʜ sᴛᴏʀʏ|🔎 SEARCH STORY|🚀 Open Mini App|💼 My Wallet|📢 Updates Channel|👤 My Account|📞 Support|📻 Pocket FM|📚 Pratilipi FM|🔎 Search Story|⏪ ᴘʀᴇᴠɪᴏᴜs|ɴᴇxᴛ ⏩)$"),
     group=2
 )
 async def process_search(client, message):
@@ -323,10 +350,18 @@ async def process_search(client, message):
         matched_stories = db_stories or []
     
     if not matched_stories:
-        return await message.reply_text(f"❌ <b>NO STORY FOUND WITH NAME '{query}'!</b>", reply_markup=MARKET_MENU, quote=True)
+        return await message.reply_text(
+            f"❌ <b>ɴᴏ sᴛᴏʀʏ ғᴏᴜɴᴅ ᴍᴀᴛᴄʜɪɴɢ '{query}'!</b>", 
+            reply_markup=MARKET_MENU, 
+            quote=True
+        )
         
     keyboard_buttons = [[KeyboardButton(f"📖 {s['title'].strip().splitlines()[0]}")] for s in matched_stories]
-    keyboard_buttons.append([KeyboardButton("🔙 BACK TO PLATFORM")])
+    keyboard_buttons.append([KeyboardButton("🔙 ʙᴀᴄᴋ ᴛᴏ ᴘʟᴀᴛғᴏʀᴍ")])
     
     search_keyboard = ReplyKeyboardMarkup(keyboard_buttons, resize_keyboard=True)
-    await message.reply_text(f"🔍 <b>FOUND STORIES MATCHING '{query}':</b>", reply_markup=search_keyboard, quote=True)
+    await message.reply_text(
+        f"🔍 <b>ғᴏᴜɴᴅ sᴛᴏʀɪᴇs ᴍᴀᴛᴄʜɪɴɢ '{query}':</b>", 
+        reply_markup=search_keyboard, 
+        quote=True
+    )
