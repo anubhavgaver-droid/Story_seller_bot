@@ -10,7 +10,8 @@ from pyrogram.types import (
     InlineKeyboardMarkup, 
     InlineKeyboardButton, 
     ForceReply, 
-    CallbackQuery
+    CallbackQuery,
+    ReplyKeyboardRemove  # Custom keyboard hide करने के लिए
 )
 from database.db import (
     get_stories_by_cat, 
@@ -27,12 +28,13 @@ from config import BOT_USERNAME, CHANNEL_ID
 # State and Storage Dictionaries
 SEARCH_WAITING = {}
 
-# 1. Main Market / Platform Keyboard (4 Core Buttons)
+# 1. Main Market / Platform Keyboard (5 Buttons - 5th is 🔙 BACK TO MENU)
 MARKET_MENU = ReplyKeyboardMarkup(
     [
         [KeyboardButton("🚀 OPEN MINI APP")],
         [KeyboardButton("🔎 SEARCH STORY")],
-        [KeyboardButton("📻 POCKET FM"), KeyboardButton("📚 PRATILIPI FM")]
+        [KeyboardButton("📻 POCKET FM"), KeyboardButton("📚 PRATILIPI FM")],
+        [KeyboardButton("🔙 BACK TO MENU")]  # <--- 5th Button
     ],
     resize_keyboard=True
 )
@@ -55,7 +57,8 @@ async def category_handler(client, message):
         )
         
     keyboard_buttons = [[KeyboardButton(f"📖 {s['title'].strip().splitlines()[0]}")] for s in stories]
-    # Adding Back to Menu button at the end of story list
+    
+    # स्टोरी लिस्ट के अंत में 🔙 BACK TO MENU बटन
     keyboard_buttons.append([KeyboardButton("🔙 BACK TO MENU")])
     
     category_keyboard = ReplyKeyboardMarkup(keyboard_buttons, resize_keyboard=True)
@@ -65,15 +68,15 @@ async def category_handler(client, message):
         quote=True
     )
 
-# 3. Back to Menu Handler (Restores Main 4 Buttons)
+# 3. Back to Menu Handler (start.py की तरह Keyboard को Remove/Close करेगा)
 @Client.on_message(filters.regex("^(🔙 ʙᴀᴄᴋ ᴛᴏ ᴍᴇɴᴜ|🔙 Back to Menu|🔙 BACK TO MENU)$") & filters.private)
 async def back_to_menu_handler(client, message):
     user_id = message.from_user.id
     SEARCH_WAITING.pop(user_id, None)
     
     await message.reply_text(
-        "👇 <b>नीचे दिए गए कीबोर्ड से आप स्टोरी खोज सकते हैं या प्लेटफॉर्म चुन सकते हैं:</b>", 
-        reply_markup=MARKET_MENU, 
+        "❌ <b>Menu Closed. Normal Keyboard Active!</b>", 
+        reply_markup=ReplyKeyboardRemove(), 
         quote=True
     )
 
