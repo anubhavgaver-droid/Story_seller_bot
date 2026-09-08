@@ -1,5 +1,5 @@
 import re
-from pyrogram import Client
+from pyrogram import Client, enums 
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from config import BOT_USERNAME, CHANNEL, TUTORIAL_VIDEO_URL
 
@@ -35,11 +35,11 @@ async def send_story_to_channel(client: Client, story_data: dict):
         # Buttons Setup
         buttons = InlineKeyboardMarkup([
             [
-                InlineKeyboardButton("🛒 ʙᴜʏ ɴᴏᴡ", url=miniapp_url),
-                InlineKeyboardButton("📖 ᴛᴜᴛᴏʀɪᴀʟ", url=TUTORIAL_VIDEO_URL)
+                InlineKeyboardButton("🛒 ʙᴜʏ ɴᴏᴡ", style=enums.ButtonStyle.PRIMARY, url=miniapp_url),
+                InlineKeyboardButton("📖 ᴛᴜᴛᴏʀɪᴀʟ", style=enums.ButtonStyle.PRIMARY, url=TUTORIAL_VIDEO_URL)
             ],
             [
-                InlineKeyboardButton("⚡ ᴅɪʀᴇᴄᴛ ʙᴏᴛ ᴏʀᴅᴇʀ", url=bot_direct_url)
+                InlineKeyboardButton("⚡ ᴅɪʀᴇᴄᴛ ʙᴏᴛ ᴏʀᴅᴇʀ", style=enums.ButtonStyle.PRIMARY, url=bot_direct_url)
             ]
         ])
 
