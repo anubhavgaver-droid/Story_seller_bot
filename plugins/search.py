@@ -33,10 +33,10 @@ PAGE_LIMIT = 10       # Strictly 10 stories per page
 # 1. Main Market / Platform Keyboard
 MARKET_MENU = ReplyKeyboardMarkup(
     [
-        [KeyboardButton("🚀 ᴏᴘᴇɴ ᴍɪɴɪ ᴀᴘᴘ")],
-        [KeyboardButton("🔎 sᴇᴀʀᴄʜ sᴛᴏʀʏ")],
-        [KeyboardButton("📻 ᴘᴏᴄᴋᴇᴛ ғᴍ"), KeyboardButton("📚 ᴘʀᴀᴛɪʟɪᴘɪ ғᴍ")],
-        [KeyboardButton("🔙 ʙᴀᴄᴋ ᴛᴏ ᴍᴇɴᴜ")]
+        [KeyboardButton("🚀 ᴏᴘᴇɴ ᴍɪɴɪ ᴀᴘᴘ", style=enums.ButtonStyle.PRIMARY)],
+        [KeyboardButton("🔎 sᴇᴀʀᴄʜ sᴛᴏʀʏ", style=enums.ButtonStyle.PRIMARY)],
+        [KeyboardButton("📻 ᴘᴏᴄᴋᴇᴛ ғᴍ", style=enums.ButtonStyle.PRIMARY), KeyboardButton("📚 ᴘʀᴀᴛɪʟɪᴘɪ ғᴍ", style=enums.ButtonStyle.PRIMARY)],
+        [KeyboardButton("🔙 ʙᴀᴄᴋ ᴛᴏ ᴍᴇɴᴜ", style=enums.ButtonStyle.PRIMARY)]
     ],
     resize_keyboard=True
 )
@@ -54,18 +54,18 @@ def build_paginated_keyboard(stories, page=1, total_pages=1, show_view_all=True)
     # Navigation & View All Row
     nav_buttons = []
     if page > 1:
-        nav_buttons.append(KeyboardButton("⏪ ᴘʀᴇᴠɪᴏᴜs"))
+        nav_buttons.append(KeyboardButton("⏪ ᴘʀᴇᴠɪᴏᴜs", style=enums.ButtonStyle.PRIMARY))
         
     if total_pages > 1 and show_view_all:
-        nav_buttons.append(KeyboardButton("👁 ᴠɪᴇᴡ ᴀʟʟ"))
+        nav_buttons.append(KeyboardButton("👁 ᴠɪᴇᴡ ᴀʟʟ", style=enums.ButtonStyle.PRIMARY))
         
     if page < total_pages:
-        nav_buttons.append(KeyboardButton("ɴᴇxᴛ ⏩"))
+        nav_buttons.append(KeyboardButton("ɴᴇxᴛ ⏩", style=enums.ButtonStyle.PRIMARY))
         
     if nav_buttons:
         keyboard_buttons.append(nav_buttons)
         
-    keyboard_buttons.append([KeyboardButton("🔙 ʙᴀᴄᴋ ᴛᴏ ᴘʟᴀᴛғᴏʀᴍ")])
+    keyboard_buttons.append([KeyboardButton("🔙 ʙᴀᴄᴋ ᴛᴏ ᴘʟᴀᴛғᴏʀᴍ", style=enums.ButtonStyle.PRIMARY)])
     return ReplyKeyboardMarkup(keyboard_buttons, resize_keyboard=True)
 
 
@@ -170,18 +170,18 @@ async def back_to_menu_handler(client, message):
 
     main_inline_kb = InlineKeyboardMarkup([
         [
-            InlineKeyboardButton("🛒 ᴏᴘᴇɴ ᴍᴀʀᴋᴇᴛ / sᴛᴏʀᴇ", callback_data="open_market_cb")
+            InlineKeyboardButton("🛒 ᴏᴘᴇɴ ᴍᴀʀᴋᴇᴛ / sᴛᴏʀᴇ", callback_data="open_market_cb", style=enums.ButtonStyle.PRIMARY)
         ],
         [
-            InlineKeyboardButton("💼 ᴍʏ ᴡᴀʟʟᴇᴛ", callback_data="open_wallet_cb"),
-            InlineKeyboardButton("👤 ᴍʏ ᴀᴄᴄᴏᴜɴᴛ", callback_data="open_account_cb")
+            InlineKeyboardButton("💼 ᴍʏ ᴡᴀʟʟᴇᴛ", callback_data="open_wallet_cb", style=enums.ButtonStyle.PRIMARY),
+            InlineKeyboardButton("👤 ᴍʏ ᴀᴄᴄᴏᴜɴᴛ", callback_data="open_account_cb", style=enums.ButtonStyle.PRIMARY)
         ],
         [
-            InlineKeyboardButton("🎁 ʀᴇғᴇʀ & ᴇᴀʀɴ", callback_data="open_refer_cb")
+            InlineKeyboardButton("🎁 ʀᴇғᴇʀ & ᴇᴀʀɴ", callback_data="open_refer_cb", style=enums.ButtonStyle.PRIMARY)
         ],
         [
-            InlineKeyboardButton("📢 ᴜᴘᴅᴀᴛᴇs", url="https://t.me/freestoryhubMR"),
-            InlineKeyboardButton("📞 sᴜᴘᴘᴏʀᴛ", url="https://t.me/pratilipifm0900")
+            InlineKeyboardButton("📢 ᴜᴘᴅᴀᴛᴇs", url="https://t.me/freestoryhubMR", style=enums.ButtonStyle.PRIMARY),
+            InlineKeyboardButton("📞 sᴜᴘᴘᴏʀᴛ", url="https://t.me/pratilipifm0900", style=enums.ButtonStyle.PRIMARY)
         ]
     ])
 
@@ -221,11 +221,11 @@ async def story_selected_handler(client, message):
     inline_buttons = []
     
     if story.get('demo_enabled', False):
-        inline_buttons.append([InlineKeyboardButton("🎬 ᴠɪᴇᴡ ᴅᴇᴍᴏ / ᴘʀᴇᴠɪᴇᴡ", callback_data=f"viewdemo_{encoded_title}")])
+        inline_buttons.append([InlineKeyboardButton("🎬 ᴠɪᴇᴡ ᴅᴇᴍᴏ / ᴘʀᴇᴠɪᴇᴡ", style=enums.ButtonStyle.PRIMARY, callback_data=f"viewdemo_{encoded_title}")])
         
     inline_buttons.extend([
-        [InlineKeyboardButton(f"💳 ᴅɪʀᴇᴄᴛ ᴘᴀʏ (₹{story['price']})", callback_data=f"buy_{encoded_title}_{story['price']}")],
-        [InlineKeyboardButton(f"👛 ᴘᴀʏ ᴠɪᴀ ᴡᴀʟʟᴇᴛ (ʙᴀʟ: ₹{wallet_bal})", callback_data=f"walletpay_{encoded_title}_{story['price']}")]
+        [InlineKeyboardButton(f"💳 ᴅɪʀᴇᴄᴛ ᴘᴀʏ (₹{story['price']})", style=enums.ButtonStyle.PRIMARY, callback_data=f"buy_{encoded_title}_{story['price']}")],
+        [InlineKeyboardButton(f"👛 ᴘᴀʏ ᴠɪᴀ ᴡᴀʟʟᴇᴛ (ʙᴀʟ: ₹{wallet_bal})", style=enums.ButtonStyle.PRIMARY, callback_data=f"walletpay_{encoded_title}_{story['price']}")]
     ])
     
     btn = InlineKeyboardMarkup(inline_buttons)
@@ -341,7 +341,7 @@ async def process_wallet_payment(client, callback_query):
         )
         
         access_btn = InlineKeyboardMarkup([
-            [InlineKeyboardButton("📂 ɢᴇᴛ ғɪʟᴇs (ᴜɴʟᴏᴄᴋᴇᴅ)", url=delivery_link)]
+            [InlineKeyboardButton("📂 ɢᴇᴛ ғɪʟᴇs (ᴜɴʟᴏᴄᴋᴇᴅ)", style=enums.ButtonStyle.PRIMARY, url=delivery_link)]
         ])
         
         await callback_query.message.edit_text(success_text, reply_markup=access_btn)
@@ -408,7 +408,7 @@ async def process_search(client, message):
         )
         
     keyboard_buttons = [[KeyboardButton(f"📖 {s['title'].strip().splitlines()[0]}")] for s in matched_stories]
-    keyboard_buttons.append([KeyboardButton("🔙 ʙᴀᴄᴋ ᴛᴏ ᴘʟᴀᴛғᴏʀᴍ")])
+    keyboard_buttons.append([KeyboardButton("🔙 ʙᴀᴄᴋ ᴛᴏ ᴘʟᴀᴛғᴏʀᴍ", style=enums.ButtonStyle.PRIMARY)])
     
     search_keyboard = ReplyKeyboardMarkup(keyboard_buttons, resize_keyboard=True)
     await message.reply_text(
