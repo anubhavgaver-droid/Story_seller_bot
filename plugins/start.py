@@ -158,7 +158,6 @@ def build_custom_range_reply_keyboard(custom_ranges, page=0, per_page=10):
     if current_row:
         keyboard_rows.append(current_row)
 
-    # Navigation Buttons (Back / Next / View All)
     nav_row = []
     if page > 0:
         nav_row.append(KeyboardButton("◀️ ʙᴀᴄᴋ"))
@@ -311,7 +310,6 @@ async def send_story_files_start(client, user_id, story, first_id, last_id, clea
         )
 
     ep_range = get_exact_episode_range(sent_messages_obj) if sent_messages_obj else "Files Range"
-
     encoded_title = clean_title.replace(" ", "_")
     
     if sent_message_ids:
@@ -996,14 +994,16 @@ async def cb_account_handler(client, callback_query):
     if not purchases:
         acc_text += "❌ <b>ʏᴏᴜ ʜᴀᴠᴇɴ'ᴛ ᴘᴜʀᴄʜᴀsᴇᴅ ᴀɴʏ sᴛᴏʀɪᴇs ʏᴇᴛ.</b>"
     else:
-        acc_text += "📖 <b>ʏᴏᴜʀ ᴘᴜʀᴄʜᴀsᴇᴅ sᴛᴏʀɪᴇs:</b>\n\n"
-        for item in purchases:
-            story = await get_story_by_title(item['story_title'])
-            if story:
-                clean_title = story['title'].strip().split("\n")[0]
-                encoded_title = clean_title.replace(" ", "_")
-                delivery_link = f"https://t.me/{BOT_USERNAME}?start=get_{encoded_title}"
-                buttons.append([InlineKeyboardButton(f"🚀 ᴀᴄᴄᴇss {clean_title}", url=delivery_link)])
+        acc_text += f"📖 <b>ʏᴏᴜʀ ᴘᴜʀᴄʜᴀsᴇᴅ sᴛᴏʀɪᴇs ({len(purchases)}):</b>\n\n"
+        # Capped to 10 inline buttons to prevent Telegram UI payload overflow
+        for item in purchases[:10]:
+            story_title = item.get('story_title', '')
+            clean_title = story_title.strip().split("\n")[0]
+            encoded_title = clean_title.replace(" ", "_")
+            delivery_link = f"https://t.me/{BOT_USERNAME}?start=get_{encoded_title}"
+            
+            acc_text += f"• <b>{clean_title}</b>\n"
+            buttons.append([InlineKeyboardButton(f"🚀 ᴀᴄᴄᴇss {clean_title}", url=delivery_link)])
             
     buttons.append([InlineKeyboardButton("❌ ᴄʟᴏsᴇ", callback_data="close_message")])
     await callback_query.message.reply_text(acc_text, reply_markup=InlineKeyboardMarkup(buttons))
@@ -1142,16 +1142,16 @@ async def account_handler(client, message):
     if not purchases:
         acc_text += "❌ <b>ʏᴏᴜ ʜᴀᴠᴇɴ'ᴛ ᴘᴜʀᴄʜᴀsᴇᴅ ᴀɴʏ sᴛᴏʀɪᴇs ʏᴇᴛ.</b>"
     else:
-        acc_text += "📖 <b>ʏᴏᴜʀ ᴘᴜʀᴄʜᴀsᴇᴅ sᴛᴏʀɪᴇs:</b>\n\n"
-        for item in purchases:
-            story = await get_story_by_title(item['story_title'])
-            if story:
-                clean_title = story['title'].strip().split("\n")[0]
-                encoded_title = clean_title.replace(" ", "_")
-                delivery_link = f"https://t.me/{BOT_USERNAME}?start=get_{encoded_title}"
-                
-                acc_text += f"• <b>{clean_title}</b>\n"
-                buttons.append([InlineKeyboardButton(f"🚀 ᴀᴄᴄᴇss {clean_title}", url=delivery_link)])
+        acc_text += f"📖 <b>ʏᴏᴜʀ ᴘᴜʀᴄʜᴀsᴇᴅ sᴛᴏʀɪᴇs ({len(purchases)}):</b>\n\n"
+        # Capped to 10 inline buttons to prevent Telegram UI payload overflow
+        for item in purchases[:10]:
+            story_title = item.get('story_title', '')
+            clean_title = story_title.strip().split("\n")[0]
+            encoded_title = clean_title.replace(" ", "_")
+            delivery_link = f"https://t.me/{BOT_USERNAME}?start=get_{encoded_title}"
+            
+            acc_text += f"• <b>{clean_title}</b>\n"
+            buttons.append([InlineKeyboardButton(f"🚀 ᴀᴄᴄᴇss {clean_title}", url=delivery_link)])
             
     buttons.append([InlineKeyboardButton("❌ ᴄʟᴏsᴇ", callback_data="close_message")])
     reply_markup = InlineKeyboardMarkup(buttons)
