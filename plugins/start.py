@@ -47,6 +47,7 @@ REFER_BONUS = 1.0  # ₹1.00 Per Referral
 START_RANGE_WAITING = {}
 USER_ACTIVE_STORY = {}
 USER_PAGINATION_PAGE = {}
+USER_ACCOUNT_PAGINATION = {}
 
 # Storage Set for Delivery Stop Control
 STOP_DELIVERY_USERS = set()
@@ -954,6 +955,83 @@ async def open_market_callback(client, callback_query):
         reply_markup=MAIN_MENU
     )
 
+# ------------------ Helper: Account Details & Pagination Renderer ------------------
+async def send_or_edit_account_details(client, user, message_or_cb, page=0, is_callback=False):
+    purchases = await get_user_purchases(user.id)
+    balance = await get_user_wallet(user.id)
+    
+    acc_text = (
+        f"<b>👤 ᴀᴄᴄᴏᴜɴᴛ ᴅᴇᴛᴀɪʟs:</b>\n"
+        f"━━━━━━━━━━━━━━━━━━━\n"
+        f"<b>ɴᴀᴍᴇ:</b> {user.first_name}\n"
+        f"<b>ᴜsᴇʀ ɪᴅ:</b> <code>{user.id}</code>\n"
+        f"<b>ᴜsᴇʀɴᴀᴍᴇ:</b> @{user.username if user.username else 'N/A'}\n"
+        f"<b>👛 ᴡᴀʟʟᴇᴛ ʙᴀʟᴀɴᴄᴇ:</b> ₹{balance}\n"
+        f"<b>sᴛᴀᴛᴜs:</b> ᴀᴄᴛɪᴠᴇ ᴜsᴇʀ ⚡\n"
+        f"━━━━━━━━━━━━━━━━━━━\n\n"
+    )
+    
+    buttons = []
+    
+    if not purchases:
+        acc_text += "❌ <b>ʏᴏᴜ ʜᴀᴠᴇɴ'ᴛ ᴘᴜʀᴄʜᴀsᴇᴅ ᴀɴʏ sᴛᴏʀɪᴇs ʏᴇᴛ.</b>"
+    else:
+        total_purchases = len(purchases)
+        per_page = 10
+        total_pages = (total_purchases + per_page - 1) // per_page
+        
+        page = max(0, min(page, total_pages - 1))
+        USER_ACCOUNT_PAGINATION[user.id] = page
+
+        start_idx = page * per_page
+        end_idx = start_idx + per_page
+        current_page_items = purchases[start_idx:end_idx]
+
+        acc_text += f"📖 <b>ʏᴏᴜʀ ᴘᴜʀᴄʜᴀsᴇᴅ sᴛᴏʀɪᴇs ({total_purchases}):</b>\n"
+        acc_text += f"<i>Page {page + 1} of {total_pages}</i>\n\n"
+        
+        for item in current_page_items:
+            story_title = item.get('story_title', '')
+            clean_title = story_title.strip().split("\n")[0]
+            encoded_title = clean_title.replace(" ", "_")
+            delivery_link = f"https://t.me/{BOT_USERNAME}?start=get_{encoded_title}"
+            
+            acc_text += f"• <b>{clean_title}</b>\n"
+            buttons.append([InlineKeyboardButton(f"🚀 ᴀᴄᴄᴇss {clean_title}", url=delivery_link)])
+
+        nav_buttons = []
+        if page > 0:
+            nav_buttons.append(InlineKeyboardButton("◀️ ʙᴀᴄᴋ", callback_data=f"accpage_{page - 1}"))
+        if end_idx < total_purchases:
+            nav_buttons.append(InlineKeyboardButton("ɴᴇxᴛ ▶️", callback_data=f"accpage_{page + 1}"))
+
+        if nav_buttons:
+            buttons.append(nav_buttons)
+
+    buttons.append([InlineKeyboardButton("❌ ᴄʟᴏsᴇ", callback_data="close_message")])
+    reply_markup = InlineKeyboardMarkup(buttons)
+
+    if is_callback:
+        try:
+            await message_or_cb.message.edit_text(acc_text, reply_markup=reply_markup)
+        except MessageNotModified:
+            pass
+        except Exception:
+            await message_or_cb.message.reply_text(acc_text, reply_markup=reply_markup)
+    else:
+        await message_or_cb.reply_text(acc_text, reply_markup=reply_markup)
+
+# ------------------ Account Pagination Callback Handler ------------------
+@Client.on_callback_query(filters.regex(r"^accpage_"))
+async def account_pagination_cb(client, callback_query):
+    user = callback_query.from_user
+    try:
+        page = int(callback_query.data.split("_")[1])
+        await send_or_edit_account_details(client, user, callback_query, page=page, is_callback=True)
+    except Exception as e:
+        print(f"Error in account_pagination_cb: {e}")
+    await callback_query.answer()
+
 # ------------------ Callback Handlers for Start Inline Buttons ------------------
 
 @Client.on_callback_query(filters.regex("^open_wallet_cb$"))
@@ -978,35 +1056,7 @@ async def cb_wallet_handler(client, callback_query):
 @Client.on_callback_query(filters.regex("^open_account_cb$"))
 async def cb_account_handler(client, callback_query):
     user = callback_query.from_user
-    purchases = await get_user_purchases(user.id)
-    balance = await get_user_wallet(user.id)
-    
-    acc_text = (
-        f"<b>👤 ᴀᴄᴄᴏᴜɴᴛ ᴅᴇᴛᴀɪʟs:</b>\n"
-        f"━━━━━━━━━━━━━━━━━━━\n"
-        f"<b>ɴᴀᴍᴇ:</b> {user.first_name}\n"
-        f"<b>ᴜsᴇʀ ɪᴅ:</b> <code>{user.id}</code>\n"
-        f"<b>👛 ᴡᴀʟʟᴇᴛ ʙᴀʟᴀɴᴄᴇ:</b> ₹{balance}\n"
-        f"━━━━━━━━━━━━━━━━━━━\n\n"
-    )
-    
-    buttons = []
-    if not purchases:
-        acc_text += "❌ <b>ʏᴏᴜ ʜᴀᴠᴇɴ'ᴛ ᴘᴜʀᴄʜᴀsᴇᴅ ᴀɴʏ sᴛᴏʀɪᴇs ʏᴇᴛ.</b>"
-    else:
-        acc_text += f"📖 <b>ʏᴏᴜʀ ᴘᴜʀᴄʜᴀsᴇᴅ sᴛᴏʀɪᴇs ({len(purchases)}):</b>\n\n"
-        # Capped to 10 inline buttons to prevent Telegram UI payload overflow
-        for item in purchases[:10]:
-            story_title = item.get('story_title', '')
-            clean_title = story_title.strip().split("\n")[0]
-            encoded_title = clean_title.replace(" ", "_")
-            delivery_link = f"https://t.me/{BOT_USERNAME}?start=get_{encoded_title}"
-            
-            acc_text += f"• <b>{clean_title}</b>\n"
-            buttons.append([InlineKeyboardButton(f"🚀 ᴀᴄᴄᴇss {clean_title}", url=delivery_link)])
-            
-    buttons.append([InlineKeyboardButton("❌ ᴄʟᴏsᴇ", callback_data="close_message")])
-    await callback_query.message.reply_text(acc_text, reply_markup=InlineKeyboardMarkup(buttons))
+    await send_or_edit_account_details(client, user, callback_query, page=0, is_callback=True)
     await callback_query.answer()
 
 @Client.on_callback_query(filters.regex("^open_refer_cb$"))
@@ -1123,39 +1173,7 @@ async def updates_handler(client, message):
 @Client.on_message(filters.regex("^(👤 ᴍʏ ᴀᴄᴄᴏᴜɴᴛ|👤 My Account)$") & filters.private)
 async def account_handler(client, message):
     user = message.from_user
-    purchases = await get_user_purchases(user.id)
-    balance = await get_user_wallet(user.id)
-    
-    acc_text = (
-        f"<b>👤 ᴀᴄᴄᴏᴜɴᴛ ᴅᴇᴛᴀɪʟs:</b>\n"
-        f"━━━━━━━━━━━━━━━━━━━\n"
-        f"<b>ɴᴀᴍᴇ:</b> {user.first_name}\n"
-        f"<b>ᴜsᴇʀ ɪᴅ:</b> <code>{user.id}</code>\n"
-        f"<b>ᴜsᴇʀɴᴀᴍᴇ:</b> @{user.username if user.username else 'N/A'}\n"
-        f"<b>👛 ᴡᴀʟʟᴇᴛ ʙᴀʟᴀɴᴄᴇ:</b> ₹{balance}\n"
-        f"<b>sᴛᴀᴛᴜs:</b> ᴀᴄᴛɪᴠᴇ ᴜsᴇʀ ⚡\n"
-        f"━━━━━━━━━━━━━━━━━━━\n\n"
-    )
-    
-    buttons = []
-    
-    if not purchases:
-        acc_text += "❌ <b>ʏᴏᴜ ʜᴀᴠᴇɴ'ᴛ ᴘᴜʀᴄʜᴀsᴇᴅ ᴀɴʏ sᴛᴏʀɪᴇs ʏᴇᴛ.</b>"
-    else:
-        acc_text += f"📖 <b>ʏᴏᴜʀ ᴘᴜʀᴄʜᴀsᴇᴅ sᴛᴏʀɪᴇs ({len(purchases)}):</b>\n\n"
-        # Capped to 10 inline buttons to prevent Telegram UI payload overflow
-        for item in purchases[:10]:
-            story_title = item.get('story_title', '')
-            clean_title = story_title.strip().split("\n")[0]
-            encoded_title = clean_title.replace(" ", "_")
-            delivery_link = f"https://t.me/{BOT_USERNAME}?start=get_{encoded_title}"
-            
-            acc_text += f"• <b>{clean_title}</b>\n"
-            buttons.append([InlineKeyboardButton(f"🚀 ᴀᴄᴄᴇss {clean_title}", url=delivery_link)])
-            
-    buttons.append([InlineKeyboardButton("❌ ᴄʟᴏsᴇ", callback_data="close_message")])
-    reply_markup = InlineKeyboardMarkup(buttons)
-    await message.reply_text(acc_text, reply_markup=reply_markup)
+    await send_or_edit_account_details(client, user, message, page=0, is_callback=False)
 
 @Client.on_message(filters.regex("^(📞 sᴜᴘᴘᴏʀᴛ|📞 Support)$") & filters.private)
 async def support_handler(client, message):
