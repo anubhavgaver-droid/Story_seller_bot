@@ -1,5 +1,5 @@
 import urllib.parse
-from pyrogram import Client, filters
+from pyrogram import Client, filters, enums
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ForceReply
 from config import UPI_ID, ADMIN_ID, BOT_USERNAME, LOG_CHANNEL
 from database.db import get_story_by_title, add_user_purchase, add_wallet_balance
@@ -49,7 +49,7 @@ async def view_story(client, callback):
         
     clean_title = story['title'].strip().split("\n")[0]
     encoded_title = clean_title.replace(" ", "_")
-    btn = InlineKeyboardMarkup([[InlineKeyboardButton("💳 ʙᴜʏ ɴᴏᴡ", callback_data=f"buy_{encoded_title}_{story['price']}")]])
+    btn = InlineKeyboardMarkup([[InlineKeyboardButton("💳 ʙᴜʏ ɴᴏᴡ", style=enums.ButtonStyle.PRIMARY, callback_data=f"buy_{encoded_title}_{story['price']}")]])
     
     caption_text = (
         f"♨️ <b>Story :</b> {clean_title}\n"
@@ -91,8 +91,8 @@ async def generate_qr(client, callback):
         f"👇 ᴀғᴛᴇʀ ᴍᴀᴋɪɴɢ ᴛʜᴇ ᴘᴀʏᴍᴇɴᴛ, ᴄʟɪᴄᴋ ᴏɴ <b>ᴄᴏɴғɪʀᴍ ᴘᴀʏᴍᴇɴᴛ</b> ʙᴇʟᴏᴡ."
     )
     btn = InlineKeyboardMarkup([
-        [InlineKeyboardButton("✅ ᴄᴏɴғɪʀᴍ ᴘᴀʏᴍᴇɴᴛ", callback_data=f"sent_{clean_title}_{price}")],
-        [InlineKeyboardButton("❌ ᴄᴀɴᴄᴇʟ", callback_data="cancel_payment_process")]
+        [InlineKeyboardButton("✅ ᴄᴏɴғɪʀᴍ ᴘᴀʏᴍᴇɴᴛ", style=enums.ButtonStyle.PRIMARY, callback_data=f"sent_{clean_title}_{price}")],
+        [InlineKeyboardButton("❌ ᴄᴀɴᴄᴇʟ", style=enums.ButtonStyle.DANGER, callback_data="cancel_payment_process")]
     ])
     await callback.message.reply_photo(photo=qr_url, caption=caption, reply_markup=btn)
     await callback.answer()
@@ -106,7 +106,7 @@ async def start_wallet_topup(client, callback):
     WALLET_TOPUP_WAITING[user_id] = True
     
     cancel_btn = InlineKeyboardMarkup([
-        [InlineKeyboardButton("❌ ᴄᴀɴᴄᴇʟ", callback_data="cancel_payment_process")]
+        [InlineKeyboardButton("❌ ᴄᴀɴᴄᴇʟ", style=enums.ButtonStyle.DANGER, callback_data="cancel_payment_process")]
     ])
     
     await callback.message.reply_text(
@@ -142,8 +142,8 @@ async def process_wallet_amount(client, message):
         f"👇 ᴀғᴛᴇʀ ᴍᴀᴋɪɴɢ ᴛʜᴇ ᴘᴀʏᴍᴇɴᴛ, ᴄʟɪᴄᴋ ᴏɴ <b>ᴄᴏɴғɪʀᴍ ᴘᴀʏᴍᴇɴᴛ</b> ʙᴇʟᴏᴡ."
     )
     btn = InlineKeyboardMarkup([
-        [InlineKeyboardButton("✅ ᴄᴏɴғɪʀᴍ ᴘᴀʏᴍᴇɴᴛ", callback_data=f"sent_WalletTopup_{price}")],
-        [InlineKeyboardButton("❌ ᴄᴀɴᴄᴇʟ", callback_data="cancel_payment_process")]
+        [InlineKeyboardButton("✅ ᴄᴏɴғɪʀᴍ ᴘᴀʏᴍᴇɴᴛ", style=enums.ButtonStyle.PRIMARY, callback_data=f"sent_WalletTopup_{price}")],
+        [InlineKeyboardButton("❌ ᴄᴀɴᴄᴇʟ", style=enums.ButtonStyle.DANGER, callback_data="cancel_payment_process")]
     ])
     await message.reply_photo(photo=qr_url, caption=caption, reply_markup=btn)
 
@@ -163,7 +163,7 @@ async def ask_screenshot(client, callback):
     PAYMENT_WAITING[user_id] = {"title": story_title, "price": price}
     
     cancel_btn = InlineKeyboardMarkup([
-        [InlineKeyboardButton("❌ ᴄᴀɴᴄᴇʟ", callback_data="cancel_payment_process")]
+        [InlineKeyboardButton("❌ ᴄᴀɴᴄᴇʟ", callback_data="cancel_payment_process", style=enums.ButtonStyle.DANGER)]
     ])
     
     await callback.message.reply_text(
@@ -293,7 +293,7 @@ async def approve_order(client, callback):
     await add_user_purchase(user_id, clean_title, story_link=delivery_link)
 
     access_btn = InlineKeyboardMarkup([
-        [InlineKeyboardButton("📂 ɢᴇᴛ ғɪʟᴇs (Unlocked)", url=delivery_link)]
+        [InlineKeyboardButton("📂 ɢᴇᴛ ғɪʟᴇs (Unlocked)", style=enums.ButtonStyle.PRIMARY, url=delivery_link)]
     ])
     
     try:
