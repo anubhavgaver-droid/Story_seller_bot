@@ -213,7 +213,7 @@ async def get_story_by_id(story_id: str):
 async def add_story_db(data: dict):
     """
     स्टोरी जोड़ते या अपडेट करते समय Title की केवल पहली लाइन को ही Clean Title बनाएगा।
-    हर स्टोरी के लिए एक सिंपल story_id सेट होगी।
+    हर स्टोरी के लिए एक सिंपल story_id और free_link सेट होगी।
     """
     if "title" in data:
         data["title"] = data["title"].strip().split("\n")[0]
@@ -224,6 +224,7 @@ async def add_story_db(data: dict):
     first_msg_id = data.get("first_msg_id", 0)
     last_msg_id = data.get("last_msg_id", 0)
     custom_ranges = data.get("custom_ranges", [])
+    free_link = data.get("free_link", None)
 
     # ऑटो-एपिसोड्स कैलकुलेशन
     episodes = data.get("episodes")
@@ -247,6 +248,7 @@ async def add_story_db(data: dict):
         "photo": data.get("photo", ""),
         "price": data.get("price", 0),
         "desc": data.get("desc", ""),
+        "free_link": free_link,
         "demo_enabled": demo_enabled,
         "demo_msg_ids": demo_msg_ids,
         "first_msg_id": first_msg_id,
