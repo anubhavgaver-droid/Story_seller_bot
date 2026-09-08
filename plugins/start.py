@@ -55,10 +55,10 @@ STOP_DELIVERY_USERS = set()
 # 1. Main Menu Keyboard Layout
 MAIN_MENU = ReplyKeyboardMarkup(
     [
-        [KeyboardButton("🚀 ᴏᴘᴇɴ ᴍɪɴɪ ᴀᴘᴘ")],
-        [KeyboardButton("🔎 sᴇᴀʀᴄʜ sᴛᴏʀʏ")],
-        [KeyboardButton("📻 ᴘᴏᴄᴋᴇᴛ ғᴍ"), KeyboardButton("📚 ᴘʀᴀᴛɪʟɪᴘɪ ғᴍ")],
-        [KeyboardButton("🔙 ʙᴀᴄᴋ ᴛᴏ ᴍᴇɴᴜ")]
+        [KeyboardButton("🚀 ᴏᴘᴇɴ ᴍɪɴɪ ᴀᴘᴘ", style=enums.ButtonStyle.PRIMARY)],
+        [KeyboardButton("🔎 sᴇᴀʀᴄʜ sᴛᴏʀʏ", style=enums.ButtonStyle.PRIMARY)],
+        [KeyboardButton("📻 ᴘᴏᴄᴋᴇᴛ ғᴍ", style=enums.ButtonStyle.PRIMARY), KeyboardButton("📚 ᴘʀᴀᴛɪʟɪᴘɪ ғᴍ", style=enums.ButtonStyle.PRIMARY)],
+        [KeyboardButton("🔙 ʙᴀᴄᴋ ᴛᴏ ᴍᴇɴᴜ", style=enums.ButtonStyle.PRIMARY)]
     ],
     resize_keyboard=True
 )
@@ -161,17 +161,17 @@ def build_custom_range_reply_keyboard(custom_ranges, page=0, per_page=10):
 
     nav_row = []
     if page > 0:
-        nav_row.append(KeyboardButton("◀️ ʙᴀᴄᴋ"))
+        nav_row.append(KeyboardButton("◀️ ʙᴀᴄᴋ", style=enums.ButtonStyle.PRIMARY))
     if total_ranges > 0:
-        nav_row.append(KeyboardButton("👁️‍🗨️ ᴠɪᴇᴡ ᴀʟʟ"))
+        nav_row.append(KeyboardButton("👁️‍🗨️ ᴠɪᴇᴡ ᴀʟʟ", style=enums.ButtonStyle.PRIMARY))
     if end_idx < total_ranges:
-        nav_row.append(KeyboardButton("ɴᴇxᴛ ▶️"))
+        nav_row.append(KeyboardButton("ɴᴇxᴛ ▶️", style=enums.ButtonStyle.PRIMARY))
 
     if nav_row:
         keyboard_rows.append(nav_row)
 
-    keyboard_rows.append([KeyboardButton("📦 ғᴜʟʟ ᴅᴇʟɪᴠᴇʀʏ (ᴀʟʟ ғɪʟᴇs)")])
-    keyboard_rows.append([KeyboardButton("❌ ᴄᴀɴᴄᴇʟ")])
+    keyboard_rows.append([KeyboardButton("📦 ғᴜʟʟ ᴅᴇʟɪᴠᴇʀʏ (ᴀʟʟ ғɪʟᴇs)", style=enums.ButtonStyle.PRIMARY)])
+    keyboard_rows.append([KeyboardButton("❌ ᴄᴀɴᴄᴇʟ", style=enums.ButtonStyle.DANGER)])
 
     return ReplyKeyboardMarkup(
         keyboard=keyboard_rows,
@@ -191,7 +191,7 @@ async def send_story_files_start(client, user_id, story, first_id, last_id, clea
     chosen_sticker = SEARCH_RANGE_STICKER_ID if target_start_ep is not None else DELIVERY_STICKER_ID
 
     stop_reply_keyboard = ReplyKeyboardMarkup(
-        [[KeyboardButton("🛑 sᴛᴏᴘ ᴅᴇʟɪᴠᴇʀʏ")]],
+        [[KeyboardButton("🛑 sᴛᴏᴘ ᴅᴇʟɪᴠᴇʀʏ", style=enums.ButtonStyle.PRIMARY)]],
         resize_keyboard=True
     )
 
@@ -287,8 +287,8 @@ async def send_story_files_start(client, user_id, story, first_id, last_id, clea
             encoded_title = clean_title.replace(" ", "_")
             
             clean_kb = InlineKeyboardMarkup([
-                [InlineKeyboardButton("🧹 ᴄʟᴇᴀɴ / ᴅᴇʟᴇᴛᴇ ᴀʟʟ ғɪʟᴇs", callback_data=f"rangechatclean_{first_sent_id}_{last_sent_id}")],
-                [InlineKeyboardButton("🔄 ʀᴇɢᴇɴᴇʀᴀᴛᴇ ғɪʟᴇ", callback_data=f"regenerate_{encoded_title}")]
+                [InlineKeyboardButton("🧹 ᴄʟᴇᴀɴ / ᴅᴇʟᴇᴛᴇ ᴀʟʟ ғɪʟᴇs", style=enums.ButtonStyle.PRIMARY, callback_data=f"rangechatclean_{first_sent_id}_{last_sent_id}")],
+                [InlineKeyboardButton("🔄 ʀᴇɢᴇɴᴇʀᴀᴛᴇ ғɪʟᴇ", style=enums.ButtonStyle.PRIMARY, callback_data=f"regenerate_{encoded_title}")]
             ])
         else:
             clean_kb = ReplyKeyboardRemove()
@@ -318,12 +318,12 @@ async def send_story_files_start(client, user_id, story, first_id, last_id, clea
         last_sent_id = sent_message_ids[-1]
         
         clean_kb = InlineKeyboardMarkup([
-            [InlineKeyboardButton("🧹 ᴄʟᴇᴀɴ / ᴅᴇʟᴇᴛᴇ ᴀʟʟ ғɪʟᴇs", callback_data=f"rangechatclean_{first_sent_id}_{last_sent_id}")],
-            [InlineKeyboardButton("🔄 ʀᴇɢᴇɴᴇʀᴀᴛᴇ ғɪʟᴇ", callback_data=f"regenerate_{encoded_title}")]
+            [InlineKeyboardButton("🧹 ᴄʟᴇᴀɴ / ᴅᴇʟᴇᴛᴇ ᴀʟʟ ғɪʟᴇs", style=enums.ButtonStyle.PRIMARY, callback_data=f"rangechatclean_{first_sent_id}_{last_sent_id}")],
+            [InlineKeyboardButton("🔄 ʀᴇɢᴇɴᴇʀᴀᴛᴇ ғɪʟᴇ", style=enums.ButtonStyle.PRIMARY, callback_data=f"regenerate_{encoded_title}")]
         ])
     else:
         clean_kb = InlineKeyboardMarkup([
-            [InlineKeyboardButton("🔄 ʀᴇɢᴇɴᴇʀᴀᴛᴇ ғɪʟᴇ", callback_data=f"regenerate_{encoded_title}")]
+            [InlineKeyboardButton("🔄 ʀᴇɢᴇɴᴇʀᴀᴛᴇ ғɪʟᴇ", style=enums.ButtonStyle.PRIMARY, callback_data=f"regenerate_{encoded_title}")]
         ])
 
     await client.send_message(
@@ -477,11 +477,11 @@ async def web_app_data_handler(client, message):
             inline_buttons = []
             
             if story.get('demo_enabled', False):
-                inline_buttons.append([InlineKeyboardButton("🎬 ᴅᴇᴍᴏ / ᴘʀᴇᴠɪᴇᴡ", callback_data=f"viewdemo_{encoded_title}")])
+                inline_buttons.append([InlineKeyboardButton("🎬 ᴅᴇᴍᴏ / ᴘʀᴇᴠɪᴇᴡ", style=enums.ButtonStyle.PRIMARY, callback_data=f"viewdemo_{encoded_title}")])
 
             inline_buttons.extend([
-                [InlineKeyboardButton(f"💳 ᴅɪʀᴇᴄᴛ ᴘᴀʏ (₹{price})", callback_data=f"buy_{encoded_title}_{price}")],
-                [InlineKeyboardButton(f"👛 ᴘᴀʏ ᴠɪᴀ ᴡᴀʟʟᴇᴛ (Bal: ₹{wallet_bal})", callback_data=f"walletpay_{encoded_title}_{price}")]
+                [InlineKeyboardButton(f"💳 ᴅɪʀᴇᴄᴛ ᴘᴀʏ (₹{price})", style=enums.ButtonStyle.PRIMARY, callback_data=f"buy_{encoded_title}_{price}")],
+                [InlineKeyboardButton(f"👛 ᴘᴀʏ ᴠɪᴀ ᴡᴀʟʟᴇᴛ (Bal: ₹{wallet_bal})", style=enums.ButtonStyle.PRIMARY, callback_data=f"walletpay_{encoded_title}_{price}")]
             ])
             
             btn = InlineKeyboardMarkup(inline_buttons)
@@ -603,7 +603,7 @@ async def process_wallet_payment(client, callback_query):
         )
         
         access_btn = InlineKeyboardMarkup([
-            [InlineKeyboardButton("📂 ɢᴇᴛ ғɪʟᴇs (Unlocked)", url=delivery_link)]
+            [InlineKeyboardButton("📂 ɢᴇᴛ ғɪʟᴇs (Unlocked)", style=enums.ButtonStyle.PRIMARY, url=delivery_link)]
         ])
         
         await callback_query.message.edit_text(success_text, reply_markup=access_btn)
@@ -865,24 +865,24 @@ async def start_handler(client, message):
             buttons = [
                 [
                     InlineKeyboardButton(
-                        "🚀 ᴏᴘᴇɴ ᴅɪʀᴇᴄᴛ sᴛᴏʀʏ ᴍɪɴɪ ᴀᴘᴘ", 
+                        "🚀 ᴏᴘᴇɴ ᴅɪʀᴇᴄᴛ sᴛᴏʀʏ ᴍɪɴɪ ᴀᴘᴘ", style=enums.ButtonStyle.PRIMARY, 
                         web_app=WebAppInfo(url=miniapp_direct_url)
                     )
                 ]
             ]
             
             if story.get('demo_enabled', False):
-                buttons.append([InlineKeyboardButton("🎬 ᴅᴇᴍᴏ / ᴘʀᴇᴠɪᴇᴡ", callback_data=f"viewdemo_{encoded_title}")])
+                buttons.append([InlineKeyboardButton("🎬 ᴅᴇᴍᴏ / ᴘʀᴇᴠɪᴇᴡ", style=enums.ButtonStyle.PRIMARY, callback_data=f"viewdemo_{encoded_title}")])
 
             buttons.append([
                 InlineKeyboardButton(
-                    f"🛒 ʙᴜʏ ɴᴏᴡ (₹{story['price']})", 
+                    f"🛒 ʙᴜʏ ɴᴏᴡ (₹{story['price']})", style=enums.ButtonStyle.PRIMARY,
                     callback_data=f"buy_{encoded_title}_{story['price']}"
                 )
             ])
             buttons.append([
                 InlineKeyboardButton(
-                    f"👛 ᴘᴀʏ ᴠɪᴀ ᴡᴀʟʟᴇᴛ (Bal: ₹{wallet_bal})", 
+                    f"👛 ᴘᴀʏ ᴠɪᴀ ᴡᴀʟʟᴇᴛ (Bal: ₹{wallet_bal})", style=enums.ButtonStyle.PRIMARY,
                     callback_data=f"walletpay_{encoded_title}_{story['price']}"
                 )
             ])
@@ -921,18 +921,18 @@ async def start_handler(client, message):
 
     start_inline_kb = InlineKeyboardMarkup([
         [
-            InlineKeyboardButton("🛒 ᴏᴘᴇɴ ᴍᴀʀᴋᴇᴛ / sᴛᴏʀᴇ", callback_data="open_market_cb")
+            InlineKeyboardButton("🛒 ᴏᴘᴇɴ ᴍᴀʀᴋᴇᴛ / sᴛᴏʀᴇ", callback_data="open_market_cb", style=enums.ButtonStyle.PRIMARY)
         ],
         [
-            InlineKeyboardButton("💼 ᴍʏ ᴡᴀʟʟᴇᴛ", callback_data="open_wallet_cb"),
-            InlineKeyboardButton("👤 ᴍʏ ᴀᴄᴄᴏᴜɴᴛ", callback_data="open_account_cb")
+            InlineKeyboardButton("💼 ᴍʏ ᴡᴀʟʟᴇᴛ", callback_data="open_wallet_cb", style=enums.ButtonStyle.PRIMARY),
+            InlineKeyboardButton("👤 ᴍʏ ᴀᴄᴄᴏᴜɴᴛ", callback_data="open_account_cb", style=enums.ButtonStyle.PRIMARY)
         ],
         [
-            InlineKeyboardButton("🎁 ʀᴇғᴇʀ & ᴇᴀʀɴ", callback_data="open_refer_cb")
+            InlineKeyboardButton("🎁 ʀᴇғᴇʀ & ᴇᴀʀɴ", callback_data="open_refer_cb", style=enums.ButtonStyle.PRIMARY)
         ],
         [
-            InlineKeyboardButton("📢 ᴜᴘᴅᴀᴛᴇs", url="https://t.me/freestoryhubMR"),
-            InlineKeyboardButton("📞 sᴜᴘᴘᴏʀᴛ", url="https://t.me/pratilipifm0900")
+            InlineKeyboardButton("📢 ᴜᴘᴅᴀᴛᴇs", url="https://t.me/freestoryhubMR", style=enums.ButtonStyle.PRIMARY),
+            InlineKeyboardButton("📞 sᴜᴘᴘᴏʀᴛ", url="https://t.me/pratilipifm0900", style=enums.ButtonStyle.PRIMARY)
         ]
     ])
 
@@ -1001,14 +1001,14 @@ async def send_or_edit_account_details(client, user, message_or_cb, page=0, is_c
 
         nav_buttons = []
         if page > 0:
-            nav_buttons.append(InlineKeyboardButton("◀️ ʙᴀᴄᴋ", callback_data=f"accpage_{page - 1}"))
+            nav_buttons.append(InlineKeyboardButton("◀️ ʙᴀᴄᴋ", style=enums.ButtonStyle.PRIMARY, callback_data=f"accpage_{page - 1}"))
         if end_idx < total_purchases:
-            nav_buttons.append(InlineKeyboardButton("ɴᴇxᴛ ▶️", callback_data=f"accpage_{page + 1}"))
+            nav_buttons.append(InlineKeyboardButton("ɴᴇxᴛ ▶️", style=enums.ButtonStyle.PRIMARY, callback_data=f"accpage_{page + 1}"))
 
         if nav_buttons:
             buttons.append(nav_buttons)
 
-    buttons.append([InlineKeyboardButton("❌ ᴄʟᴏsᴇ", callback_data="close_message")])
+    buttons.append([InlineKeyboardButton("❌ ᴄʟᴏsᴇ", callback_data="close_message", style=enums.ButtonStyle.DANGER)])
     reply_markup = InlineKeyboardMarkup(buttons)
 
     if is_callback:
@@ -1047,8 +1047,8 @@ async def cb_wallet_handler(client, callback_query):
         f"💡 <i>Use wallet balance for 1-click instant purchases.</i>"
     )
     kb = InlineKeyboardMarkup([
-        [InlineKeyboardButton("➕ ᴀᴅᴅ ᴍᴏɴᴇʏ / ᴛᴏᴘ-ᴜᴘ", callback_data="add_wallet_funds")],
-        [InlineKeyboardButton("❌ ᴄʟᴏsᴇ", callback_data="close_message")]
+        [InlineKeyboardButton("➕ ᴀᴅᴅ ᴍᴏɴᴇʏ / ᴛᴏᴘ-ᴜᴘ", callback_data="add_wallet_funds", style=enums.ButtonStyle.PRIMARY)],
+        [InlineKeyboardButton("❌ ᴄʟᴏsᴇ", callback_data="close_message", style=enums.ButtonStyle.DANGER)]
     ])
     await callback_query.message.reply_text(text, reply_markup=kb)
     await callback_query.answer()
@@ -1080,8 +1080,8 @@ async def cb_refer_handler(client, callback_query):
     share_url = f"https://t.me/share/url?url={url_quote(refer_link)}&text={share_text}"
     
     kb = InlineKeyboardMarkup([
-        [InlineKeyboardButton("🚀 sʜᴀʀᴇ ᴡɪᴛʜ ғʀɪᴇɴᴅs", url=share_url)],
-        [InlineKeyboardButton("❌ ᴄʟᴏsᴇ", callback_data="close_message")]
+        [InlineKeyboardButton("🚀 sʜᴀʀᴇ ᴡɪᴛʜ ғʀɪᴇɴᴅs", style=enums.ButtonStyle.PRIMARY, url=share_url)],
+        [InlineKeyboardButton("❌ ᴄʟᴏsᴇ", callback_data="close_message", style=enums.ButtonStyle.DANGER)]
     ])
     await callback_query.message.reply_text(text, reply_markup=kb, disable_web_page_preview=True)
     await callback_query.answer()
@@ -1102,7 +1102,7 @@ async def wallet_handler(client, message):
     )
     
     kb = InlineKeyboardMarkup([
-        [InlineKeyboardButton("➕ ᴀᴅᴅ ᴍᴏɴᴇʏ / ᴛᴏᴘ-ᴜᴘ", callback_data="add_wallet_funds")]
+        [InlineKeyboardButton("➕ ᴀᴅᴅ ᴍᴏɴᴇʏ / ᴛᴏᴘ-ᴜᴘ", callback_data="add_wallet_funds", style=enums.ButtonStyle.PRIMARY)]
     ])
     
     await message.reply_text(text, reply_markup=kb)
@@ -1114,7 +1114,7 @@ async def add_funds_callback(client, callback_query):
         "Contact admin or send payment screenshot to top-up your wallet balance automatically."
     )
     kb = InlineKeyboardMarkup([
-        [InlineKeyboardButton("💬 ᴄᴏɴᴛᴀᴄᴛ ᴀᴅᴍɪɴ ғᴏʀ ᴛᴏᴘᴜᴘ", url="https://t.me/kaluu_help_bot")]
+        [InlineKeyboardButton("💬 ᴄᴏɴᴛᴀᴄᴛ ᴀᴅᴍɪɴ ғᴏʀ ᴛᴏᴘᴜᴘ", url="https://t.me/kaluu_help_bot", style=enums.ButtonStyle.PRIMARY)]
     ])
     await callback_query.message.edit_text(text, reply_markup=kb)
 
@@ -1142,8 +1142,8 @@ async def refer_earn_handler(client, message):
     share_url = f"https://t.me/share/url?url={url_quote(refer_link)}&text={share_text}"
     
     kb = InlineKeyboardMarkup([
-        [InlineKeyboardButton("🚀 sʜᴀʀᴇ ᴡɪᴛʜ ғʀɪᴇɴᴅs", url=share_url)],
-        [InlineKeyboardButton("❌ ᴄʟᴏsᴇ", callback_data="close_message")]
+        [InlineKeyboardButton("🚀 sʜᴀʀᴇ ᴡɪᴛʜ ғʀɪᴇɴᴅs", style=enums.ButtonStyle.PRIMARY, url=share_url)],
+        [InlineKeyboardButton("❌ ᴄʟᴏsᴇ", callback_data="close_message", style=enums.ButtonStyle.DANGER)]
     ])
     
     await message.reply_text(text, reply_markup=kb, disable_web_page_preview=True)
@@ -1157,16 +1157,16 @@ async def open_miniapp_handler(client, message):
         "ᴄʟɪᴄᴋ ᴛʜᴇ ʙᴜᴛᴛᴏɴ ʙᴇʟᴏᴡ ᴛᴏ ᴏᴘᴇɴ ᴏᴜʀ ᴏғғɪᴄɪᴀʟ ᴍɪɴɪ ᴀᴘᴘ ᴀɴᴅ ᴇxᴘʟᴏʀᴇ ᴀʟʟ sᴛᴏʀɪᴇs!"
     )
     btn = InlineKeyboardMarkup([
-        [InlineKeyboardButton("🚀 ʟᴀᴜɴᴄʜ ᴍɪɴɪ ᴀᴘᴘ", web_app=WebAppInfo(url=WEB_APP_URL))],
-        [InlineKeyboardButton("❌ ᴄʟᴏsᴇ", callback_data="close_message")]
+        [InlineKeyboardButton("🚀 ʟᴀᴜɴᴄʜ ᴍɪɴɪ ᴀᴘᴘ", style=enums.ButtonStyle.PRIMARY, web_app=WebAppInfo(url=WEB_APP_URL))],
+        [InlineKeyboardButton("❌ ᴄʟᴏsᴇ", callback_data="close_message", style=enums.ButtonStyle.DANGER)]
     ])
     await message.reply_text(text, reply_markup=btn)
 
 @Client.on_message(filters.regex("^(📢 ᴜᴘᴅᴀᴛᴇs ᴄʜᴀɴɴᴇʟ|📢 Updates Channel)$") & filters.private)
 async def updates_handler(client, message):
     kb = InlineKeyboardMarkup([
-        [InlineKeyboardButton("📢 ᴊᴏɪɴ ᴄʜᴀɴɴᴇʟ", url="https://t.me/freestoryhubMR")],
-        [InlineKeyboardButton("❌ ᴄʟᴏsᴇ", callback_data="close_message")]
+        [InlineKeyboardButton("📢 ᴊᴏɪɴ ᴄʜᴀɴɴᴇʟ", url="https://t.me/freestoryhubMR", style=enums.ButtonStyle.PRIMARY)],
+        [InlineKeyboardButton("❌ ᴄʟᴏsᴇ", callback_data="close_message", style=enums.ButtonStyle.DANGER)]
     ])
     await message.reply_text("<b>📢 ᴜᴘᴅᴀᴛᴇs ᴄʜᴀɴɴᴇʟ:</b>\n\nᴊᴏɪɴ ᴏᴜʀ ᴄʜᴀɴɴᴇʟ ғᴏʀ ᴛʜᴇ ʟᴀᴛᴇsᴛ ᴜᴘᴅᴀᴛᴇs ᴀɴᴅ ɴᴇᴡ sᴛᴏʀɪᴇs!", reply_markup=kb)
 
@@ -1178,7 +1178,7 @@ async def account_handler(client, message):
 @Client.on_message(filters.regex("^(📞 sᴜᴘᴘᴏʀᴛ|📞 Support)$") & filters.private)
 async def support_handler(client, message):
     kb = InlineKeyboardMarkup([
-        [InlineKeyboardButton("💬 ᴄᴏɴᴛᴀᴄᴛ sᴜᴘᴘᴏʀᴛ", url="https://t.me/pratilipifm0900")],
-        [InlineKeyboardButton("❌ ᴄʟᴏsᴇ", callback_data="close_message")]
+        [InlineKeyboardButton("💬 ᴄᴏɴᴛᴀᴄᴛ sᴜᴘᴘᴏʀᴛ", url="https://t.me/pratilipifm0900", style=enums.ButtonStyle.PRIMARY)],
+        [InlineKeyboardButton("❌ ᴄʟᴏsᴇ", callback_data="close_message", style=enums.ButtonStyle.DANGER)]
     ])
     await message.reply_text("<b>📞 ᴄᴜsᴛᴏᴍᴇʀ sᴜᴘᴘᴏʀᴛ:</b>\n\nɪғ ʏᴏᴜ ғᴀᴄᴇ ᴀɴʏ ɪssᴜᴇs, ғᴇᴇʟ ғʀᴇᴇ ᴛᴏ ᴄᴏɴᴛᴀᴄᴛ sᴜᴘᴘᴏʀᴛ.", reply_markup=kb)
