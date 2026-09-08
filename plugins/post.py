@@ -7,7 +7,7 @@ from config import BOT_USERNAME, CHANNEL, TUTORIAL_VIDEO_URL
 async def send_story_to_channel(client: Client, story_data: dict):
     """
     जब भी /addstory विजार्ड से स्टोरी सेव होगी,
-    यह फ़ंक्शन स्टोर चैनल पर Buy Now (Direct Telegram Mini App Link), 
+    यह फ़ंक्शन स्टोर चैनल पर Buy Now, Free Link (if available), 
     Tutorial और Direct Bot Order बटन के साथ पोस्ट भेजेगा।
     """
     if not CHANNEL:
@@ -24,6 +24,7 @@ async def send_story_to_channel(client: Client, story_data: dict):
         platform = story_data.get('category', 'Pocket FM')
         genre = story_data.get('genre', 'Drama')
         episodes = story_data.get('episodes', 'N/A')
+        free_link = story_data.get('free_link', None)
 
         clean_title = title.strip().split("\n")[0]
         encoded_title = clean_title.replace(" ", "_")
@@ -33,15 +34,25 @@ async def send_story_to_channel(client: Client, story_data: dict):
         bot_direct_url = f"https://t.me/{BOT_USERNAME}?start=story_{encoded_title}"
 
         # Buttons Setup
-        buttons = InlineKeyboardMarkup([
+        button_rows = [
             [
                 InlineKeyboardButton("🛒 ʙᴜʏ ɴᴏᴡ", style=enums.ButtonStyle.PRIMARY, url=miniapp_url),
                 InlineKeyboardButton("📖 ᴛᴜᴛᴏʀɪᴀʟ", style=enums.ButtonStyle.PRIMARY, url=TUTORIAL_VIDEO_URL)
-            ],
-            [
-                InlineKeyboardButton("⚡ ᴅɪʀᴇᴄᴛ ʙᴏᴛ ᴏʀᴅᴇʀ", style=enums.ButtonStyle.PRIMARY, url=bot_direct_url)
             ]
+        ]
+
+        # अगर Admin ने Free Link दिया है तो "Only for free user" का बटन ऐड होगा
+        if free_link and (free_link.startswith("http://") or free_link.startswith("https://")):
+            button_rows.append([
+                InlineKeyboardButton("🎁 ᴏɴʟʏ ғᴏʀ ғʀᴇᴇ ᴜsᴇʀ", style=enums.ButtonStyle.PRIMARY, url=free_link)
+            ])
+
+        # Direct Bot Order Button
+        button_rows.append([
+            InlineKeyboardButton("⚡ ᴅɪʀᴇᴄᴛ ʙᴏᴛ ᴏʀᴅᴇʀ", style=enums.ButtonStyle.PRIMARY, url=bot_direct_url)
         ])
+
+        buttons = InlineKeyboardMarkup(button_rows)
 
         # Post Caption Layout with New Schema
         post_caption = (
