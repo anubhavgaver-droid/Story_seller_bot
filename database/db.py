@@ -2,6 +2,7 @@ import re
 import sys
 import os
 import time
+from bson import ObjectId
 from motor.motor_asyncio import AsyncIOMotorClient
 from config import MONGO_URL, LOG_CHANNEL
 
@@ -199,10 +200,20 @@ async def get_user_purchases(user_id: int):
     return await cursor.to_list(length=None)
 
 # -------------------- STORY DATABASE FUNCTIONS --------------------
+async def get_story_by_id(story_id: str):
+    """नॉर्मल Story ID या MongoDB ObjectId से स्टोरी ढूँढता है"""
+    story = await stories_col.find_one({"story_id": str(story_id)})
+    if story:
+        return story
+    try:
+        return await stories_col.find_one({"_id": ObjectId(story_id)})
+    except Exception:
+        return None
+
 async def add_story_db(data: dict):
     """
     स्टोरी जोड़ते या अपडेट करते समय Title की केवल पहली लाइन को ही Clean Title बनाएगा।
-    Status, Platform, Genre, Episodes काउंट, demo_enabled, demo_msg_ids और custom_ranges सपोर्ट करता है।
+    हर स्टोरी के लिए एक सिंपल story_id सेट होगी।
     """
     if "title" in data:
         data["title"] = data["title"].strip().split("\n")[0]
@@ -221,7 +232,12 @@ async def add_story_db(data: dict):
     elif not episodes:
         episodes = "N/A"
 
+    # पहले से मौजूद ID या नई ID सेट करना
+    existing_story = await stories_col.find_one({"title": clean_title})
+    story_id = existing_story.get("story_id") if existing_story else data.get("story_id", str(int(time.time())))
+
     story_doc = {
+        "story_id": str(story_id),
         "title": clean_title,
         "category": data.get("category", "Pocket FM"),
         "platform": data.get("platform", data.get("category", "Pocket FM")),
