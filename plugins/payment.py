@@ -8,6 +8,37 @@ from database.db import get_story_by_title, add_user_purchase, add_wallet_balanc
 PAYMENT_WAITING = {}
 WALLET_TOPUP_WAITING = {}
 
+# ---------------- CANCEL PROCESS HANDLERS ----------------
+
+# Cancel Callback Handler
+@Client.on_callback_query(filters.regex("^cancel_payment_process$"))
+async def cancel_payment_callback(client, callback):
+    user_id = callback.from_user.id
+    
+    # Remove from all waiting dictionaries
+    PAYMENT_WAITING.pop(user_id, None)
+    WALLET_TOPUP_WAITING.pop(user_id, None)
+    
+    try:
+        await callback.message.delete()
+    except Exception:
+        pass
+        
+    await callback.message.reply_text("❌ <b>ᴘᴀʏᴍᴇɴᴛ / ᴛᴏᴘ-ᴜᴘ ᴘʀᴏᴄᴇss ᴄᴀɴᴄᴇʟʟᴇᴅ.</b>")
+    await callback.answer("Process Cancelled!")
+
+# Text Cancel Command Handler
+@Client.on_message(filters.private & filters.command(["cancel"]), group=1)
+async def cancel_payment_command(client, message):
+    user_id = message.from_user.id
+    
+    if user_id in PAYMENT_WAITING or user_id in WALLET_TOPUP_WAITING:
+        PAYMENT_WAITING.pop(user_id, None)
+        WALLET_TOPUP_WAITING.pop(user_id, None)
+        await message.reply_text("❌ <b>ᴘᴀʏᴍᴇɴᴛ / ᴛᴏᴘ-ᴜᴘ ᴘʀᴏᴄᴇss ᴄᴀɴᴄᴇʟʟᴇᴅ.</b>")
+    else:
+        await message.reply_text("⚠️ <b>No active payment process to cancel.</b>")
+
 # 1. View Story
 @Client.on_callback_query(filters.regex("^view_"))
 async def view_story(client, callback):
@@ -59,7 +90,10 @@ async def generate_qr(client, callback):
         f"📌 <b>ᴜᴘɪ ɪᴅ:</b> <code>{UPI_ID}</code>\n\n"
         f"👇 ᴀғᴛᴇʀ ᴍᴀᴋɪɴɢ ᴛʜᴇ ᴘᴀʏᴍᴇɴᴛ, ᴄʟɪᴄᴋ ᴏɴ <b>ᴄᴏɴғɪʀᴍ ᴘᴀʏᴍᴇɴᴛ</b> ʙᴇʟᴏᴡ."
     )
-    btn = InlineKeyboardMarkup([[InlineKeyboardButton("✅ ᴄᴏɴғɪʀᴍ ᴘᴀʏᴍᴇɴᴛ", callback_data=f"sent_{clean_title}_{price}")]])
+    btn = InlineKeyboardMarkup([
+        [InlineKeyboardButton("✅ ᴄᴏɴғɪʀᴍ ᴘᴀʏᴍᴇɴᴛ", callback_data=f"sent_{clean_title}_{price}")],
+        [InlineKeyboardButton("❌ ᴄᴀɴᴄᴇʟ", callback_data="cancel_payment_process")]
+    ])
     await callback.message.reply_photo(photo=qr_url, caption=caption, reply_markup=btn)
     await callback.answer()
 
@@ -71,10 +105,14 @@ async def start_wallet_topup(client, callback):
     user_id = callback.from_user.id
     WALLET_TOPUP_WAITING[user_id] = True
     
+    cancel_btn = InlineKeyboardMarkup([
+        [InlineKeyboardButton("❌ ᴄᴀɴᴄᴇʟ", callback_data="cancel_payment_process")]
+    ])
+    
     await callback.message.reply_text(
         "💵 <b>ᴇɴᴛᴇʀ ᴛᴏᴘ-ᴜᴘ ᴀᴍᴏᴜɴᴛ:</b>\n\n"
         "ᴘʟᴇᴀsᴇ ᴛʏᴘᴇ ᴛʜᴇ ᴀᴍᴏᴜɴᴛ (ɪɴ ₹) ʏᴏᴜ ᴡᴀɴᴛ ᴛᴏ ᴀᴅᴅ ᴛᴏ ʏᴏᴜʀ ᴡᴀʟʟᴇᴛ:",
-        reply_markup=ForceReply(selective=True, placeholder="ᴇ.ɢ. 100")
+        reply_markup=cancel_btn
     )
     await callback.answer()
 
@@ -89,7 +127,7 @@ async def process_wallet_amount(client, message):
 
     amount_text = message.text.strip()
     if not amount_text.isdigit() or float(amount_text) <= 0:
-        return await message.reply_text("❌ <b> Invalid Amount! Please enter numbers only (e.g. 50, 100, 200).</b>")
+        return await message.reply_text("❌ <b>Invalid Amount! Please enter numbers only (e.g. 50, 100, 200).</b>")
     
     price = float(amount_text)
     del WALLET_TOPUP_WAITING[user_id]
@@ -103,7 +141,10 @@ async def process_wallet_amount(client, message):
         f"📌 <b>ᴜᴘɪ ɪᴅ:</b> <code>{UPI_ID}</code>\n\n"
         f"👇 ᴀғᴛᴇʀ ᴍᴀᴋɪɴɢ ᴛʜᴇ ᴘᴀʏᴍᴇɴᴛ, ᴄʟɪᴄᴋ ᴏɴ <b>ᴄᴏɴғɪʀᴍ ᴘᴀʏᴍᴇɴᴛ</b> ʙᴇʟᴏᴡ."
     )
-    btn = InlineKeyboardMarkup([[InlineKeyboardButton("✅ ᴄᴏɴғɪʀᴍ ᴘᴀʏᴍᴇɴᴛ", callback_data=f"sent_WalletTopup_{price}")]])
+    btn = InlineKeyboardMarkup([
+        [InlineKeyboardButton("✅ ᴄᴏɴғɪʀᴍ ᴘᴀʏᴍᴇɴᴛ", callback_data=f"sent_WalletTopup_{price}")],
+        [InlineKeyboardButton("❌ ᴄᴀɴᴄᴇʟ", callback_data="cancel_payment_process")]
+    ])
     await message.reply_photo(photo=qr_url, caption=caption, reply_markup=btn)
 
 # ---------------- SCREENSHOT & APPROVAL HANDLERS ----------------
@@ -121,9 +162,14 @@ async def ask_screenshot(client, callback):
     user_id = callback.from_user.id
     PAYMENT_WAITING[user_id] = {"title": story_title, "price": price}
     
+    cancel_btn = InlineKeyboardMarkup([
+        [InlineKeyboardButton("❌ ᴄᴀɴᴄᴇʟ", callback_data="cancel_payment_process")]
+    ])
+    
     await callback.message.reply_text(
         "📸 <b>ᴘʟᴇᴀsᴇ sᴇɴᴅ ʏᴏᴜʀ ᴘᴀʏᴍᴇɴᴛ sᴄʀᴇᴇɴsʜᴏᴛ:</b>\n\n"
-        "sᴇɴᴅ ʏᴏᴜʀ sᴄʀᴇᴇɴsʜᴏᴛ ᴀs ᴀ ᴘʜᴏᴛᴏ ɪɴ ᴛʜɪs ᴄʜᴀᴛ."
+        "sᴇɴᴅ ʏᴏᴜʀ sᴄʀᴇᴇɴsʜᴏᴛ ᴀs ᴀ ᴘʜᴏᴛᴏ ɪɴ ᴛʜɪs ᴄʜᴀᴛ.",
+        reply_markup=cancel_btn
     )
     await callback.answer()
 
