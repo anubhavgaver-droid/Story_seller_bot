@@ -155,6 +155,7 @@ async def list_stories(client, message):
         episodes = s.get('episodes', 'N/A')
         status = s.get('status', 'Completed')
         genre = s.get('genre', 'Drama')
+        free_link = s.get('free_link', 'None')
         demo_status = "✅ Enabled" if s.get('demo_enabled', False) else "❌ Disabled"
         demo_files = s.get('demo_msg_ids', [])
         ranges_count = len(s.get('custom_ranges', []))
@@ -163,6 +164,7 @@ async def list_stories(client, message):
             f"{idx}. <b>{s['title']}</b> | ₹{s['price']} | <i>{s['category']}</i>\n"
             f"   🔰 <b>Status:</b> {status} | 🧩 <b>Genre:</b> {genre}\n"
             f"   🎬 <b>Episodes:</b> {episodes}\n"
+            f"   🔗 <b>Free Link:</b> {free_link}\n"
             f"   📦 <b>Batch Range:</b> Message {f_id} to {l_id}\n"
             f"   🎯 <b>Custom Buttons:</b> {ranges_count} Ranges Configured\n"
             f"   🎧 <b>Demo Status:</b> {demo_status} (IDs: {demo_files})\n"
@@ -240,6 +242,27 @@ async def genre_selected(client, callback):
     await callback.message.reply_text("<b>[sᴛᴇᴘ 3/10]</b> 📖 ᴇɴᴛᴇʀ ᴛʜᴇ sᴛᴏʀʏ ᴛɪᴛʟᴇ:", reply_markup=ForceReply(True))
     await callback.answer()
 
+# 5.2 Skip Free Link Callback
+@Client.on_callback_query(filters.regex("^skip_free_link$") & filters.user(ADMIN_ID))
+async def skip_free_link_handler(client, callback):
+    user_id = callback.from_user.id
+    if user_id in ADD_STATE and ADD_STATE[user_id].get("step") == "FREE_LINK":
+        ADD_STATE[user_id]["free_link"] = None
+        ADD_STATE[user_id]["step"] = "ASK_DEMO"
+        
+        kb = InlineKeyboardMarkup([
+            [
+                InlineKeyboardButton("✅ Yes (Enable Demo)", callback_data="setdemo_yes"),
+                InlineKeyboardButton("❌ No (Disable Demo)", callback_data="setdemo_no")
+            ]
+        ])
+        await callback.message.reply_text(
+            "⏩ <b>Free Link Skipped!</b>\n\n"
+            "<b>[sᴛᴇᴘ 9/10]</b> क्या आप इस स्टोरी के लिए <b>🎬 View Demo</b> चालू रखना चाहते हैं?", 
+            reply_markup=kb
+        )
+    await callback.answer()
+
 # 6. Demo Option Selection Callback (Yes / No)
 @Client.on_callback_query(filters.regex("^setdemo_") & filters.user(ADMIN_ID))
 async def demo_option_selected(client, callback):
@@ -314,6 +337,7 @@ async def finalize_add_story(client, message, data):
     total_files = data['last_msg_id'] - data['first_msg_id'] + 1
     demo_status = "✅ Enabled (Auto Synced to Mini App)" if data.get('demo_enabled', False) else "❌ Disabled"
     ranges_count = len(data.get('custom_ranges', []))
+    free_link_text = data.get('free_link') if data.get('free_link') else "N/A"
 
     log_msg = (
         f"<b>➕ ɴᴇᴡ sᴛᴏʀʏ ᴀᴅᴅᴇᴅ!</b>\n\n"
@@ -321,7 +345,8 @@ async def finalize_add_story(client, message, data):
         f"🔰 <b>Status :</b> {data.get('status', 'Completed')}\n"
         f"🖥️ <b>Platform :</b> {data.get('category', 'Pocket FM')}\n"
         f"🧩 <b>Genre :</b> {data.get('genre', 'Drama')}\n"
-        f"🎬 <b>Episodes :</b> {data.get('episodes', 'N/A')}\n\n"
+        f"🎬 <b>Episodes :</b> {data.get('episodes', 'N/A')}\n"
+        f"🔗 <b>Free Link :</b> {free_link_text}\n\n"
         f"░▒▓█ PRICE - ₹{data['price']} █▓▒░\n\n"
         f"<b>🎬 Demo Status:</b> {demo_status}\n"
         f"<b>🎧 Demo IDs:</b> {demo_msg_ids}\n"
@@ -340,7 +365,8 @@ async def finalize_add_story(client, message, data):
         f"🔰 <b>Status :</b> {data.get('status', 'Completed')}\n"
         f"🖥️ <b>Platform :</b> {data.get('category', 'Pocket FM')}\n"
         f"🧩 <b>Genre :</b> {data.get('genre', 'Drama')}\n"
-        f"🎬 <b>Episodes :</b> {data.get('episodes', 'N/A')}\n\n"
+        f"🎬 <b>Episodes :</b> {data.get('episodes', 'N/A')}\n"
+        f"🔗 <b>Free Link :</b> {free_link_text}\n\n"
         f"░▒▓█ PRICE - ₹{data['price']} █▓▒░\n\n"
         f"<b>🎬 Demo Status:</b> {demo_status}\n"
         f"<b>🎧 Demo Files IDs:</b> {demo_msg_ids}\n"
@@ -369,7 +395,7 @@ async def wizard_inputs(client, message):
     elif step == 'STATUS':
         ADD_STATE[user_id]['status'] = message.text.strip()
         ADD_STATE[user_id]['step'] = 'EPISODES'
-        await message.reply_text("<b>[sᴛᴇᴘ 5/10]</b> 🎬 ᴇɴᴛᴇʀ ᴛᴏᴛᴀʟ ᴇᴘɪsᴏᴅᴇs:\n<i>(उदाहरण: 80 Episodes, 100+ Episodes या Ongoing)</i>", reply_markup=ForceReply(True))
+        await message.reply_text("<b>[sᴛᴇᴘ 5/10]</b> 🎬 ᴇɴᴛᴇʀ ᴛᴏᴛᴀtotal ᴇᴘɪsᴏᴅᴇs:\n<i>(उदाहरण: 80 Episodes, 100+ Episodes या Ongoing)</i>", reply_markup=ForceReply(True))
 
     elif step == 'EPISODES':
         ADD_STATE[user_id]['episodes'] = message.text.strip()
@@ -396,6 +422,24 @@ async def wizard_inputs(client, message):
         
     elif step == 'DESC':
         ADD_STATE[user_id]['desc'] = message.text.strip()
+        ADD_STATE[user_id]['step'] = 'FREE_LINK'
+        
+        skip_btn = InlineKeyboardMarkup([
+            [InlineKeyboardButton("⏩ Skip Link", callback_data="skip_free_link")]
+        ])
+        await message.reply_text(
+            "🔗 <b>[sᴛᴇᴘ 8.5/10] External Free Link दर्ज करें:</b>\n\n"
+            "EarnLink / Terabox या कोई भी Free User URL भेजें।\n"
+            "<i>(अगर नहीं देना चाहते तो नीचे <b>Skip Link</b> पर क्लिक करें)</i>",
+            reply_markup=skip_btn
+        )
+
+    elif step == 'FREE_LINK':
+        link_text = message.text.strip()
+        if not (link_text.startswith("http://") or link_text.startswith("https://")):
+            return await message.reply_text("❌ Invalid URL! Valid http/https URL भेजें या 'Skip Link' बटन दबाएं:")
+
+        ADD_STATE[user_id]['free_link'] = link_text
         ADD_STATE[user_id]['step'] = 'ASK_DEMO'
         
         kb = InlineKeyboardMarkup([
@@ -413,7 +457,7 @@ async def wizard_inputs(client, message):
         
         ADD_STATE[user_id]['first_msg_id'] = first_id
         ADD_STATE[user_id]['step'] = 'LAST_MSG'
-        await message.reply_text("<b>[sᴛᴇᴘ 10/10]</b> DB Channel से स्टोरी की <b>LAST Message ID / Link</b> भेजें:", reply_markup=ForceReply(True))
+        await message.reply_text("<b>[sᴛᴇᴘ 10/10]</b> DB Channel से स्टोरी की <b>FIRST Message ID / Link</b> भेजें:", reply_markup=ForceReply(True))
 
     elif step == 'LAST_MSG':
         last_id = extract_msg_id(message.text)
