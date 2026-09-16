@@ -11,7 +11,9 @@ from pyrogram.types import (
     InlineKeyboardButton, 
     ForceReply, 
     CallbackQuery,
-    ReplyKeyboardRemove
+    ReplyKeyboardRemove,
+    Message,
+    LinkPreviewOptions
 )
 from database.db import (
     get_stories_by_cat, 
@@ -24,6 +26,32 @@ from database.db import (
     is_story_unlocked
 )
 from config import BOT_USERNAME, CHANNEL_ID
+
+# ==============================================================================
+# FIX PYROMOD & PYROGRAM V2+ MONKEY PATCH
+# ==============================================================================
+_orig_reply = Message.reply
+_orig_reply_text = Message.reply_text
+
+async def _clean_reply(self, *args, **kwargs):
+    kwargs.pop("quote", None)
+    if "disable_web_page_preview" in kwargs:
+        kwargs.pop("disable_web_page_preview")
+        kwargs["link_preview_options"] = LinkPreviewOptions(is_disabled=True)
+    return await _orig_reply(self, *args, **kwargs)
+
+async def _clean_reply_text(self, *args, **kwargs):
+    kwargs.pop("quote", None)
+    if "disable_web_page_preview" in kwargs:
+        kwargs.pop("disable_web_page_preview")
+        kwargs["link_preview_options"] = LinkPreviewOptions(is_disabled=True)
+    return await _orig_reply_text(self, *args, **kwargs)
+
+Message.reply = _clean_reply
+Message.reply_text = _clean_reply_text
+Message.patched_reply = _clean_reply
+Message.patched_reply_text = _clean_reply_text
+# ==============================================================================
 
 SEARCH_WAITING = {}
 USER_PAGE_STATE = {}  # Track current page state for users
