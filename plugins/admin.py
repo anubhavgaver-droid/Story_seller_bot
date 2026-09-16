@@ -186,7 +186,7 @@ async def start_delete(client, message):
     )
 
 # 3.1 Delete Input Execution Handler
-@Client.on_message(filters.private & filters.user(ADMIN_ID) & ~filters.command(["start", "addstory", "deletestory", "allstories", "cancel", "addmoney", "refreshstories"]), group=1)
+@Client.on_message(filters.private & filters.user(ADMIN_ID) & filters.text & ~filters.command(["start", "addstory", "deletestory", "allstories", "cancel", "addmoney", "refreshstories"]), group=1)
 async def process_delete_input(client, message):
     user_id = message.from_user.id
 
@@ -376,8 +376,8 @@ async def finalize_add_story(client, message, data):
         disable_web_page_preview=True
     )
 
-# 7. Admin Add Story Input Wizard
-@Client.on_message(filters.private & filters.user(ADMIN_ID) & ~filters.command(["start", "addstory", "deletestory", "allstories", "cancel", "addmoney", "refreshstories"]), group=1)
+# 7. Admin Add Story Input Wizard (Text & Photo Handler)
+@Client.on_message(filters.private & filters.user(ADMIN_ID) & (filters.text | filters.photo) & ~filters.command(["start", "addstory", "deletestory", "allstories", "cancel", "addmoney", "refreshstories"]), group=1)
 async def wizard_inputs(client, message):
     user_id = message.from_user.id
 
@@ -395,20 +395,21 @@ async def wizard_inputs(client, message):
     elif step == 'STATUS':
         ADD_STATE[user_id]['status'] = message.text.strip()
         ADD_STATE[user_id]['step'] = 'EPISODES'
-        await message.reply_text("<b>[sᴛᴇᴘ 5/10]</b> 🎬 ᴇɴᴛᴇʀ ᴛᴏᴛᴀtotal ᴇᴘɪsᴏᴅᴇs:\n<i>(उदाहरण: 80 Episodes, 100+ Episodes या Ongoing)</i>", reply_markup=ForceReply(True))
+        await message.reply_text("<b>[sᴛᴇᴘ 5/10]</b> 🎬 ᴇɴᴛᴇʀ ᴛᴏᴛᴀʟ ᴇᴘɪsᴏᴅᴇs:\n<i>(उदाहरण: 80 Episodes, 100+ Episodes या Ongoing)</i>", reply_markup=ForceReply(True))
 
     elif step == 'EPISODES':
         ADD_STATE[user_id]['episodes'] = message.text.strip()
         ADD_STATE[user_id]['step'] = 'PHOTO'
-        await message.reply_text("<b>[sᴛᴇᴘ 6/10]</b> sᴇɴᴅ ᴛʜᴇ sᴛᴏʀʏ ᴘᴏsᴛᴇʀ ᴘʜᴏᴛᴏ (ᴏʀ ᴇɴᴛᴇʀ ᴀɴ ɪᴍᴀɢᴇ ᴜʀʟ):", reply_markup=ForceReply(True))
+        await message.reply_text("<b>[sᴛᴇᴘ 6/10]</b> 📸 🖼️ <b>Send Direct Image / Photo Poster NOW</b>\n<i>(या फिर Image Web URL पेस्ट करें)</i>:", reply_markup=ForceReply(True))
         
     elif step == 'PHOTO':
         if message.photo:
+            # डायरेक्ट फोटो भेजने पर उसकी High Quality File ID ऑटोमैटिक सेट होगी
             ADD_STATE[user_id]['photo'] = message.photo.file_id
-        elif message.text and (message.text.startswith("http://") or message.text.startswith("https://")):
+        elif message.text and (message.text.startswith("http://") or message.text.startswith("https://") or message.text.isalnum()):
             ADD_STATE[user_id]['photo'] = message.text.strip()
         else:
-            return await message.reply_text("❌ ᴘʟᴇᴀsᴇ sᴇɴᴅ ᴀ ᴠᴀʟɪᴅ ᴘʜᴏᴛᴏ ᴏʀ ɪᴍᴀɢᴇ ᴜʀʟ:")
+            return await message.reply_text("❌ <b> Invalid Image!</b>\nकृपया सीधे कोई Photo अपलोड करें या Image Link भेजें:")
             
         ADD_STATE[user_id]['step'] = 'PRICE'
         await message.reply_text("<b>[sᴛᴇᴘ 7/10]</b> ᴇɴᴛᴇʀ ᴛʜᴇ ᴘʀɪᴄᴇ (₹):", reply_markup=ForceReply(True))
@@ -457,7 +458,7 @@ async def wizard_inputs(client, message):
         
         ADD_STATE[user_id]['first_msg_id'] = first_id
         ADD_STATE[user_id]['step'] = 'LAST_MSG'
-        await message.reply_text("<b>[sᴛᴇᴘ 10/10]</b> DB Channel से स्टोरी की <b>FIRST Message ID / Link</b> भेजें:", reply_markup=ForceReply(True))
+        await message.reply_text("<b>[sᴛᴇᴘ 10/10]</b> DB Channel से स्टोरी की <b>LAST Message ID / Link</b> भेजें:", reply_markup=ForceReply(True))
 
     elif step == 'LAST_MSG':
         last_id = extract_msg_id(message.text)
