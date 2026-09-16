@@ -18,7 +18,7 @@ WEB_APP_URL = os.environ.get("WEB_APP_URL", "https://story-seller-bot-0jtb.onren
 
 # Auto-Post Tutorial Button Link
 TUTORIAL_VIDEO_URL = os.environ.get("TUTORIAL_VIDEO_URL", "https://t.me/howanubhav/23")
-CHANNEL = int(os.environ.get("CHANNEL", "-1003525105249"))
+CHANNEL = int(os.environ.get("CHANNEL", "-1003226074080"))
 
 # Stickers Config
 DELIVERY_STICKER_ID = os.environ.get("DELIVERY_STICKER_ID", "CAACAgUAAxkBAAIekGqafK19rMDCkWo-XnCakyhwR7iEAAJaBAAC-qSxV4gJ0UQKykTsHgQ...")
