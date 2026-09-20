@@ -537,6 +537,37 @@
             box-shadow: 0px 0px 0px var(--border);
         }
 
+        /* ---------------- SLOW RGB GLOW ANIMATION FOR VERSION & POWERED BY ---------------- */
+        .rgb-glow-text {
+            font-weight: 900;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            animation: slowRgbGlow 8s infinite linear;
+        }
+
+        @keyframes slowRgbGlow {
+            0% {
+                color: #ff0055;
+                text-shadow: 0 0 8px rgba(255, 0, 85, 0.6);
+            }
+            25% {
+                color: #00e5ff;
+                text-shadow: 0 0 8px rgba(0, 229, 255, 0.6);
+            }
+            50% {
+                color: #00ff66;
+                text-shadow: 0 0 8px rgba(0, 255, 102, 0.6);
+            }
+            75% {
+                color: #ffcc00;
+                text-shadow: 0 0 8px rgba(255, 204, 0, 0.6);
+            }
+            100% {
+                color: #ff0055;
+                text-shadow: 0 0 8px rgba(255, 0, 85, 0.6);
+            }
+        }
+
         /* ---------------- CHECK IN PM CUSTOM DIALOG ---------------- */
         .pm-dialog-overlay {
             position: fixed;
@@ -841,9 +872,10 @@
                 </div>
             </div>
 
-            <div style="text-align: center; margin-top: 20px; opacity: 0.8; font-size: 11px; font-weight: 800; letter-spacing: 1px;">
-                VERSION 2.02<br>
-                <span style="font-size: 10px; color: var(--accent-solid); font-weight: 900; text-transform: uppercase;">POWERED BY GW KALU 2026 ALL RIGHT RESERVED</span>
+            <!-- VERSION AND POWERED BY WITH RGB GLOW ANIMATION -->
+            <div style="text-align: center; margin-top: 20px; opacity: 0.9; font-size: 11px; font-weight: 800; letter-spacing: 1px;">
+                <span class="rgb-glow-text">VERSION 2.02</span><br>
+                <span class="rgb-glow-text" style="font-size: 10px;">POWERED BY GW KALU 2026 ALL RIGHT RESERVED</span>
             </div>
         </div>
     </div>
@@ -1171,14 +1203,14 @@
                 const res = await fetch(`/api/user_purchases?user_id=${userId}`);
                 userPurchases = await res.json();
                 
-                // Re-render grids so the purchased items switch to "VIEW ORDER"
+                // Re-render grids so the purchased items switch to "VIEW DETAILS"
                 renderGrid(stories, 'homeGrid');
                 renderGrid(stories, 'exploreGrid');
                 renderUnlockedList();
             } catch(e) { console.error(e); }
         }
 
-        /* --- UPDATED ORDERS LIST FUNCTION WITH VIEW ORDER BUTTON --- */
+        /* --- UPDATED ORDERS LIST FUNCTION WITH VIEW DETAILS BUTTON --- */
         function renderUnlockedList() {
             document.getElementById('unlockedCount').innerText = userPurchases.length;
             if (document.getElementById('pUnlocked')) {
@@ -1220,7 +1252,7 @@
                     </div>
                     <div class="order-actions-grid">
                         <button class="btn-view-order" onclick="openStoryModal('${encodeURIComponent(sKey)}')">
-                            📖 VIEW ORDER
+                            📖 VIEW DETAILS
                         </button>
                         <button class="btn-telegram-action" onclick="openStoryLink('${deliveryLink}')">
                             GET ON TELEGRAM ✈️
@@ -1230,7 +1262,7 @@
             `}).join('');
         }
 
-        /* --- UPDATED RENDER GRID: "BUY & UNLOCK" REPLACED BY "VIEW ORDER" FOR UNLOCKED ITEMS --- */
+        /* --- UPDATED RENDER GRID: "BUY & UNLOCK" REPLACED BY "VIEW DETAILS" FOR UNLOCKED ITEMS --- */
         function renderGrid(list, target) {
             const el = document.getElementById(target);
             if(!el) return;
@@ -1252,9 +1284,9 @@
                     String(p.story_id) === String(s.id)
                 ));
 
-                // If purchased -> show "VIEW ORDER" button, else show "BUY & UNLOCK" / "CLAIM FREE"
+                // If purchased -> show "VIEW DETAILS" button, else show "BUY & UNLOCK" / "CLAIM FREE"
                 const actionBtnHtml = isPurchased 
-                    ? `<button class="btn-view-order-card" onclick="event.stopPropagation(); goToOrdersTab()">📖 VIEW ORDER</button>`
+                    ? `<button class="btn-view-order-card" onclick="event.stopPropagation(); goToOrdersTab()">📖 VIEW DETAILS</button>`
                     : `<button class="btn-action">${s.price == 0 ? 'CLAIM FREE' : 'BUY & UNLOCK'}</button>`;
 
                 return `
