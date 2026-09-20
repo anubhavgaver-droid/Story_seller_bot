@@ -388,25 +388,32 @@
         }
         .btn-demo:active { transform: translate(2px, 2px); box-shadow: 0px 0px 0px var(--border); }
 
-        /* ---------------- PURCHASED ORDERS CARD STYLING ---------------- */
+        /* ---------------- NEW BOTTOM BUTTON PURCHASED CARD STYLING ---------------- */
         .purchased-card {
             display: flex;
-            align-items: center;
+            flex-direction: column; /* ऊपर डिटेल्स और नीचे बटन रहेगा */
             background: var(--card-bg);
-            border: 2px solid var(--border);
+            border: 2.5px solid var(--border);
             border-radius: 16px;
-            padding: 10px;
-            margin-bottom: 12px;
+            padding: 12px;
+            margin-bottom: 14px;
             box-shadow: var(--shadow);
             gap: 12px;
         }
 
+        .purchased-top-content {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            width: 100%;
+        }
+
         .purchased-img {
-            width: 70px;
-            height: 70px;
-            border-radius: 10px;
+            width: 75px;
+            height: 75px;
+            border-radius: 12px;
             object-fit: cover;
-            border: 1.5px solid var(--border);
+            border: 2px solid var(--border);
             flex-shrink: 0;
         }
 
@@ -419,8 +426,8 @@
         }
 
         .purchased-title {
-            font-size: 14px;
-            font-weight: 800;
+            font-size: 15px;
+            font-weight: 900;
             color: var(--text);
             white-space: nowrap;
             overflow: hidden;
@@ -428,48 +435,52 @@
         }
 
         .purchased-meta {
-            font-size: 10px;
+            font-size: 11px;
             font-weight: 700;
-            opacity: 0.7;
+            opacity: 0.75;
             color: var(--text);
         }
 
         .purchased-tags {
             display: flex;
             align-items: center;
-            gap: 6px;
+            gap: 8px;
+            margin-top: 2px;
         }
 
         .mini-app-badge {
             background: #10b981;
             color: #ffffff;
-            font-size: 8px;
+            font-size: 9px;
             font-weight: 900;
-            padding: 2px 6px;
-            border-radius: 4px;
+            padding: 3px 7px;
+            border-radius: 5px;
             text-transform: uppercase;
         }
 
         .purchased-price {
-            font-size: 11px;
-            font-weight: 800;
+            font-size: 12px;
+            font-weight: 900;
             color: var(--text);
         }
 
+        /* BOTTOM FULL-WIDTH BUTTON */
         .btn-telegram-action {
+            width: 100%;
             background: #ffffff;
             color: #000000;
-            border: 2px solid var(--border);
-            border-radius: 10px;
-            padding: 8px 12px;
-            font-size: 11px;
-            font-weight: 800;
+            border: 2.5px solid var(--border);
+            border-radius: 12px;
+            padding: 10px 0;
+            font-size: 12px;
+            font-weight: 900;
             cursor: pointer;
             box-shadow: 2px 2px 0px var(--border);
             display: flex;
             align-items: center;
+            justify-content: center;
             gap: 6px;
-            white-space: nowrap;
+            text-transform: uppercase;
         }
 
         .btn-telegram-action:active {
@@ -889,8 +900,9 @@
                 });
 
                 if (foundStory) {
-                    if (foundStory.photo) {
-                        document.getElementById('loaderAnimeImg').src = foundStory.photo;
+                    const originalPhoto = foundStory.photo || foundStory.cover_image_url || foundStory.image || foundStory.poster;
+                    if (originalPhoto) {
+                        document.getElementById('loaderAnimeImg').src = originalPhoto;
                     }
                     runDirectRedirectAnimation(() => {
                         openStoryModal(foundStory.id !== undefined ? foundStory.id : foundStory.title);
@@ -910,9 +922,9 @@
             const shuffled = [...list].sort(() => 0.5 - Math.random());
             const picked = shuffled.slice(0, 5);
             
-            picked.forEach((story, idx) => {
+            picked.forEach((story) => {
                 const img = document.createElement('img');
-                img.src = story.photo || 'https://picsum.photos/400/600';
+                img.src = story.photo || story.cover_image_url || story.image || story.poster || 'https://picsum.photos/400/600';
                 img.className = 'hd-stack-card';
                 img.alt = "Splash HD Poster";
                 wrapper.appendChild(img);
@@ -982,7 +994,7 @@
             } catch(e) { console.error(e); }
         }
 
-        /* --- UPDATED ORDERS LIST FUNCTION --- */
+        /* --- UPDATED ORDERS LIST FUNCTION WITH ORIGINAL IMAGE & BOTTOM BUTTON --- */
         function renderUnlockedList() {
             document.getElementById('unlockedCount').innerText = userPurchases.length;
             if (document.getElementById('pUnlocked')) {
@@ -1001,23 +1013,27 @@
                 const title = p.story_title || p.title || 'Untitled Story';
                 const cleanTitle = title.replace(/\s+/g, '_');
                 const deliveryLink = p.link || `https://t.me/${BOT_USERNAME}?start=get_${cleanTitle}`;
-                const photo = p.photo || p.cover_image_url || 'https://picsum.photos/200';
+                
+                // ओरिजिनल फोटो डिकोडिंग (सभी सम्भावित कीज़ चेक होंगी)
+                const photo = p.photo || p.cover_image_url || p.image || p.poster || 'https://picsum.photos/200';
                 const platform = p.platform || 'Audio Series';
-                const price = (p.price !== undefined && p.price !== null) ? `₹${p.price}` : 'FREE';
+                const price = (p.price !== undefined && p.price !== null && p.price !== '') ? `₹${p.price}` : 'FREE';
 
                 return `
                 <div class="purchased-card">
-                    <img src="${photo}" class="purchased-img" alt="${title}">
-                    <div class="purchased-details">
-                        <div class="purchased-title">${title}</div>
-                        <div class="purchased-meta">${platform}</div>
-                        <div class="purchased-tags">
-                            <span class="mini-app-badge">MINI APP</span>
-                            <span class="purchased-price">${price}</span>
+                    <div class="purchased-top-content">
+                        <img src="${photo}" class="purchased-img" alt="${title}" onerror="this.src='https://picsum.photos/200'">
+                        <div class="purchased-details">
+                            <div class="purchased-title">${title}</div>
+                            <div class="purchased-meta">${platform}</div>
+                            <div class="purchased-tags">
+                                <span class="mini-app-badge">MINI APP</span>
+                                <span class="purchased-price">${price}</span>
+                            </div>
                         </div>
                     </div>
                     <button class="btn-telegram-action" onclick="openStoryLink('${deliveryLink}')">
-                        Get Story On Telegram <span style="font-size:12px;">✈️</span>
+                        Get Story On Telegram <span style="font-size:13px;">✈️</span>
                     </button>
                 </div>
             `}).join('');
@@ -1036,12 +1052,14 @@
             el.innerHTML = list.map((s) => {
                 const sKey = s.id !== undefined ? s.id : s.title;
                 const isFav = wishlist.includes(String(sKey));
+                const originalPhoto = s.photo || s.cover_image_url || s.image || s.poster || 'https://picsum.photos/200';
+
                 return `
                 <div class="card" onclick="openStoryModal('${encodeURIComponent(sKey)}')">
                     <div class="card-fav-btn" onclick="toggleWishlist(event, '${encodeURIComponent(sKey)}')">
                         ${isFav ? '❤️' : '🤍'}
                     </div>
-                    <img src="${s.photo || 'https://picsum.photos/200'}" class="card-img" alt="${s.title}">
+                    <img src="${originalPhoto}" class="card-img" alt="${s.title}" onerror="this.src='https://picsum.photos/200'">
                     <div class="card-body">
                         <span class="badge">${s.platform || 'AUDIO'}</span>
                         <h4 class="title">${s.title}</h4>
@@ -1058,7 +1076,7 @@
             let story = stories.find(s => String(s.id) === String(storyKey) || String(s.title) === String(storyKey));
             if (!story) return;
 
-            const photoUrl = story.photo || 'https://picsum.photos/200';
+            const photoUrl = story.photo || story.cover_image_url || story.image || story.poster || 'https://picsum.photos/200';
             document.getElementById('mBgImg').src = photoUrl;
             document.getElementById('mPosterImg').src = photoUrl;
             document.getElementById('mTitle').innerText = story.title;
@@ -1120,7 +1138,7 @@
                 userPurchases.push({
                     story_title: story.title,
                     link: story.link || '#',
-                    photo: story.photo,
+                    photo: story.photo || story.cover_image_url || story.image || story.poster,
                     platform: story.platform,
                     price: story.price
                 });
