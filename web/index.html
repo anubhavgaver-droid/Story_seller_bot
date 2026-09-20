@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>ᴀᴄ | ᴘʀᴇʍɪᴜʍ</title>
+    <title>AC PREMIUM STORE</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
         /* ---------------- DEFAULT WHITE + YELLOW THEME ---------------- */
@@ -48,7 +48,7 @@
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
             -webkit-tap-highlight-color: transparent;
             overflow-x: hidden;
-            transition: background-color 0.3s ease, color 0.3s ease;
+            transition: background-color 0.4s ease, color 0.4s ease;
         }
 
         /* ---------------- DIRECT REDIRECT LOADER ---------------- */
@@ -465,23 +465,55 @@
             color: var(--text);
         }
 
-        /* BOTTOM FULL-WIDTH BUTTON */
-        .btn-telegram-action {
+        /* ACTIONS BUTTON GRID FOR UNLOCKED ORDERS */
+        .order-actions-grid {
+            display: flex;
+            gap: 8px;
             width: 100%;
-            background: #ffffff;
+        }
+
+        .btn-view-order {
+            flex: 1;
+            background: var(--accent);
             color: #000000;
             border: 2.5px solid var(--border);
             border-radius: 12px;
             padding: 10px 0;
-            font-size: 12px;
+            font-size: 11px;
             font-weight: 900;
             cursor: pointer;
             box-shadow: 2px 2px 0px var(--border);
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: 6px;
+            gap: 4px;
             text-transform: uppercase;
+            transition: transform 0.1s ease;
+        }
+
+        .btn-view-order:active {
+            transform: translate(1.5px, 1.5px);
+            box-shadow: 0px 0px 0px var(--border);
+        }
+
+        /* BOTTOM FULL-WIDTH BUTTON */
+        .btn-telegram-action {
+            flex: 1.2;
+            background: var(--item-bg);
+            color: var(--text);
+            border: 2.5px solid var(--border);
+            border-radius: 12px;
+            padding: 10px 0;
+            font-size: 11px;
+            font-weight: 900;
+            cursor: pointer;
+            box-shadow: 2px 2px 0px var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+            text-transform: uppercase;
+            transition: transform 0.1s ease;
         }
 
         .btn-telegram-action:active {
@@ -630,8 +662,36 @@
             color: #000000 !important;
         }
 
-        .theme-grid { display: flex; gap: 8px; margin-top: 8px; }
-        .theme-btn { flex: 1; padding: 10px; border: 2px solid var(--border); border-radius: 10px; font-size: 11px; font-weight: 800; cursor: pointer; text-align: center; box-shadow: 2px 2px 0px var(--border); }
+        /* ---------------- THEME SWITCHING ANIMATED BUTTONS ---------------- */
+        .theme-grid { display: flex; gap: 10px; margin-top: 8px; }
+        .theme-btn {
+            flex: 1;
+            padding: 12px;
+            border: 2.5px solid var(--border);
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 900;
+            cursor: pointer;
+            text-align: center;
+            box-shadow: 3px 3px 0px var(--border);
+            transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275), box-shadow 0.2s ease, background-color 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        .theme-btn:active {
+            transform: scale(0.92) translate(2px, 2px);
+            box-shadow: 0px 0px 0px var(--border);
+        }
+
+        /* Pulse glow animation when clicking theme button */
+        @keyframes themePulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.06); }
+            100% { transform: scale(1); }
+        }
+        .theme-btn.animating {
+            animation: themePulse 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
 
         .bottom-nav {
             position: fixed;
@@ -664,7 +724,7 @@
     <div id="splash-screen">
         <div class="cards-stack-wrapper" id="cardsWrapper"></div>
         <div class="splash-text-group">
-            <div class="splash-title">WELCOME TO ᴀᴄ | ᴘʀᴇʍɪᴜʍ</div>
+            <div class="splash-title">WELCOME TO AC PREMIUM</div>
             <div class="splash-sub">Your automated store inside Telegram for premium audio and video story series — delivered instantly to your chat.</div>
         </div>
         <div class="loader-spinner">
@@ -761,12 +821,11 @@
             <div class="section-box">
                 <div class="section-title">App Theme 🎨</div>
                 <div class="theme-grid">
-                    <button class="theme-btn" style="background: #ffffff; color: #000000;" onclick="changeTheme('white')">☀️ White</button>
-                    <button class="theme-btn" style="background: #000000; color: #ffffff;" onclick="changeTheme('black')">🌙 Black</button>
+                    <button class="theme-btn" id="btnThemeWhite" style="background: #ffffff; color: #000000;" onclick="changeTheme('white', this)">☀️ Light White</button>
+                    <button class="theme-btn" id="btnThemeBlack" style="background: #121212; color: #ffffff;" onclick="changeTheme('black', this)">🌙 Dark Black</button>
                 </div>
             </div>
 
-            <!-- VERSION BADGE UPDATED TO VERSION 2.02 -->
             <div style="text-align: center; margin-top: 20px; opacity: 0.6; font-size: 11px; font-weight: 800; letter-spacing: 1px;">
                 VERSION 2.02
             </div>
@@ -879,7 +938,7 @@
             return item.photo || item.cover_image_url || item.image || item.poster || 'https://picsum.photos/200';
         }
 
-        /* --- THEME SYSTEM --- */
+        /* --- ANIMATED THEME SWITCHING SYSTEM --- */
         function applySavedTheme() {
             const savedTheme = localStorage.getItem('user_theme') || 'white';
             document.body.className = '';
@@ -888,8 +947,17 @@
             }
         }
 
-        function changeTheme(themeName) {
+        function changeTheme(themeName, btnElement) {
             triggerHaptic('medium');
+            
+            // Add click animation on button
+            if (btnElement) {
+                btnElement.classList.add('animating');
+                setTimeout(() => {
+                    btnElement.classList.remove('animating');
+                }, 350);
+            }
+
             localStorage.setItem('user_theme', themeName);
             applySavedTheme();
         }
@@ -1091,7 +1159,7 @@
             } catch(e) { console.error(e); }
         }
 
-        /* --- UPDATED ORDERS LIST FUNCTION --- */
+        /* --- UPDATED ORDERS LIST FUNCTION WITH VIEW ORDER BUTTON --- */
         function renderUnlockedList() {
             document.getElementById('unlockedCount').innerText = userPurchases.length;
             if (document.getElementById('pUnlocked')) {
@@ -1113,6 +1181,7 @@
                 
                 let matchedStory = stories.find(s => String(s.title).toLowerCase().trim() === String(title).toLowerCase().trim() || String(s.id) === String(p.story_id));
                 const photo = matchedStory ? getOriginalPhoto(matchedStory) : getOriginalPhoto(p);
+                const sKey = matchedStory ? (matchedStory.id !== undefined ? matchedStory.id : matchedStory.title) : title;
 
                 const platform = p.platform || (matchedStory ? matchedStory.platform : 'Audio Series');
                 const price = (p.price !== undefined && p.price !== null && p.price !== '') ? `₹${p.price}` : (matchedStory ? `₹${matchedStory.price}` : 'FREE');
@@ -1125,14 +1194,19 @@
                             <div class="purchased-title">${title}</div>
                             <div class="purchased-meta">${platform}</div>
                             <div class="purchased-tags">
-                                <span class="mini-app-badge">MINI APP</span>
+                                <span class="mini-app-badge">UNLOCKED</span>
                                 <span class="purchased-price">${price}</span>
                             </div>
                         </div>
                     </div>
-                    <button class="btn-telegram-action" onclick="openStoryLink('${deliveryLink}')">
-                        Get Story On Telegram <span style="font-size:13px;">✈️</span>
-                    </button>
+                    <div class="order-actions-grid">
+                        <button class="btn-view-order" onclick="openStoryModal('${encodeURIComponent(sKey)}')">
+                            📖 VIEW ORDER
+                        </button>
+                        <button class="btn-telegram-action" onclick="openStoryLink('${deliveryLink}')">
+                            GET ON TELEGRAM ✈️
+                        </button>
+                    </div>
                 </div>
             `}).join('');
         }
@@ -1172,7 +1246,11 @@
             triggerHaptic('light');
             const storyKey = decodeURIComponent(storyKeyRaw);
             let story = stories.find(s => String(s.id) === String(storyKey) || String(s.title) === String(storyKey));
-            if (!story) return;
+            
+            // If story is not loaded in memory, fallback preview
+            if (!story) {
+                story = { title: storyKey, platform: 'Audio Series', price: 'Unlocked', description: 'Unlocked Series in your library.' };
+            }
 
             const photoUrl = getOriginalPhoto(story);
             document.getElementById('mBgImg').src = photoUrl;
@@ -1183,13 +1261,20 @@
             document.getElementById('mInfoEps').innerText = story.episodes || '30';
             document.getElementById('mInfoFiles').innerText = story.total_files || '24 files';
             
-            const priceText = story.price == 0 ? 'FREE' : `₹${story.price}`;
+            const priceText = story.price == 0 ? 'FREE' : (typeof story.price === 'number' ? `₹${story.price}` : story.price);
             document.getElementById('mPrice').innerText = priceText;
             document.getElementById('mAccessType').innerText = story.price == 0 ? '🎁 FREE ACCESS' : '💎 PAID SHOW';
             document.getElementById('mDesc').innerText = story.description || story.desc || 'Complete audio series package with high quality audio episodes. Instant access after unlocking.';
 
             const buyBtn = document.getElementById('mBuyBtn');
-            if (story.price == 0) {
+            const isPurchased = userPurchases.some(p => (p.story_title === story.title || p.title === story.title));
+
+            if (isPurchased) {
+                buyBtn.innerText = 'OPEN IN TELEGRAM';
+                const cleanTitle = encodeURIComponent(story.title.replace(/\s+/g, "_"));
+                const deliveryLink = story.link || `https://t.me/${BOT_USERNAME}?start=get_${cleanTitle}`;
+                buyBtn.onclick = function() { openStoryLink(deliveryLink); };
+            } else if (story.price == 0) {
                 buyBtn.innerText = 'CLAIM NOW (FREE)';
                 buyBtn.onclick = function() { claimFreeStory(story); };
             } else {
@@ -1311,14 +1396,12 @@
         function filterCat(cat, btnElem) {
             triggerHaptic('light');
 
-            // Reset active state for category buttons
             if (btnElem) {
                 const buttons = document.querySelectorAll('#exploreCategoryWrapper .explore-btn');
                 buttons.forEach(b => b.classList.remove('chip-yellow'));
                 btnElem.classList.add('chip-yellow');
             }
 
-            // Filter logic
             if (cat === 'all') {
                 renderGrid(stories, 'exploreGrid');
             } else {
