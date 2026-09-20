@@ -710,7 +710,7 @@
         .bottom-nav {
             position: fixed; bottom: 0; left: 0; width: 100%;
             background: var(--box-bg); border-top: 2.5px solid var(--border);
-            display: flex; justify-content: space-around; padding: 8px 0; z-index: 100;
+            display: flex; justify-space-around; padding: 8px 0; z-index: 100;
         }
         .nav-link { display: flex; flex-direction: column; align-items: center; font-size: 9px; font-weight: 900; color: var(--text); text-decoration: none; opacity: 0.6; cursor: pointer; }
         .nav-link.active { opacity: 1; color: var(--text); }
@@ -777,7 +777,7 @@
             <div class="story-grid" id="exploreGrid"></div>
         </div>
 
-        <!-- TAB 3: CART (NEW) -->
+        <!-- TAB 3: CART -->
         <div id="tab-cart" class="tab-content">
             <div class="cart-summary-box">
                 <div>
@@ -947,6 +947,13 @@
         const tg = window.Telegram.WebApp;
         const BOT_USERNAME = "storysellerbyACbot";
 
+        // Fallback demo data in case backend API is not responding
+        const DEFAULT_DEMO_STORIES = [
+            { id: 101, title: "Insta Millionaire", platform: "Pocket FM", price: 49, episodes: 1200, total_files: 100, photo: "https://picsum.photos/seed/insta/200/300", description: "A young guy gets sudden wealth and navigates through society." },
+            { id: 102, title: "My Vampire System", platform: "Pratilipi FM", price: 0, episodes: 450, total_files: 40, photo: "https://picsum.photos/seed/vampire/200/300", description: "Humanity fights back with futuristic abilities and dark secrets." },
+            { id: 103, title: "Secret Billionaire", platform: "Kuku FM", price: 29, episodes: 300, total_files: 30, photo: "https://picsum.photos/seed/secret/200/300", description: "Hiding real power to test loyalty in modern city life." }
+        ];
+
         let stories = [];
         let userPurchases = [];
         let currentModalStoryKey = null;
@@ -1015,7 +1022,6 @@
             if (!currentModalStoryKey) return;
             toggleCart(null, currentModalStoryKey);
             
-            // Update modal cart button UI style
             const cart = getCart();
             const isAdded = cart.includes(String(currentModalStoryKey));
             const modalBtn = document.getElementById('mModalCartBtn');
@@ -1086,7 +1092,11 @@
                 alert("Your cart is empty!");
                 return;
             }
-            const deepLink = `https://t.me/${BOT_USERNAME}?start=cart_checkout`;
+            
+            // Encode cart item identifiers in the start param
+            const cartParam = "cart_" + cart.map(id => encodeURIComponent(id)).join("_");
+            const deepLink = `https://t.me/${BOT_USERNAME}?start=${cartParam}`;
+            
             if (tg && tg.openTelegramLink) {
                 tg.openTelegramLink(deepLink);
                 tg.close();
@@ -1149,7 +1159,7 @@
 
             let current = 0;
             const interval = setInterval(() => {
-                current += 2;
+                current += 4;
                 if (current >= 100) {
                     current = 100;
                     counter.innerText = '100%';
@@ -1161,7 +1171,7 @@
                 } else {
                     counter.innerText = `${current}%`;
                 }
-            }, 25);
+            }, 20);
         }
 
         function checkUrlParamRouting() {
@@ -1229,14 +1239,19 @@
                 const splash = document.getElementById('splash-screen');
                 if(splash) splash.classList.add('hidden');
                 if(splashInterval) clearInterval(splashInterval);
-            }, 3800);
+            }, 3200);
         }
 
         async function loadStories() {
             try {
                 const res = await fetch('/api/stories');
-                stories = await res.json();
-                
+                if (!res.ok) throw new Error("Network response was not ok");
+                const data = await res.json();
+                stories = Array.isArray(data) ? data : DEFAULT_DEMO_STORIES;
+            } catch(e) {
+                console.warn("API fetch failed, loading default stories fallback:", e);
+                stories = DEFAULT_DEMO_STORIES;
+            } finally {
                 renderGrid(stories, 'homeGrid');
                 renderGrid(stories, 'exploreGrid');
                 renderWishlist();
@@ -1251,20 +1266,23 @@
                     if (stories.length > 0) setupSplashScreen(stories);
                     else document.getElementById('splash-screen').classList.add('hidden');
                 }
-            } catch(e) {
-                console.error(e);
-                document.getElementById('splash-screen').classList.add('hidden');
             }
         }
 
         async function loadUserPurchases(userId) {
             try {
                 const res = await fetch(`/api/user_purchases?user_id=${userId}`);
-                userPurchases = await res.json();
+                if (res.ok) {
+                    const data = await res.json();
+                    if (Array.isArray(data)) userPurchases = data;
+                }
+            } catch(e) { 
+                console.error("Error loading purchases:", e); 
+            } finally {
                 renderGrid(stories, 'homeGrid');
                 renderGrid(stories, 'exploreGrid');
                 renderUnlockedList();
-            } catch(e) { console.error(e); }
+            }
         }
 
         function renderUnlockedList() {
@@ -1311,7 +1329,7 @@
             const el = document.getElementById(target);
             if(!el) return;
             if(list.length === 0) {
-                el.innerHTML = '<p style="font-size:12px; font-weight:800; grid-column:1/-1; text-align:center;">No audio packs found.</p>';
+                el.innerHTML = '<p style="font-size:12px; font-weight:800; grid-column:1/-1; text-align:center; padding: 20px 0;">No audio packs found.</p>';
                 return;
             }
 
@@ -1431,7 +1449,7 @@
 
         function doSearch() {
             const q = document.getElementById('searchInp').value.toLowerCase().trim();
-            const f = stories.filter(s => s.title.toLowerCase().includes(q) || s.platform.toLowerCase().includes(q));
+            const f = stories.filter(s => s.title.toLowerCase().includes(q) || (s.platform && s.platform.toLowerCase().includes(q)));
             renderGrid(f, 'homeGrid');
         }
 
