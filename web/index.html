@@ -119,7 +119,7 @@
             text-transform: uppercase;
         }
 
-        /* ---------------- WELCOME SPLASH SCREEN (HD STACK REPLICA) ---------------- */
+        /* ---------------- WELCOME SPLASH SCREEN ---------------- */
         #splash-screen {
             position: fixed;
             top: 0; left: 0;
@@ -153,7 +153,7 @@
 
         .hd-stack-card {
             position: absolute;
-            width: 215px; /* बड़ा और HD पोस्टर साइज़ */
+            width: 215px;
             height: 310px;
             border-radius: 20px;
             object-fit: cover;
@@ -164,7 +164,6 @@
             will-change: transform, opacity;
         }
 
-        /* EXACT STACK POSITIONS (video directional flow) */
         .hd-stack-card.pos-front {
             transform: translate3d(0, 0, 0) rotate(0deg) scale(1);
             z-index: 5;
@@ -207,7 +206,6 @@
         .splash-title { font-size: 21px; font-weight: 900; letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 8px; text-align: center; color: #ffffff; }
         .splash-sub { font-size: 12px; opacity: 0.7; text-align: center; line-height: 1.45; font-weight: 500; color: #d1d5db; }
         
-        /* DOT SPINNER STYLES */
         .loader-spinner {
             width: 26px;
             height: 26px;
@@ -389,6 +387,95 @@
             gap: 6px;
         }
         .btn-demo:active { transform: translate(2px, 2px); box-shadow: 0px 0px 0px var(--border); }
+
+        /* ---------------- PURCHASED ORDERS CARD STYLING ---------------- */
+        .purchased-card {
+            display: flex;
+            align-items: center;
+            background: var(--card-bg);
+            border: 2px solid var(--border);
+            border-radius: 16px;
+            padding: 10px;
+            margin-bottom: 12px;
+            box-shadow: var(--shadow);
+            gap: 12px;
+        }
+
+        .purchased-img {
+            width: 70px;
+            height: 70px;
+            border-radius: 10px;
+            object-fit: cover;
+            border: 1.5px solid var(--border);
+            flex-shrink: 0;
+        }
+
+        .purchased-details {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            overflow: hidden;
+        }
+
+        .purchased-title {
+            font-size: 14px;
+            font-weight: 800;
+            color: var(--text);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .purchased-meta {
+            font-size: 10px;
+            font-weight: 700;
+            opacity: 0.7;
+            color: var(--text);
+        }
+
+        .purchased-tags {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .mini-app-badge {
+            background: #10b981;
+            color: #ffffff;
+            font-size: 8px;
+            font-weight: 900;
+            padding: 2px 6px;
+            border-radius: 4px;
+            text-transform: uppercase;
+        }
+
+        .purchased-price {
+            font-size: 11px;
+            font-weight: 800;
+            color: var(--text);
+        }
+
+        .btn-telegram-action {
+            background: #ffffff;
+            color: #000000;
+            border: 2px solid var(--border);
+            border-radius: 10px;
+            padding: 8px 12px;
+            font-size: 11px;
+            font-weight: 800;
+            cursor: pointer;
+            box-shadow: 2px 2px 0px var(--border);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            white-space: nowrap;
+        }
+
+        .btn-telegram-action:active {
+            transform: translate(1.5px, 1.5px);
+            box-shadow: 0px 0px 0px var(--border);
+        }
 
         /* ---------------- FULL SCREEN STORY DETAIL MODAL ---------------- */
         .modal-overlay {
@@ -814,7 +901,7 @@
             return false;
         }
 
-        /* --- HD STACK CAROUSEL ROTATION (EXACT REPLICA) --- */
+        /* --- HD STACK CAROUSEL ROTATION --- */
         function setupSplashScreen(list) {
             const wrapper = document.getElementById('cardsWrapper');
             if(!wrapper) return;
@@ -850,10 +937,8 @@
             }
 
             rotateStack();
-            // 1.1 सेकंड्स की रफ़्तार में वीडियो जैसा मोशन
             splashInterval = setInterval(rotateStack, 1100);
             
-            // Auto hide splash screen
             setTimeout(() => {
                 const splash = document.getElementById('splash-screen');
                 if(splash) splash.classList.add('hidden');
@@ -897,6 +982,7 @@
             } catch(e) { console.error(e); }
         }
 
+        /* --- UPDATED ORDERS LIST FUNCTION --- */
         function renderUnlockedList() {
             document.getElementById('unlockedCount').innerText = userPurchases.length;
             if (document.getElementById('pUnlocked')) {
@@ -907,22 +993,32 @@
             if(!box) return;
 
             if(userPurchases.length === 0) {
-                box.innerHTML = '<p style="font-size:12px; font-weight:700;">No unlocked stories. Claim or buy stories to access here!</p>';
+                box.innerHTML = '<p style="font-size:12px; font-weight:700;">No unlocked stories found!</p>';
                 return;
             }
             
             box.innerHTML = userPurchases.map(p => {
-                const title = p.story_title || p.title;
+                const title = p.story_title || p.title || 'Untitled Story';
                 const cleanTitle = title.replace(/\s+/g, '_');
                 const deliveryLink = p.link || `https://t.me/${BOT_USERNAME}?start=get_${cleanTitle}`;
-                
+                const photo = p.photo || p.cover_image_url || 'https://picsum.photos/200';
+                const platform = p.platform || 'Audio Series';
+                const price = (p.price !== undefined && p.price !== null) ? `₹${p.price}` : 'FREE';
+
                 return `
-                <div class="item-row">
-                    <div>
-                        <div style="font-weight:900; font-size:13px;">${title}</div>
-                        <span style="font-size:10px; font-weight:800; color:#10b981;">✓ UNLOCKED</span>
+                <div class="purchased-card">
+                    <img src="${photo}" class="purchased-img" alt="${title}">
+                    <div class="purchased-details">
+                        <div class="purchased-title">${title}</div>
+                        <div class="purchased-meta">${platform}</div>
+                        <div class="purchased-tags">
+                            <span class="mini-app-badge">MINI APP</span>
+                            <span class="purchased-price">${price}</span>
+                        </div>
                     </div>
-                    <button class="chip chip-yellow" onclick="openStoryLink('${deliveryLink}')">ACCESS</button>
+                    <button class="btn-telegram-action" onclick="openStoryLink('${deliveryLink}')">
+                        Get Story On Telegram <span style="font-size:12px;">✈️</span>
+                    </button>
                 </div>
             `}).join('');
         }
@@ -985,7 +1081,6 @@
                 buyBtn.onclick = function() { buyStory(story.title, story.price); };
             }
 
-            // Demo Sync setup
             const demoBtn = document.getElementById('mDemoBtn');
             const hasDemoAvailable = story.has_demo || story.demo_enabled || (story.demo_msg_ids && story.demo_msg_ids.length > 0);
             
@@ -1024,7 +1119,10 @@
             if (!alreadyUnlocked) {
                 userPurchases.push({
                     story_title: story.title,
-                    link: story.link || '#'
+                    link: story.link || '#',
+                    photo: story.photo,
+                    platform: story.platform,
+                    price: story.price
                 });
                 renderUnlockedList();
             }
