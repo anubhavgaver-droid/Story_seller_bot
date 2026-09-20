@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>AC PREMIUM STORE</title>
+    <title>ᴀᴄ | ᴘʀᴇʍɪᴜʍ</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
         /* ---------------- DEFAULT WHITE + YELLOW THEME ---------------- */
@@ -276,8 +276,9 @@
             align-items: center;
             gap: 4px;
             cursor: pointer;
+            transition: all 0.2s ease-in-out;
         }
-        .chip-yellow { background: var(--accent); color: #000000; }
+        .chip-yellow { background: var(--accent) !important; color: #000000 !important; }
 
         .container { padding: 16px; }
         .tab-content { display: none; }
@@ -663,7 +664,7 @@
     <div id="splash-screen">
         <div class="cards-stack-wrapper" id="cardsWrapper"></div>
         <div class="splash-text-group">
-            <div class="splash-title">WELCOME TO AC PREMIUM</div>
+            <div class="splash-title">WELCOME TO ᴀᴄ | ᴘʀᴇʍɪᴜʍ</div>
             <div class="splash-sub">Your automated store inside Telegram for premium audio and video story series — delivered instantly to your chat.</div>
         </div>
         <div class="loader-spinner">
@@ -697,11 +698,11 @@
         <div id="tab-explore" class="tab-content">
             <div class="section-box">
                 <div class="section-title">Categories & Platforms</div>
-                <div style="display:flex; gap:8px; flex-wrap:wrap;">
-                    <button class="chip chip-yellow" onclick="renderGrid(stories, 'exploreGrid')">All Shows</button>
-                    <button class="chip" onclick="filterCat('pocket')">Pocket FM</button>
-                    <button class="chip" onclick="filterCat('pratilipi')">Pratilipi FM</button>
-                    <button class="chip" onclick="filterCat('kuku')">Kuku FM</button>
+                <div style="display:flex; gap:8px; flex-wrap:wrap;" id="exploreCategoryWrapper">
+                    <button class="chip chip-yellow explore-btn" onclick="filterCat('all', this)">All Shows</button>
+                    <button class="chip explore-btn" onclick="filterCat('pocket', this)">Pocket FM</button>
+                    <button class="chip explore-btn" onclick="filterCat('pratilipi', this)">Pratilipi FM</button>
+                    <button class="chip explore-btn" onclick="filterCat('kuku', this)">Kuku FM</button>
                 </div>
             </div>
             <div class="story-grid" id="exploreGrid"></div>
@@ -763,6 +764,11 @@
                     <button class="theme-btn" style="background: #ffffff; color: #000000;" onclick="changeTheme('white')">☀️ White</button>
                     <button class="theme-btn" style="background: #000000; color: #ffffff;" onclick="changeTheme('black')">🌙 Black</button>
                 </div>
+            </div>
+
+            <!-- VERSION BADGE UPDATED TO VERSION 2.02 -->
+            <div style="text-align: center; margin-top: 20px; opacity: 0.6; font-size: 11px; font-weight: 800; letter-spacing: 1px;">
+                VERSION 2.02
             </div>
         </div>
     </div>
@@ -1085,7 +1091,7 @@
             } catch(e) { console.error(e); }
         }
 
-        /* --- UPDATED ORDERS LIST FUNCTION WITH EXACT HOME-LIKE IMAGE FETCHING & BUTTON HANDLER --- */
+        /* --- UPDATED ORDERS LIST FUNCTION --- */
         function renderUnlockedList() {
             document.getElementById('unlockedCount').innerText = userPurchases.length;
             if (document.getElementById('pUnlocked')) {
@@ -1105,7 +1111,6 @@
                 const cleanTitle = title.replace(/\s+/g, '_');
                 const deliveryLink = p.link || `https://t.me/${BOT_USERNAME}?start=get_${cleanTitle}`;
                 
-                // होम/स्टोर सेक्शन जैसी ही प्रॉपर इमेज रिज़ॉल्यूशन तकनीक
                 let matchedStory = stories.find(s => String(s.title).toLowerCase().trim() === String(title).toLowerCase().trim() || String(s.id) === String(p.story_id));
                 const photo = matchedStory ? getOriginalPhoto(matchedStory) : getOriginalPhoto(p);
 
@@ -1278,7 +1283,6 @@
         function openStoryLink(url) {
             triggerHaptic('light');
             
-            // Telegram Deep Link ट्रिगर करें (बैकग्राउंड में बोट चैट खोलेगा)
             if (url && url !== '#') {
                 if (tg && tg.openTelegramLink) {
                     tg.openTelegramLink(url);
@@ -1287,7 +1291,6 @@
                 }
             }
 
-            // कस्टम "Check in PM" डायलॉग पॉप-अप दिखाएं
             const pmModal = document.getElementById('pmDialog');
             if(pmModal) pmModal.classList.add('active');
         }
@@ -1304,10 +1307,24 @@
             renderGrid(f, 'homeGrid');
         }
 
-        function filterCat(cat) {
+        /* --- FIXED EXPLORE CATEGORY SWITCHING & YELLOW HIGHLIGHT --- */
+        function filterCat(cat, btnElem) {
             triggerHaptic('light');
-            const f = stories.filter(s => (s.platform && s.platform.toLowerCase().includes(cat.toLowerCase())));
-            renderGrid(f, 'exploreGrid');
+
+            // Reset active state for category buttons
+            if (btnElem) {
+                const buttons = document.querySelectorAll('#exploreCategoryWrapper .explore-btn');
+                buttons.forEach(b => b.classList.remove('chip-yellow'));
+                btnElem.classList.add('chip-yellow');
+            }
+
+            // Filter logic
+            if (cat === 'all') {
+                renderGrid(stories, 'exploreGrid');
+            } else {
+                const f = stories.filter(s => (s.platform && s.platform.toLowerCase().includes(cat.toLowerCase())));
+                renderGrid(f, 'exploreGrid');
+            }
         }
 
         function switchTab(name) {
