@@ -391,7 +391,7 @@
         /* ---------------- NEW BOTTOM BUTTON PURCHASED CARD STYLING ---------------- */
         .purchased-card {
             display: flex;
-            flex-direction: column; /* ऊपर डिटेल्स और नीचे बटन रहेगा */
+            flex-direction: column;
             background: var(--card-bg);
             border: 2.5px solid var(--border);
             border-radius: 16px;
@@ -485,6 +485,79 @@
 
         .btn-telegram-action:active {
             transform: translate(1.5px, 1.5px);
+            box-shadow: 0px 0px 0px var(--border);
+        }
+
+        /* ---------------- CHECK IN PM CUSTOM DIALOG ---------------- */
+        .pm-dialog-overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100vw; height: 100vh;
+            background: rgba(0, 0, 0, 0.75);
+            backdrop-filter: blur(4px);
+            z-index: 10000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.25s ease, visibility 0.25s ease;
+        }
+        .pm-dialog-overlay.active {
+            opacity: 1;
+            visibility: visible;
+        }
+        .pm-dialog-box {
+            background: var(--box-bg);
+            border: 3px solid var(--border);
+            border-radius: 20px;
+            padding: 24px 20px 20px;
+            width: 100%;
+            max-width: 310px;
+            text-align: center;
+            box-shadow: 5px 5px 0px var(--border);
+            transform: scale(0.9);
+            transition: transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        .pm-dialog-overlay.active .pm-dialog-box {
+            transform: scale(1);
+        }
+        .pm-icon {
+            font-size: 40px;
+            margin-bottom: 12px;
+            display: inline-block;
+        }
+        .pm-dialog-title {
+            font-size: 17px;
+            font-weight: 900;
+            color: var(--text);
+            margin-bottom: 8px;
+            text-transform: uppercase;
+        }
+        .pm-dialog-desc {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text);
+            opacity: 0.85;
+            line-height: 1.45;
+            margin-bottom: 20px;
+        }
+        .pm-btn-ok {
+            width: 100%;
+            background: var(--accent);
+            color: #000000;
+            border: 2.5px solid var(--border);
+            border-radius: 12px;
+            padding: 12px 0;
+            font-size: 13px;
+            font-weight: 900;
+            cursor: pointer;
+            box-shadow: 3px 3px 0px var(--border);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .pm-btn-ok:active {
+            transform: translate(2px, 2px);
             box-shadow: 0px 0px 0px var(--border);
         }
 
@@ -694,6 +767,18 @@
         </div>
     </div>
 
+    <!-- CHECK IN PM CUSTOM DIALOG -->
+    <div class="pm-dialog-overlay" id="pmDialog">
+        <div class="pm-dialog-box">
+            <span class="pm-icon">📩</span>
+            <div class="pm-dialog-title">Check In Your PM</div>
+            <div class="pm-dialog-desc">
+                आपकी स्टोरी की फाइल बॉट द्वारा आपकी पर्सनली **PM (Private Chat)** में भेज दी गई है। कृपया चैट चेक करें!
+            </div>
+            <button class="pm-btn-ok" onclick="closePmDialog()">OK / UNDERSTOOD</button>
+        </div>
+    </div>
+
     <!-- FULL SCREEN STORY DETAIL MODAL -->
     <div class="modal-overlay" id="storyModal">
         <div class="modal-content">
@@ -780,6 +865,12 @@
                     }
                 }
             } catch(e) { console.error("Haptic error:", e); }
+        }
+
+        /* --- HELPER FUNCTION FOR FETCHING ORIGINAL IMAGES PROPERLY --- */
+        function getOriginalPhoto(item) {
+            if (!item) return 'https://picsum.photos/200';
+            return item.photo || item.cover_image_url || item.image || item.poster || 'https://picsum.photos/200';
         }
 
         /* --- THEME SYSTEM --- */
@@ -900,7 +991,7 @@
                 });
 
                 if (foundStory) {
-                    const originalPhoto = foundStory.photo || foundStory.cover_image_url || foundStory.image || foundStory.poster;
+                    const originalPhoto = getOriginalPhoto(foundStory);
                     if (originalPhoto) {
                         document.getElementById('loaderAnimeImg').src = originalPhoto;
                     }
@@ -924,7 +1015,7 @@
             
             picked.forEach((story) => {
                 const img = document.createElement('img');
-                img.src = story.photo || story.cover_image_url || story.image || story.poster || 'https://picsum.photos/400/600';
+                img.src = getOriginalPhoto(story);
                 img.className = 'hd-stack-card';
                 img.alt = "Splash HD Poster";
                 wrapper.appendChild(img);
@@ -994,7 +1085,7 @@
             } catch(e) { console.error(e); }
         }
 
-        /* --- UPDATED ORDERS LIST FUNCTION WITH ORIGINAL IMAGE & BOTTOM BUTTON --- */
+        /* --- UPDATED ORDERS LIST FUNCTION WITH EXACT HOME-LIKE IMAGE FETCHING & BUTTON HANDLER --- */
         function renderUnlockedList() {
             document.getElementById('unlockedCount').innerText = userPurchases.length;
             if (document.getElementById('pUnlocked')) {
@@ -1014,10 +1105,12 @@
                 const cleanTitle = title.replace(/\s+/g, '_');
                 const deliveryLink = p.link || `https://t.me/${BOT_USERNAME}?start=get_${cleanTitle}`;
                 
-                // ओरिजिनल फोटो डिकोडिंग (सभी सम्भावित कीज़ चेक होंगी)
-                const photo = p.photo || p.cover_image_url || p.image || p.poster || 'https://picsum.photos/200';
-                const platform = p.platform || 'Audio Series';
-                const price = (p.price !== undefined && p.price !== null && p.price !== '') ? `₹${p.price}` : 'FREE';
+                // होम/स्टोर सेक्शन जैसी ही प्रॉपर इमेज रिज़ॉल्यूशन तकनीक
+                let matchedStory = stories.find(s => String(s.title).toLowerCase().trim() === String(title).toLowerCase().trim() || String(s.id) === String(p.story_id));
+                const photo = matchedStory ? getOriginalPhoto(matchedStory) : getOriginalPhoto(p);
+
+                const platform = p.platform || (matchedStory ? matchedStory.platform : 'Audio Series');
+                const price = (p.price !== undefined && p.price !== null && p.price !== '') ? `₹${p.price}` : (matchedStory ? `₹${matchedStory.price}` : 'FREE');
 
                 return `
                 <div class="purchased-card">
@@ -1052,7 +1145,7 @@
             el.innerHTML = list.map((s) => {
                 const sKey = s.id !== undefined ? s.id : s.title;
                 const isFav = wishlist.includes(String(sKey));
-                const originalPhoto = s.photo || s.cover_image_url || s.image || s.poster || 'https://picsum.photos/200';
+                const originalPhoto = getOriginalPhoto(s);
 
                 return `
                 <div class="card" onclick="openStoryModal('${encodeURIComponent(sKey)}')">
@@ -1076,7 +1169,7 @@
             let story = stories.find(s => String(s.id) === String(storyKey) || String(s.title) === String(storyKey));
             if (!story) return;
 
-            const photoUrl = story.photo || story.cover_image_url || story.image || story.poster || 'https://picsum.photos/200';
+            const photoUrl = getOriginalPhoto(story);
             document.getElementById('mBgImg').src = photoUrl;
             document.getElementById('mPosterImg').src = photoUrl;
             document.getElementById('mTitle').innerText = story.title;
@@ -1138,7 +1231,7 @@
                 userPurchases.push({
                     story_title: story.title,
                     link: story.link || '#',
-                    photo: story.photo || story.cover_image_url || story.image || story.poster,
+                    photo: getOriginalPhoto(story),
                     platform: story.platform,
                     price: story.price
                 });
@@ -1181,11 +1274,28 @@
             else window.open(url, '_blank');
         }
 
+        /* --- CHECK IN PM DIALOG LOGIC --- */
         function openStoryLink(url) {
             triggerHaptic('light');
-            if(url && url !== '#') tg.openTelegramLink(url);
-            else if (tg.showAlert) tg.showAlert("Access link will be provided in bot chat.");
-            else alert("Access link will be provided in bot chat.");
+            
+            // Telegram Deep Link ट्रिगर करें (बैकग्राउंड में बोट चैट खोलेगा)
+            if (url && url !== '#') {
+                if (tg && tg.openTelegramLink) {
+                    tg.openTelegramLink(url);
+                } else {
+                    window.open(url, '_blank');
+                }
+            }
+
+            // कस्टम "Check in PM" डायलॉग पॉप-अप दिखाएं
+            const pmModal = document.getElementById('pmDialog');
+            if(pmModal) pmModal.classList.add('active');
+        }
+
+        function closePmDialog() {
+            triggerHaptic('light');
+            const pmModal = document.getElementById('pmDialog');
+            if(pmModal) pmModal.classList.remove('active');
         }
 
         function doSearch() {
