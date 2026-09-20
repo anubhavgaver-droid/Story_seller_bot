@@ -370,6 +370,22 @@
         }
         .btn-action:active { transform: translate(2px, 2px); box-shadow: 0px 0px 0px var(--border); }
 
+        .btn-view-order-card {
+            width: 100%;
+            padding: 9px 0;
+            background: #10b981 !important;
+            color: #ffffff !important;
+            border: 2px solid var(--border);
+            border-radius: 10px;
+            font-weight: 900;
+            font-size: 11px;
+            cursor: pointer;
+            box-shadow: 2px 2px 0px var(--border);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .btn-view-order-card:active { transform: translate(2px, 2px); box-shadow: 0px 0px 0px var(--border); }
+
         .btn-demo {
             background: var(--item-bg);
             color: var(--text);
@@ -683,7 +699,6 @@
             box-shadow: 0px 0px 0px var(--border);
         }
 
-        /* Pulse glow animation when clicking theme button */
         @keyframes themePulse {
             0% { transform: scale(1); }
             50% { transform: scale(1.06); }
@@ -826,8 +841,9 @@
                 </div>
             </div>
 
-            <div style="text-align: center; margin-top: 20px; opacity: 0.6; font-size: 11px; font-weight: 800; letter-spacing: 1px;">
-                VERSION 2.02
+            <div style="text-align: center; margin-top: 20px; opacity: 0.8; font-size: 11px; font-weight: 800; letter-spacing: 1px;">
+                VERSION 2.02<br>
+                <span style="font-size: 10px; color: var(--accent-solid); font-weight: 900; text-transform: uppercase;">POWERED BY GW KALU 2026 ALL RIGHT RESERVED</span>
             </div>
         </div>
     </div>
@@ -950,7 +966,6 @@
         function changeTheme(themeName, btnElement) {
             triggerHaptic('medium');
             
-            // Add click animation on button
             if (btnElement) {
                 btnElement.classList.add('animating');
                 setTimeout(() => {
@@ -1155,6 +1170,10 @@
             try {
                 const res = await fetch(`/api/user_purchases?user_id=${userId}`);
                 userPurchases = await res.json();
+                
+                // Re-render grids so the purchased items switch to "VIEW ORDER"
+                renderGrid(stories, 'homeGrid');
+                renderGrid(stories, 'exploreGrid');
                 renderUnlockedList();
             } catch(e) { console.error(e); }
         }
@@ -1211,6 +1230,7 @@
             `}).join('');
         }
 
+        /* --- UPDATED RENDER GRID: "BUY & UNLOCK" REPLACED BY "VIEW ORDER" FOR UNLOCKED ITEMS --- */
         function renderGrid(list, target) {
             const el = document.getElementById(target);
             if(!el) return;
@@ -1226,6 +1246,17 @@
                 const isFav = wishlist.includes(String(sKey));
                 const originalPhoto = getOriginalPhoto(s);
 
+                // Check if user already unlocked/purchased this story
+                const isPurchased = userPurchases.some(p => (
+                    String(p.story_title || p.title).toLowerCase().trim() === String(s.title).toLowerCase().trim() || 
+                    String(p.story_id) === String(s.id)
+                ));
+
+                // If purchased -> show "VIEW ORDER" button, else show "BUY & UNLOCK" / "CLAIM FREE"
+                const actionBtnHtml = isPurchased 
+                    ? `<button class="btn-view-order-card" onclick="event.stopPropagation(); goToOrdersTab()">📖 VIEW ORDER</button>`
+                    : `<button class="btn-action">${s.price == 0 ? 'CLAIM FREE' : 'BUY & UNLOCK'}</button>`;
+
                 return `
                 <div class="card" onclick="openStoryModal('${encodeURIComponent(sKey)}')">
                     <div class="card-fav-btn" onclick="toggleWishlist(event, '${encodeURIComponent(sKey)}')">
@@ -1235,11 +1266,16 @@
                     <div class="card-body">
                         <span class="badge">${s.platform || 'AUDIO'}</span>
                         <h4 class="title">${s.title}</h4>
-                        <div class="price-tag">${s.price == 0 ? 'FREE' : '₹' + s.price}</div>
-                        <button class="btn-action">${s.price == 0 ? 'CLAIM FREE' : 'VIEW DETAILS'}</button>
+                        <div class="price-tag">${isPurchased ? 'UNLOCKED' : (s.price == 0 ? 'FREE' : '₹' + s.price)}</div>
+                        ${actionBtnHtml}
                     </div>
                 </div>
             `}).join('');
+        }
+
+        function goToOrdersTab() {
+            triggerHaptic('light');
+            switchTab('orders');
         }
 
         function openStoryModal(storyKeyRaw) {
@@ -1247,7 +1283,6 @@
             const storyKey = decodeURIComponent(storyKeyRaw);
             let story = stories.find(s => String(s.id) === String(storyKey) || String(s.title) === String(storyKey));
             
-            // If story is not loaded in memory, fallback preview
             if (!story) {
                 story = { title: storyKey, platform: 'Audio Series', price: 'Unlocked', description: 'Unlocked Series in your library.' };
             }
@@ -1267,7 +1302,10 @@
             document.getElementById('mDesc').innerText = story.description || story.desc || 'Complete audio series package with high quality audio episodes. Instant access after unlocking.';
 
             const buyBtn = document.getElementById('mBuyBtn');
-            const isPurchased = userPurchases.some(p => (p.story_title === story.title || p.title === story.title));
+            const isPurchased = userPurchases.some(p => (
+                String(p.story_title || p.title).toLowerCase().trim() === String(story.title).toLowerCase().trim() || 
+                String(p.story_id) === String(story.id)
+            ));
 
             if (isPurchased) {
                 buyBtn.innerText = 'OPEN IN TELEGRAM';
@@ -1325,6 +1363,8 @@
                     platform: story.platform,
                     price: story.price
                 });
+                renderGrid(stories, 'homeGrid');
+                renderGrid(stories, 'exploreGrid');
                 renderUnlockedList();
             }
 
