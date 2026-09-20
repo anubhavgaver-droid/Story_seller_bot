@@ -9,7 +9,7 @@ LOG_CHANNEL = int(os.environ.get("LOG_CHANNEL", "-1001234567890"))
 # Database Channel Variable (जहाँ से फाइल्स PM में फॉरवर्ड होंगी)
 CHANNEL_ID = int(os.environ.get("CHANNEL_ID", "-1003970824423"))
 
-UPI_ID = os.environ.get("UPI_ID", "63983224472@fam")
+UPI_ID = os.environ.get("UPI_ID", "anubhavnn@fam")
 PORT = int(os.environ.get("PORT", "8080"))
 BOT_USERNAME = os.environ.get("BOT_USERNAME", "YourStorySellerBot")
 MONGO_URL = os.environ.get("MONGO_URL", "mongodb://localhost:27017")
