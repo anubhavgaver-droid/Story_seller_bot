@@ -1262,7 +1262,7 @@
             `}).join('');
         }
 
-        /* --- UPDATED RENDER GRID: "BUY & UNLOCK" REPLACED BY "VIEW DETAILS" FOR UNLOCKED ITEMS --- */
+        /* --- UPDATED RENDER GRID: "BUY & UNLOCK" REPLACED BY "VIEW ORDER" FOR UNLOCKED ITEMS --- */
         function renderGrid(list, target) {
             const el = document.getElementById(target);
             if(!el) return;
@@ -1284,9 +1284,9 @@
                     String(p.story_id) === String(s.id)
                 ));
 
-                // If purchased -> show "VIEW DETAILS" button, else show "BUY & UNLOCK" / "CLAIM FREE"
+                // If purchased -> show "VIEW ORDER" button, else show "BUY & UNLOCK" / "CLAIM FREE"
                 const actionBtnHtml = isPurchased 
-                    ? `<button class="btn-view-order-card" onclick="event.stopPropagation(); goToOrdersTab()">📖 VIEW DETAILS</button>`
+                    ? `<button class="btn-view-order-card" onclick="event.stopPropagation(); goToOrdersTab()">📖 VIEW ORDER</button>`
                     : `<button class="btn-action">${s.price == 0 ? 'CLAIM FREE' : 'BUY & UNLOCK'}</button>`;
 
                 return `
