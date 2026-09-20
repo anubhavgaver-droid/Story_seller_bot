@@ -612,6 +612,57 @@ async def process_wallet_payment(client, callback_query):
         print(f"Error processing wallet payment: {e}")
         await callback_query.answer("❌ Error processing wallet payment!", show_alert=True)
 
+# ------------------ Cart Checkout & Payment Handler ------------------
+@Client.on_callback_query(filters.regex(r"^cartpay_"))
+async def process_cart_payment(client, callback_query):
+    try:
+        data_parts = callback_query.data.split("_")
+        total_price = float(data_parts[1])
+        story_titles_encoded = data_parts[2:]
+        
+        user_id = callback_query.from_user.id
+        current_balance = await get_user_wallet(user_id)
+
+        if current_balance < total_price:
+            return await callback_query.answer(
+                f"❌ Insufficient Balance!\nRequired: ₹{total_price}\nAvailable: ₹{current_balance}\n\nPlease add money to your wallet.",
+                show_alert=True
+            )
+
+        purchased_list_text = ""
+        new_balance = current_balance - total_price
+        await update_user_wallet(user_id, new_balance)
+
+        for enc_title in story_titles_encoded:
+            st_title = enc_title.replace("__", " ")
+            story = await get_story_by_title(st_title)
+            if story:
+                clean_title = story['title'].strip().split("\n")[0]
+                encoded_title = clean_title.replace(" ", "_")
+                delivery_link = f"https://t.me/{BOT_USERNAME}?start=get_{encoded_title}"
+                await add_user_purchase(user_id, clean_title, story_link=delivery_link)
+                purchased_list_text += f"• {clean_title}\n"
+
+        await callback_query.answer("🎉 Cart checkout successful! All stories unlocked.", show_alert=True)
+        
+        success_text = (
+            f"✅ <b>ᴄᴀʀᴛ ᴄʜᴇᴄᴋᴏᴜᴛ sᴜᴄᴄᴇssғᴜʟ!</b>\n\n"
+            f"📚 <b>Unlocked Stories:</b>\n{purchased_list_text}\n"
+            f"💸 <b>Total Deducted:</b> ₹{total_price}\n"
+            f"👛 <b>Remaining Balance:</b> ₹{new_balance}\n\n"
+            f"👇 Click below to view your account/purchases and get files:"
+        )
+        
+        access_btn = InlineKeyboardMarkup([
+            [InlineKeyboardButton("👤 ᴍʏ ᴀᴄᴄᴏᴜɴᴛ & ғɪʟᴇs", callback_data="open_account_cb", style=enums.ButtonStyle.PRIMARY)]
+        ])
+        
+        await callback_query.message.edit_text(success_text, reply_markup=access_btn)
+
+    except Exception as e:
+        print(f"Error processing cart checkout: {e}")
+        await callback_query.answer("❌ Error processing cart checkout!", show_alert=True)
+
 # ------------------ Process Start Custom Range Input Text ------------------
 @Client.on_message(filters.private & filters.text, group=4)
 async def process_start_range_input(client, message):
@@ -626,7 +677,7 @@ async def process_start_range_input(client, message):
     try:
         start_ep, end_ep = map(int, text.split("-"))
     except ValueError:
-        return await message.reply_text("❌ <b>ɴᴜᴍʙᴇʀs ᴏɴʟʏ!</b> Enter numbers like <code>1-5</code>.")
+        return await message.reply_text("❌ <b>ɴᴜᴍʙᴇʀs ᴏɴʟ🇾!</b> Enter numbers like <code>1-5</code>.")
         
     data = START_RANGE_WAITING.get(user_id)
     story = data['story']
@@ -798,6 +849,52 @@ async def start_handler(client, message):
                 
     except Exception as db_err:
         print(f"Database Error in /start registration: {db_err}")
+
+    # Deep-Link Logic for Cart Section
+    if len(args) > 1 and args[1].startswith("cart_"):
+        raw_param = args[1]
+        try:
+            titles_param = raw_param.replace("cart_", "")
+            encoded_titles = titles_param.split("__")
+        except Exception:
+            return await message.reply_text("❌ <b>ɪɴᴠᴀʟɪᴅ ᴏʀ ᴄᴏʀʀᴜᴘᴛᴇᴅ ᴄᴀʀᴛ ʟɪɴᴋ!</b>")
+
+        total_price = 0.0
+        cart_summary_text = ""
+        valid_encoded_list = []
+
+        for enc_title in encoded_titles:
+            story_title = enc_title.replace("_", " ")
+            story = await get_story_by_title(story_title)
+            if story:
+                clean_title = story['title'].strip().split("\n")[0]
+                price = float(story.get('price', 0))
+                total_price += price
+                cart_summary_text += f"• <b>{clean_title}</b> — ₹{price}\n"
+                valid_encoded_list.append(clean_title.replace(" ", "__"))
+
+        if not valid_encoded_list:
+            return await message.reply_text("❌ <b>ʏᴏᴜʀ ᴄᴀʀᴛ ɪs ᴇᴍᴘᴛʏ ᴏʀ sᴛᴏʀɪᴇs ɴᴏᴛ ғᴏᴜɴᴅ!</b>")
+
+        wallet_bal = await get_user_wallet(user.id)
+        
+        callback_data_str = f"cartpay_{total_price}_" + "_".join(valid_encoded_list)
+        
+        btn = InlineKeyboardMarkup([
+            [InlineKeyboardButton(f"💳 ᴘᴀʏ ᴛᴏᴛᴀʟ (₹{total_price})", style=enums.ButtonStyle.PRIMARY, callback_data=callback_data_str)],
+            [InlineKeyboardButton(f"👛 ᴘᴀʏ ᴠɪᴀ ᴡᴀʟʟᴇᴛ (Bal: ₹{wallet_bal})", style=enums.ButtonStyle.PRIMARY, callback_data=callback_data_str)]
+        ])
+
+        caption_text = (
+            f"🛒 <b>ᴘʀᴇᴍɪᴜᴍ ᴄᴀʀᴛ ᴄʜᴇᴄᴋᴏᴜᴛ sᴇᴄᴛɪᴏɴ</b>\n\n"
+            f"📦 <b>Items in Cart:</b>\n{cart_summary_text}\n"
+            f"━━━━━━━━━━━━━━━━━━━\n"
+            f"💰 <b>Total Amount:</b> ₹{total_price}\n"
+            f"👛 <b>Your Wallet Balance:</b> ₹{wallet_bal}\n"
+            f"━━━━━━━━━━━━━━━━━━━\n\n"
+            f"👇 <b>Click below to complete your checkout:</b>"
+        )
+        return await message.reply_text(caption_text, reply_markup=btn)
 
     # Deep-Link Logic
     if len(args) > 1 and args[1].startswith("get_"):
