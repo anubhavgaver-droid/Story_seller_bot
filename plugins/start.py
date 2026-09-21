@@ -745,7 +745,7 @@ async def handle_range_reply_buttons(client, message):
     elif text in ["👁️‍🗨️ ᴠɪᴇᴡ ᴀʟʟ", "View All"]:
         USER_PAGINATION_PAGE.pop(user_id, None)
         reply_kb = build_custom_range_reply_keyboard(custom_ranges, page=0, per_page=len(custom_ranges))
-        return await message.reply_text("👁️‍🗨️ <b>Aʟʟ Aᴠᴀɪʟᴀʙʟᴇ Fɪʟᴇ Rᴀɴɢᴇs:</b>", reply_markup=reply_kb)
+        return await message.reply_text("👁️‍🗨️ <b>Aʟʟ Aᴠᴀɪʟᴀʙʟᴇ Fɪʟᴇ Rᴀɴɢes:</b>", reply_markup=reply_kb)
 
     elif re.search(r"(?i)(full delivery|all files|📦)", text):
         USER_ACTIVE_STORY.pop(user_id, None)
@@ -849,6 +849,56 @@ async def start_handler(client, message):
                 
     except Exception as db_err:
         print(f"Database Error in /start registration: {db_err}")
+
+    # Deep-Link Logic for Demo Section (Added / Fixed)
+    if len(args) > 1 and args[1].startswith("demo_"):
+        raw_param = args[1]
+        try:
+            demo_target = raw_param.replace("demo_", "").replace("_", " ")
+        except Exception:
+            return await message.reply_text("❌ <b>ɪɴᴠᴀʟɪᴅ ᴏʀ ᴄᴏʀʀᴜᴘᴛᴇᴅ ᴅᴇᴍᴏ ʟɪɴᴋ!</b>")
+
+        story = await get_story_by_title(demo_target)
+        if not story or not story.get("demo_enabled"):
+            return await message.reply_text("⚠️ <b>Demo is not available for this story!</b>")
+
+        demo_ids = story.get("demo_msg_ids", [])
+        if not demo_ids:
+            return await message.reply_text("❌ <b>Demo files not found for this story!</b>")
+
+        sent_messages = []
+        header_msg = await message.reply_text(
+            f"🎬 <b>ᴅᴇᴍᴏ / ᴘʀᴇᴠɪᴇᴡ ғᴏᴏᴛᴀɢᴇ:</b> <code>{story['title']}</code>\n\n"
+            f"⏰ <i>This demo preview will automatically delete in 10 minutes!</i>"
+        )
+        sent_messages.append(header_msg)
+
+        for msg_id in demo_ids:
+            try:
+                copied_msg = await client.copy_message(
+                    chat_id=user.id,
+                    from_chat_id=CHANNEL_ID,
+                    message_id=msg_id,
+                    caption=f"🎧 <b>Demo Sample</b> - {story['title']}",
+                    protect_content=True
+                )
+                sent_messages.append(copied_msg)
+                await asyncio.sleep(1.5)
+            except FloodWait as e:
+                await asyncio.sleep(e.value + 1)
+            except Exception as e:
+                print(f"Error copying demo msg {msg_id}: {e}")
+
+        async def auto_delete_task(messages_list):
+            await asyncio.sleep(600)
+            for msg in messages_list:
+                try:
+                    await msg.delete()
+                except Exception:
+                    pass
+
+        asyncio.create_task(auto_delete_task(sent_messages))
+        return
 
     # Deep-Link Logic for Cart Section
     if len(args) > 1 and args[1].startswith("cart_"):
