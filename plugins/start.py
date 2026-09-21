@@ -139,7 +139,7 @@ def get_message_searchable_text(msg) -> str:
 
     return " | ".join(combined_texts)
 
-# ------------------ Helper: Dynamic Reply Keyboard Grid Generator with Pagination (10/10) ------------------
+# ------------------ Helper: Dynamic Reply Keyboard Grid Generator with Pagination (UPDATED) ------------------
 def build_custom_range_reply_keyboard(custom_ranges, page=0, per_page=10):
     total_ranges = len(custom_ranges)
     start_idx = page * per_page
@@ -150,7 +150,15 @@ def build_custom_range_reply_keyboard(custom_ranges, page=0, per_page=10):
     current_row = []
 
     for r in current_page_ranges:
-        btn_text = f"Files {r['name']}"
+        # DB me name, text ya range_text me se koi bhi key ho use extract karein
+        range_label = r.get('name') or r.get('text') or r.get('range_text') or "Unknown Range"
+        
+        # Check agar label me 'files' pehle se likha hai to double prefix n lage
+        if not range_label.lower().startswith("files"):
+            btn_text = f"Files {range_label}"
+        else:
+            btn_text = range_label
+
         current_row.append(KeyboardButton(btn_text))
         
         if len(current_row) == 2:
@@ -613,13 +621,12 @@ async def process_wallet_payment(client, callback_query):
         print(f"Error processing wallet payment: {e}")
         await callback_query.answer("❌ Error processing wallet payment!", show_alert=True)
 
-# ------------------ Cart Checkout & Payment Handler (FIXED REGEX) ------------------
+# ------------------ Cart Checkout & Payment Handler ------------------
 @Client.on_callback_query(filters.regex(r"^cartpay_(.*)"))
 async def process_cart_payment(client, callback_query):
     try:
         data_parts = callback_query.data.split("_")
         
-        # 1. डेटा वैलिडेशन
         if len(data_parts) < 3:
             return await callback_query.answer("❌ Your cart is empty or invalid!", show_alert=True)
 
@@ -632,7 +639,6 @@ async def process_cart_payment(client, callback_query):
         user_id = callback_query.from_user.id
         current_balance = await get_user_wallet(user_id)
 
-        # 2. बैलेंस चेक
         if current_balance < total_price:
             return await callback_query.answer(
                 f"❌ Insufficient Balance!\nRequired: ₹{total_price}\nAvailable: ₹{current_balance}\n\nPlease add money to your wallet.",
@@ -642,7 +648,6 @@ async def process_cart_payment(client, callback_query):
         purchased_list_text = ""
         valid_items_count = 0
 
-        # 3. स्टोरीज़ प्रोसेस करना
         for enc_title in story_titles_encoded:
             if not enc_title:
                 continue
@@ -662,7 +667,6 @@ async def process_cart_payment(client, callback_query):
         if valid_items_count == 0:
             return await callback_query.answer("❌ No valid items found in cart!", show_alert=True)
 
-        # 4. वॉलेट अपडेट
         new_balance = current_balance - total_price
         await update_user_wallet(user_id, new_balance)
 
@@ -727,7 +731,7 @@ async def process_start_range_input(client, message):
         target_end_ep=end_ep
     )
 
-# ------------------ Reply Keyboard Action & Pagination Handler ------------------
+# ------------------ Reply Keyboard Action & Pagination Handler (UPDATED) ------------------
 @Client.on_message(filters.private & filters.text, group=2)
 async def handle_range_reply_buttons(client, message):
     user_id = message.from_user.id
@@ -784,17 +788,28 @@ async def handle_range_reply_buttons(client, message):
 
     elif text.startswith("Files "):
         range_name = text.replace("Files ", "").strip()
-        target_range = next((r for r in custom_ranges if r['name'] == range_name), None)
+        
+        # Har alag kism ke key formats me safe check karein
+        target_range = None
+        for r in custom_ranges:
+            r_name = r.get('name') or r.get('text') or r.get('range_text')
+            if r_name and r_name.strip().lower() == range_name.lower():
+                target_range = r
+                break
         
         if target_range:
             USER_ACTIVE_STORY.pop(user_id, None)
             USER_PAGINATION_PAGE.pop(user_id, None)
+            
+            f_id = target_range.get('first_id') or target_range.get('first_msg_id') or story['first_msg_id']
+            l_id = target_range.get('last_id') or target_range.get('last_msg_id') or story['last_msg_id']
+
             await send_story_files_start(
                 client=client,
                 user_id=user_id,
                 story=story,
-                first_id=target_range['first_id'],
-                last_id=target_range['last_id'],
+                first_id=f_id,
+                last_id=l_id,
                 clean_title=clean_title,
                 custom_range_text=f"({range_name})"
             )
@@ -1179,7 +1194,7 @@ async def send_or_edit_account_details(client, user, message_or_cb, page=0, is_c
 
         nav_buttons = []
         if page > 0:
-            nav_buttons.append(InlineKeyboardButton("◀️ ʙᴀᴄᴋ", style=enums.ButtonStyle.PRIMARY, callback_data=f"accpage_{page - 1}"))
+            nav_buttons.append(InlineKeyboardButton("◀️ ʙᴀᴄKs", style=enums.ButtonStyle.PRIMARY, callback_data=f"accpage_{page - 1}"))
         if end_idx < total_purchases:
             nav_buttons.append(InlineKeyboardButton("ɴᴇxᴛ ▶️", style=enums.ButtonStyle.PRIMARY, callback_data=f"accpage_{page + 1}"))
 
