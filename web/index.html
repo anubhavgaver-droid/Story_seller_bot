@@ -710,7 +710,7 @@
         .bottom-nav {
             position: fixed; bottom: 0; left: 0; width: 100%;
             background: var(--box-bg); border-top: 2.5px solid var(--border);
-            display: flex; justify-content: space-around; padding: 8px 0; z-index: 100;
+            display: flex; justify-around; padding: 8px 0; z-index: 100;
         }
         .nav-link { display: flex; flex-direction: column; align-items: center; font-size: 9px; font-weight: 900; color: var(--text); text-decoration: none; opacity: 0.6; cursor: pointer; }
         .nav-link.active { opacity: 1; color: var(--text); }
@@ -777,7 +777,7 @@
             <div class="story-grid" id="exploreGrid"></div>
         </div>
 
-        <!-- TAB 3: CART (NEW) -->
+        <!-- TAB 3: CART -->
         <div id="tab-cart" class="tab-content">
             <div class="cart-summary-box">
                 <div>
@@ -1015,7 +1015,6 @@
             if (!currentModalStoryKey) return;
             toggleCart(null, currentModalStoryKey);
             
-            // Update modal cart button UI style
             const cart = getCart();
             const isAdded = cart.includes(String(currentModalStoryKey));
             const modalBtn = document.getElementById('mModalCartBtn');
@@ -1079,14 +1078,32 @@
             `}).join('');
         }
 
+        /* --- FIXED CHECKOUT CART FUNCTION --- */
         function checkoutCart() {
             triggerHaptic('success');
-            const cart = getCart();
-            if (cart.length === 0) {
+            const cartIds = getCart();
+            if (cartIds.length === 0) {
                 alert("Your cart is empty!");
                 return;
             }
-            const deepLink = `https://t.me/${BOT_USERNAME}?start=cart_checkout`;
+
+            // Extract matching stories from state
+            const cartStories = stories.filter(s => 
+                cartIds.includes(String(s.id)) || cartIds.includes(String(s.title))
+            );
+
+            if (cartStories.length === 0) {
+                alert("Your cart items are invalid!");
+                return;
+            }
+
+            // Convert spaces to '__' for each title and combine with '__'
+            const formattedTitles = cartStories.map(s => {
+                return encodeURIComponent(s.title.trim().replace(/\s+/g, "__"));
+            }).join("__");
+
+            const deepLink = `https://t.me/${BOT_USERNAME}?start=cart_${formattedTitles}`;
+
             if (tg && tg.openTelegramLink) {
                 tg.openTelegramLink(deepLink);
                 tg.close();
