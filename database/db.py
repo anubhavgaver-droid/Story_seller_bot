@@ -6,11 +6,14 @@ from bson import ObjectId
 from motor.motor_asyncio import AsyncIOMotorClient
 from config import MONGO_URL, LOG_CHANNEL
 
+# Connection Client
 client = AsyncIOMotorClient(MONGO_URL)
 db = client["story_seller_db"]
+
 stories_col = db["stories"]
 users_col = db["users"]        # Collection for User Registration, Wallet & Language
 purchases_col = db["purchases"]  # Collection for Purchased Stories
+
 
 # -------------------- LOG HELPER FUNCTION --------------------
 async def send_log(client_bot, text: str):
@@ -20,6 +23,7 @@ async def send_log(client_bot, text: str):
             await client_bot.send_message(chat_id=LOG_CHANNEL, text=text)
         except Exception as e:
             print(f"Log Error: {e}")
+
 
 # -------------------- EPISODE EXTRACTION HELPERS --------------------
 def extract_ep_from_file_or_caption(message) -> int:
@@ -32,14 +36,12 @@ def extract_ep_from_file_or_caption(message) -> int:
     caption_text = getattr(message, 'caption', None) or getattr(message, 'text', None) or ""
     
     file_name = ""
-    if getattr(message, 'document', None) and message.document.file_name:
-        file_name = message.document.file_name
-    elif getattr(message, 'audio', None) and message.audio.file_name:
-        file_name = message.audio.file_name
-    elif getattr(message, 'video', None) and message.video.file_name:
-        file_name = message.video.file_name
+    for attr in ('document', 'audio', 'video'):
+        media_obj = getattr(message, attr, None)
+        if media_obj and getattr(media_obj, 'file_name', None):
+            file_name = media_obj.file_name
+            break
 
-    # Pattern for Ep, Episode, Eps, etc.
     pattern = r'(?:ep|episode|eps|episodes)\b[\s._-]*(\d+)'
     
     # 1. First check caption
@@ -47,7 +49,7 @@ def extract_ep_from_file_or_caption(message) -> int:
     if match:
         return int(match.group(1))
 
-    # 2. Check File Name if caption didn't match
+    # 2. Check File Name
     if file_name:
         match_file = re.search(pattern, file_name, re.IGNORECASE)
         if match_file:
@@ -63,7 +65,7 @@ def extract_ep_from_file_or_caption(message) -> int:
 
 def get_exact_episode_range(fetched_messages) -> str:
     """
-    फ़ाइलों की लिस्ट से Start Episode और End Episode की सटीक रेंज बनाता है (e.g. Episode 1 to 100)
+    फ़ाइलों की लिस्ट से Start Episode और End Episode की सटीक रेंज बनाता है
     """
     if not fetched_messages:
         return "No Files"
@@ -79,21 +81,20 @@ def get_exact_episode_range(fetched_messages) -> str:
             return f"Episode {first_ep}"
         return f"Episode {first_ep} to {last_ep}"
 
-    # Fallback to Message IDs if no numbers found in title/filename
     start_id = getattr(start_msg, 'id', getattr(start_msg, 'message_id', 0))
     end_id = getattr(end_msg, 'id', getattr(end_msg, 'message_id', 0))
     return f"Files {start_id} to {end_id}"
 
+
 # -------------------- USER REGISTRATION & LANGUAGE --------------------
 async def is_user_registered(user_id: int) -> bool:
-    """चेक करेगा कि यूज़र पहले से रजिस्टर्ड है या नहीं (Returns True or False)"""
-    user = await users_col.find_one({"user_id": user_id})
-    if user:
-        return user.get("is_registered", False)
-    return False
+    """चेक करेगा कि यूज़र पहले से रजिस्टर्ड है या नहीं"""
+    user = await users_col.find_one({"user_id": int(user_id)}, {"is_registered": 1})
+    return bool(user and user.get("is_registered", False))
 
 async def register_user(user_id: int, first_name: str, username: str = None, referred_by: int = None):
     """नए यूज़र को रजिस्टर करेगा और Default Wallet Balance (0.0) सेट करेगा"""
+    user_id = int(user_id)
     update_data = {
         "user_id": user_id,
         "first_name": first_name,
@@ -106,8 +107,8 @@ async def register_user(user_id: int, first_name: str, username: str = None, ref
         "lang_code": "en"
     }
     
-    if referred_by and referred_by != user_id:
-        set_on_insert["referred_by"] = referred_by
+    if referred_by and int(referred_by) != user_id:
+        set_on_insert["referred_by"] = int(referred_by)
 
     await users_col.update_one(
         {"user_id": user_id},
@@ -119,29 +120,33 @@ async def register_user(user_id: int, first_name: str, username: str = None, ref
     )
 
 async def get_all_users():
-    """ब्रॉडकास्ट के लिए डेटाबेस से सभी रजिस्टर्ड यूज़र्स की लिस्ट निकालता है"""
-    cursor = users_col.find({}, {"user_id": 1, "_id": 0})
-    return await cursor.to_list(length=None)
+    """
+    ब्रॉडकास्ट के लिए डेटाबेस से सभी रजिस्टर्ड यूज़र्स की लिस्ट निकालता है
+    (Batched stream cursor avoids out-of-memory crashes on large datasets)
+    """
+    users = []
+    async for doc in users_col.find({}, {"user_id": 1, "_id": 0}):
+        users.append(doc)
+    return users
 
 async def get_user_lang_db(user_id: int) -> str:
     """यूज़र की सिलेक्टेड भाषा ढूँढता है (Default 'en')"""
-    user = await users_col.find_one({"user_id": user_id})
-    if user:
-        return user.get("lang_code", "en")
-    return "en"
+    user = await users_col.find_one({"user_id": int(user_id)}, {"lang_code": 1})
+    return user.get("lang_code", "en") if user else "en"
 
 async def set_user_lang_db(user_id: int, lang_code: str):
     """यूज़र की भाषा डेटाबेस में अपडेट करता है"""
     await users_col.update_one(
-        {"user_id": user_id},
+        {"user_id": int(user_id)},
         {"$set": {"lang_code": lang_code}},
         upsert=True
     )
 
+
 # -------------------- WALLET DATABASE FUNCTIONS --------------------
 async def get_user_wallet(user_id: int) -> float:
     """यूज़र का Wallet Balance निकालता है"""
-    user = await users_col.find_one({"user_id": user_id})
+    user = await users_col.find_one({"user_id": int(user_id)}, {"wallet_balance": 1})
     if user:
         return float(user.get("wallet_balance", 0.0))
     return 0.0
@@ -149,32 +154,34 @@ async def get_user_wallet(user_id: int) -> float:
 async def update_user_wallet(user_id: int, new_balance: float):
     """Wallet Balance को direct update करने के लिए"""
     await users_col.update_one(
-        {"user_id": user_id},
+        {"user_id": int(user_id)},
         {"$set": {"wallet_balance": round(float(new_balance), 2)}},
         upsert=True
     )
 
 async def add_wallet_balance(user_id: int, amount: float) -> float:
-    """Wallet में Balance जोड़ने या घटाने के लिए ($inc)"""
+    """Wallet में Atomic Increment द्वारा Balance जोड़ने या घटाने के लिए ($inc)"""
     user = await users_col.find_one_and_update(
-        {"user_id": user_id},
+        {"user_id": int(user_id)},
         {"$inc": {"wallet_balance": round(float(amount), 2)}},
         upsert=True,
         return_document=True
     )
     return float(user.get("wallet_balance", 0.0))
 
+
 # -------------------- REFERRAL DATABASE FUNCTIONS --------------------
 async def get_referred_users_count(user_id: int) -> int:
     """किसी यूज़र द्वारा रेफर किए गए कुल यूज़र्स की संख्या गिनता है"""
-    return await users_col.count_documents({"referred_by": user_id})
+    return await users_col.count_documents({"referred_by": int(user_id)})
+
 
 # -------------------- USER PURCHASES & ACCESS CHECK --------------------
 async def add_user_purchase(user_id: int, story_title: str, story_link: str = "#"):
-    """ऑटो-पेमेंट या Wallet deduction कन्फर्म होने पर खरीदे गए टाइटल की पहली लाइन और खरीदे गए टाइटल का रिकॉर्ड सेव करेगा"""
+    """ऑटो-पेमेंट या Wallet deduction कन्फर्म होने पर खरीदे गए रिकॉर्ड को सेव करेगा"""
     clean_title = story_title.strip().split("\n")[0]
+    user_id = int(user_id)
     
-    # Purchases Collection में रिकॉर्ड जोड़ना
     await purchases_col.update_one(
         {"user_id": user_id, "story_title": clean_title},
         {
@@ -189,7 +196,6 @@ async def add_user_purchase(user_id: int, story_title: str, story_link: str = "#
         upsert=True
     )
 
-    # Users Collection में भी purchased_stories की लिस्ट में जोड़ना ताकि /addepisodes नोटिफिकेशन काम कर सके
     await users_col.update_one(
         {"user_id": user_id},
         {"$addToSet": {"purchased_stories": clean_title}}
@@ -199,13 +205,14 @@ async def is_story_unlocked(user_id: int, story_title: str) -> bool:
     """चेक करता है कि यूज़र ने स्टोरी खरीदी है या नहीं"""
     clean_title = story_title.strip().split("\n")[0]
     pattern = re.compile(f"^{re.escape(clean_title)}$", re.IGNORECASE)
-    purchase = await purchases_col.find_one({"user_id": user_id, "story_title": pattern})
+    purchase = await purchases_col.find_one({"user_id": int(user_id), "story_title": pattern}, {"_id": 1})
     return bool(purchase)
 
 async def get_user_purchases(user_id: int):
-    """यूज़र की खरीदी हुई सभी स्टोरीज़ की लिस्ट निकालने के लिए फ़ंक्शन"""
-    cursor = purchases_col.find({"user_id": user_id})
+    """यूज़र की खरीदी हुई सभी स्टोरीज़ की लिस्ट निकालता है"""
+    cursor = purchases_col.find({"user_id": int(user_id)})
     return await cursor.to_list(length=None)
+
 
 # -------------------- STORY DATABASE FUNCTIONS --------------------
 async def get_story_by_id(story_id: str):
@@ -219,33 +226,27 @@ async def get_story_by_id(story_id: str):
         return None
 
 async def add_story_db(data: dict):
-    """
-    स्टोरी जोड़ते या अपडेट करते समय Title की केवल पहली लाइन को ही Clean Title बनाएगा।
-    हर स्टोरी के लिए एक सिंपल story_id, free_link और custom_ranges बिना किसी लिमिट के सेट होगी।
-    """
+    """स्टोरी जोड़ते या अपडेट करते समय डेटा को सेव/अपडेट करता है"""
     if "title" in data:
         data["title"] = data["title"].strip().split("\n")[0]
     
     clean_title = data["title"]
     demo_enabled = data.get("demo_enabled", False)
     demo_msg_ids = data.get("demo_msg_ids", [])
-    first_msg_id = data.get("first_msg_id", 0)
-    last_msg_id = data.get("last_msg_id", 0)
+    first_msg_id = int(data.get("first_msg_id", 0))
+    last_msg_id = int(data.get("last_msg_id", 0))
     custom_ranges = data.get("custom_ranges", [])
     free_link = data.get("free_link", None)
 
-    # फ़ाइलों की कुल गिनती
     total_files_count = (last_msg_id - first_msg_id + 1) if (first_msg_id and last_msg_id) else 0
 
-    # ऑटो-एपिसोड्स कैलकुलेशन
     episodes = data.get("episodes")
     if not episodes and total_files_count > 0:
         episodes = f"{total_files_count} Episodes"
     elif not episodes:
         episodes = "N/A"
 
-    # पहले से मौजूद ID या नई ID सेट करना
-    existing_story = await stories_col.find_one({"title": clean_title})
+    existing_story = await stories_col.find_one({"title": clean_title}, {"story_id": 1})
     story_id = existing_story.get("story_id") if existing_story else data.get("story_id", str(int(time.time())))
 
     story_doc = {
@@ -258,7 +259,7 @@ async def add_story_db(data: dict):
         "episodes": episodes,
         "total_files": f"{total_files_count} files" if total_files_count > 0 else "N/A",
         "photo": data.get("photo", ""),
-        "price": data.get("price", 0),
+        "price": float(data.get("price", 0)),
         "desc": data.get("desc", ""),
         "free_link": free_link,
         "demo_enabled": demo_enabled,
@@ -277,7 +278,7 @@ async def add_story_db(data: dict):
     return True
 
 async def update_story_demo_status(title: str, is_enabled: bool) -> bool:
-    """किसी स्टोरी के लिए Demo (Yes/No) टॉगल करने का फ़ंक्शन"""
+    """किसी स्टोरी के लिए Demo टॉगल करने का फ़ंक्शन"""
     clean_title = title.strip().split("\n")[0]
     res = await stories_col.update_one(
         {"title": clean_title},
@@ -300,7 +301,7 @@ async def update_story_range(title: str, first_msg_id: int, last_msg_id: int) ->
     return res.modified_count > 0
 
 async def delete_story_db(title: str) -> bool:
-    """स्टोरी डिलीट करने का फ़ंक्शन - Main List और Purchase List दोनों से डिलीट करता है"""
+    """स्टोरी डिलीट करने का फ़ंक्शन"""
     clean_title = title.strip().split("\n")[0]
     res = await stories_col.delete_one({"title": clean_title})
     
@@ -324,16 +325,14 @@ async def get_all_stories():
         return []
 
 async def get_stories_by_cat(cat_key, page=1, limit=10):
-    """
-    Case-insensitive Regex category fetcher.
-    Matches 'Pocket FM', 'POCKET FM', 'pocket_fm', 'Pratilipi FM', etc.
-    """
-    if "pocket" in str(cat_key).lower():
+    """पेजिनेटेड कैटेगरी फैचर"""
+    cat_str = str(cat_key)
+    if "pocket" in cat_str.lower():
         pattern = re.compile(r"pocket", re.IGNORECASE)
-    elif "pratilipi" in str(cat_key).lower():
+    elif "pratilipi" in cat_str.lower():
         pattern = re.compile(r"pratilipi", re.IGNORECASE)
     else:
-        pattern = re.compile(re.escape(str(cat_key)), re.IGNORECASE)
+        pattern = re.compile(re.escape(cat_str), re.IGNORECASE)
 
     query = {
         "$or": [
@@ -348,10 +347,10 @@ async def get_stories_by_cat(cat_key, page=1, limit=10):
             return [], 0
 
         total_pages = (total_count + limit - 1) // limit
-        skip = (page - 1) * limit
+        skip = (int(page) - 1) * int(limit)
 
-        cursor = stories_col.find(query).skip(skip).limit(limit)
-        stories = await cursor.to_list(length=limit)
+        cursor = stories_col.find(query).skip(skip).limit(int(limit))
+        stories = await cursor.to_list(length=int(limit))
         
         return stories, total_pages
     except Exception as e:
@@ -359,10 +358,9 @@ async def get_stories_by_cat(cat_key, page=1, limit=10):
         return [], 0
 
 async def search_stories_db(query_str, page=1, limit=10):
-    """
-    टाइटल या विवरण के आधार पर पेजिनेटेड सर्च परिणाम देता है।
-    """
-    pattern = re.compile(re.escape(query_str), re.IGNORECASE)
+    """टाइटल या विवरण के आधार पर पेजिनेटेड सर्च परिणाम देता है"""
+    clean_query = str(query_str).strip()[:100]  # Limit length to mitigate ReDoS
+    pattern = re.compile(re.escape(clean_query), re.IGNORECASE)
     query = {
         "$or": [
             {"title": pattern},
@@ -376,10 +374,10 @@ async def search_stories_db(query_str, page=1, limit=10):
             return [], 0
 
         total_pages = (total_count + limit - 1) // limit
-        skip = (page - 1) * limit
+        skip = (int(page) - 1) * int(limit)
 
-        cursor = stories_col.find(query).skip(skip).limit(limit)
-        stories = await cursor.to_list(length=limit)
+        cursor = stories_col.find(query).skip(skip).limit(int(limit))
+        stories = await cursor.to_list(length=int(limit))
         return stories, total_pages
     except Exception as e:
         print(f"Error in search_stories_db: {e}")
@@ -390,6 +388,3 @@ async def get_story_by_title(title: str):
     clean_title = title.strip().split("\n")[0]
     pattern = re.compile(f"^{re.escape(clean_title)}$", re.IGNORECASE)
     return await stories_col.find_one({"title": pattern})
-
-
-#db.py
