@@ -2,7 +2,7 @@ import json
 import asyncio
 import time
 import re
-from urllib.parse import quote as url_quote
+from urllib.parse import quote as url_quote, unquote
 from pyrogram import Client, filters, enums
 from pyrogram.errors import FloodWait, MessageNotModified
 from pyrogram.types import (
@@ -15,6 +15,7 @@ from pyrogram.types import (
     CallbackQuery,
     ReplyKeyboardRemove
 )
+from pyrogram.enums import ParseMode
 
 # Required Database functions
 from database.db import (
@@ -612,17 +613,26 @@ async def process_wallet_payment(client, callback_query):
         print(f"Error processing wallet payment: {e}")
         await callback_query.answer("❌ Error processing wallet payment!", show_alert=True)
 
-# ------------------ Cart Checkout & Payment Handler ------------------
+# ------------------ Cart Checkout & Payment Handler (UPDATED) ------------------
 @Client.on_callback_query(filters.regex(r"^cartpay_"))
 async def process_cart_payment(client, callback_query):
     try:
         data_parts = callback_query.data.split("_")
+        
+        # 1. डेटा वैलिडेशन (Check if cart data is valid)
+        if len(data_parts) < 3:
+            return await callback_query.answer("❌ Your cart is empty or invalid!", show_alert=True)
+
         total_price = float(data_parts[1])
         story_titles_encoded = data_parts[2:]
         
+        if not story_titles_encoded or story_titles_encoded == ['']:
+            return await callback_query.answer("❌ Your cart is empty!", show_alert=True)
+
         user_id = callback_query.from_user.id
         current_balance = await get_user_wallet(user_id)
 
+        # 2. बैलेंस चेक
         if current_balance < total_price:
             return await callback_query.answer(
                 f"❌ Insufficient Balance!\nRequired: ₹{total_price}\nAvailable: ₹{current_balance}\n\nPlease add money to your wallet.",
@@ -630,18 +640,31 @@ async def process_cart_payment(client, callback_query):
             )
 
         purchased_list_text = ""
-        new_balance = current_balance - total_price
-        await update_user_wallet(user_id, new_balance)
+        valid_items_count = 0
 
+        # 3. स्टोरीज़ प्रोसेस करना
         for enc_title in story_titles_encoded:
+            if not enc_title:
+                continue
+                
             st_title = enc_title.replace("__", " ")
             story = await get_story_by_title(st_title)
+            
             if story:
                 clean_title = story['title'].strip().split("\n")[0]
                 encoded_title = clean_title.replace(" ", "_")
                 delivery_link = f"https://t.me/{BOT_USERNAME}?start=get_{encoded_title}"
+                
                 await add_user_purchase(user_id, clean_title, story_link=delivery_link)
                 purchased_list_text += f"• {clean_title}\n"
+                valid_items_count += 1
+
+        if valid_items_count == 0:
+            return await callback_query.answer("❌ No valid items found in cart!", show_alert=True)
+
+        # 4. वॉलेट अपडेट
+        new_balance = current_balance - total_price
+        await update_user_wallet(user_id, new_balance)
 
         await callback_query.answer("🎉 Cart checkout successful! All stories unlocked.", show_alert=True)
         
@@ -850,7 +873,7 @@ async def start_handler(client, message):
     except Exception as db_err:
         print(f"Database Error in /start registration: {db_err}")
 
-    # Deep-Link Logic for Demo Section (Added / Fixed)
+    # Deep-Link Logic for Demo Section
     if len(args) > 1 and args[1].startswith("demo_"):
         raw_param = args[1]
         try:
@@ -900,53 +923,61 @@ async def start_handler(client, message):
         asyncio.create_task(auto_delete_task(sent_messages))
         return
 
-    # Deep-Link Logic for Cart Section
+    # Deep-Link Logic for Cart Section (UPDATED / FIXED)
     if len(args) > 1 and args[1].startswith("cart_"):
         raw_param = args[1]
         try:
             titles_param = raw_param.replace("cart_", "")
-            encoded_titles = titles_param.split("__")
-        except Exception:
-            return await message.reply_text("❌ <b>ɪɴᴠᴀʟɪᴅ ᴏʀ ᴄᴏʀʀᴜᴘᴛᴇᴅ ᴄᴀʀᴛ ʟɪɴᴋ!</b>")
+            decoded_param = unquote(titles_param)
+            raw_titles = decoded_param.split("__")
+            
+            valid_encoded_list = []
+            cart_summary_text = ""
+            total_price = 0.0
 
-        total_price = 0.0
-        cart_summary_text = ""
-        valid_encoded_list = []
+            for raw_t in raw_titles:
+                clean_t = raw_t.replace("_", " ").strip()
+                if clean_t:
+                    story = await get_story_by_title(clean_t)
+                    if story:
+                        story_title = story.get("title", "").strip().splitlines()[0]
+                        price = float(story.get('price', 0))
+                        total_price += price
+                        enc_t = story_title.replace(" ", "__")
+                        valid_encoded_list.append(enc_t)
+                        cart_summary_text += f"• <b>{story_title}</b> — ₹{price}\n"
 
-        for enc_title in encoded_titles:
-            story_title = enc_title.replace("_", " ")
-            story = await get_story_by_title(story_title)
-            if story:
-                clean_title = story['title'].strip().split("\n")[0]
-                price = float(story.get('price', 0))
-                total_price += price
-                cart_summary_text += f"• <b>{clean_title}</b> — ₹{price}\n"
-                valid_encoded_list.append(clean_title.replace(" ", "__"))
+            if not valid_encoded_list:
+                return await message.reply_text(
+                    "<b>❌ YOUR CART IS EMPTY OR STORIES NOT FOUND!</b>\n\n"
+                    "Please add stories to your cart again from the store Mini App.",
+                    parse_mode=ParseMode.HTML
+                )
 
-        if not valid_encoded_list:
-            return await message.reply_text("❌ <b>ʏᴏᴜʀ ᴄᴀʀᴛ ɪs ᴇᴍᴘᴛʏ ᴏʀ sᴛᴏʀɪᴇs ɴᴏᴛ ғᴏᴜɴᴅ!</b>")
+            wallet_bal = await get_user_wallet(user.id)
+            callback_data_str = f"cartpay_{total_price}_" + "_".join(valid_encoded_list)
+            
+            btn = InlineKeyboardMarkup([
+                [InlineKeyboardButton(f"💳 ᴘᴀʏ ᴛᴏᴛᴀʟ (₹{total_price})", style=enums.ButtonStyle.PRIMARY, callback_data=callback_data_str)],
+                [InlineKeyboardButton(f"👛 ᴘᴀʏ ᴠɪᴀ ᴡᴀʟʟᴇᴛ (Bal: ₹{wallet_bal})", style=enums.ButtonStyle.PRIMARY, callback_data=callback_data_str)]
+            ])
 
-        wallet_bal = await get_user_wallet(user.id)
-        
-        callback_data_str = f"cartpay_{total_price}_" + "_".join(valid_encoded_list)
-        
-        btn = InlineKeyboardMarkup([
-            [InlineKeyboardButton(f"💳 ᴘᴀʏ ᴛᴏᴛᴀʟ (₹{total_price})", style=enums.ButtonStyle.PRIMARY, callback_data=callback_data_str)],
-            [InlineKeyboardButton(f"👛 ᴘᴀʏ ᴠɪᴀ ᴡᴀʟʟᴇᴛ (Bal: ₹{wallet_bal})", style=enums.ButtonStyle.PRIMARY, callback_data=callback_data_str)]
-        ])
+            caption_text = (
+                f"🛒 <b>ᴘʀᴇᴍɪᴜᴍ ᴄᴀʀᴛ ᴄʜᴇᴄᴋᴏᴜᴛ sᴇᴄᴛɪᴏɴ</b>\n\n"
+                f"📦 <b>Items in Cart:</b>\n{cart_summary_text}\n"
+                f"━━━━━━━━━━━━━━━━━━━\n"
+                f"💰 <b>Total Amount:</b> ₹{total_price}\n"
+                f"👛 <b>Your Wallet Balance:</b> ₹{wallet_bal}\n"
+                f"━━━━━━━━━━━━━━━━━━━\n\n"
+                f"👇 <b>Click below to complete your checkout:</b>"
+            )
+            return await message.reply_text(caption_text, reply_markup=btn, parse_mode=ParseMode.HTML)
+            
+        except Exception as e:
+            print(f"Error in cart deep-link: {e}")
+            return await message.reply_text("<b>❌ An error occurred while opening your cart.</b>", parse_mode=ParseMode.HTML)
 
-        caption_text = (
-            f"🛒 <b>ᴘʀᴇᴍɪᴜᴍ ᴄᴀʀᴛ ᴄʜᴇᴄᴋᴏᴜᴛ sᴇᴄᴛɪᴏɴ</b>\n\n"
-            f"📦 <b>Items in Cart:</b>\n{cart_summary_text}\n"
-            f"━━━━━━━━━━━━━━━━━━━\n"
-            f"💰 <b>Total Amount:</b> ₹{total_price}\n"
-            f"👛 <b>Your Wallet Balance:</b> ₹{wallet_bal}\n"
-            f"━━━━━━━━━━━━━━━━━━━\n\n"
-            f"👇 <b>Click below to complete your checkout:</b>"
-        )
-        return await message.reply_text(caption_text, reply_markup=btn)
-
-    # Deep-Link Logic
+    # Deep-Link Logic for Single Delivery
     if len(args) > 1 and args[1].startswith("get_"):
         raw_param = args[1]
         try:
