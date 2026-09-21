@@ -19,6 +19,7 @@
             --item-bg: #f1f5f9;
             --shadow: 3px 3px 0px #000000;
             --glow: 0 0 10px rgba(234, 179, 8, 0.5);
+            --green: #10b981;
         }
 
         /* ---------------- BLACK THEME ---------------- */
@@ -33,6 +34,7 @@
             --item-bg: #1e1e1e;
             --shadow: 3px 3px 0px #333333;
             --glow: 0 0 10px rgba(255, 204, 0, 0.4);
+            --green: #10b981;
         }
 
         * {
@@ -42,7 +44,7 @@
 
         body {
             margin: 0;
-            padding: 0 0 90px 0;
+            padding: 0 0 140px 0;
             background-color: var(--bg);
             color: var(--text);
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -164,73 +166,19 @@
             will-change: transform, opacity;
         }
 
-        .hd-stack-card.pos-front {
-            transform: translate3d(0, 0, 0) rotate(0deg) scale(1);
-            z-index: 5;
-            opacity: 1;
-            filter: brightness(1);
-        }
+        .hd-stack-card.pos-front { transform: translate3d(0, 0, 0) rotate(0deg) scale(1); z-index: 5; opacity: 1; filter: brightness(1); }
+        .hd-stack-card.pos-next-1 { transform: translate3d(22px, 8px, -20px) rotate(6deg) scale(0.96); z-index: 4; opacity: 0.95; filter: brightness(0.9); }
+        .hd-stack-card.pos-next-2 { transform: translate3d(40px, 16px, -40px) rotate(11deg) scale(0.92); z-index: 3; opacity: 0.85; filter: brightness(0.8); }
+        .hd-stack-card.pos-next-3 { transform: translate3d(55px, 24px, -60px) rotate(15deg) scale(0.88); z-index: 2; opacity: 0.7; filter: brightness(0.7); }
+        .hd-stack-card.pos-back-slide { transform: translate3d(-15px, 20px, -80px) rotate(-4deg) scale(0.85); z-index: 1; opacity: 0.2; }
 
-        .hd-stack-card.pos-next-1 {
-            transform: translate3d(22px, 8px, -20px) rotate(6deg) scale(0.96);
-            z-index: 4;
-            opacity: 0.95;
-            filter: brightness(0.9);
-        }
-
-        .hd-stack-card.pos-next-2 {
-            transform: translate3d(40px, 16px, -40px) rotate(11deg) scale(0.92);
-            z-index: 3;
-            opacity: 0.85;
-            filter: brightness(0.8);
-        }
-
-        .hd-stack-card.pos-next-3 {
-            transform: translate3d(55px, 24px, -60px) rotate(15deg) scale(0.88);
-            z-index: 2;
-            opacity: 0.7;
-            filter: brightness(0.7);
-        }
-
-        .hd-stack-card.pos-back-slide {
-            transform: translate3d(-15px, 20px, -80px) rotate(-4deg) scale(0.85);
-            z-index: 1;
-            opacity: 0.2;
-        }
-
-        .splash-text-group {
-            text-align: center;
-            max-width: 320px;
-        }
-
+        .splash-text-group { text-align: center; max-width: 320px; }
         .splash-title { font-size: 21px; font-weight: 900; letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 8px; text-align: center; color: #ffffff; }
         .splash-sub { font-size: 12px; opacity: 0.7; text-align: center; line-height: 1.45; font-weight: 500; color: #d1d5db; }
         
-        .loader-spinner {
-            width: 26px;
-            height: 26px;
-            position: relative;
-            display: inline-block;
-            margin-bottom: 10px;
-        }
-
-        .loader-spinner div {
-            transform-origin: 13px 13px;
-            animation: loader-spinner-fade 1.2s linear infinite;
-        }
-
-        .loader-spinner div:after {
-            content: " ";
-            display: block;
-            position: absolute;
-            top: 2px;
-            left: 12px;
-            width: 2.5px;
-            height: 6.5px;
-            border-radius: 20%;
-            background: #ffffff;
-        }
-
+        .loader-spinner { width: 26px; height: 26px; position: relative; display: inline-block; margin-bottom: 10px; }
+        .loader-spinner div { transform-origin: 13px 13px; animation: loader-spinner-fade 1.2s linear infinite; }
+        .loader-spinner div:after { content: " "; display: block; position: absolute; top: 2px; left: 12px; width: 2.5px; height: 6.5px; border-radius: 20%; background: #ffffff; }
         .loader-spinner div:nth-child(1) { transform: rotate(0deg); animation-delay: -1.1s; }
         .loader-spinner div:nth-child(2) { transform: rotate(30deg); animation-delay: -1s; }
         .loader-spinner div:nth-child(3) { transform: rotate(60deg); animation-delay: -0.9s; }
@@ -244,10 +192,7 @@
         .loader-spinner div:nth-child(11) { transform: rotate(300deg); animation-delay: -0.1s; }
         .loader-spinner div:nth-child(12) { transform: rotate(330deg); animation-delay: 0s; }
 
-        @keyframes loader-spinner-fade {
-            0% { opacity: 1; }
-            100% { opacity: 0.15; }
-        }
+        @keyframes loader-spinner-fade { 0% { opacity: 1; } 100% { opacity: 0.15; } }
 
         /* ---------------- MAIN UI STYLES ---------------- */
         .top-bar {
@@ -302,7 +247,7 @@
 
         .story-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+            grid-template-columns: repeat(auto-fill, minmax(145px, 1fr));
             gap: 14px;
         }
         .card {
@@ -313,22 +258,27 @@
             box-shadow: var(--shadow);
             display: flex;
             flex-direction: column;
-            cursor: pointer;
             position: relative;
-            transition: transform 0.1s ease;
+            transition: transform 0.1s ease, border-color 0.2s ease;
         }
-        .card:active { transform: translate(2px, 2px); box-shadow: 0px 0px 0px var(--border); }
-        .card-img { width: 100%; height: 145px; object-fit: cover; border-bottom: 2px solid var(--border); }
+        
+        /* CARD TOGGLE GREEN STATE */
+        .card.in-cart {
+            border-color: var(--green) !important;
+            box-shadow: 3px 3px 0px var(--green) !important;
+        }
+
+        .card-img { width: 100%; height: 140px; object-fit: cover; border-bottom: 2px solid var(--border); }
         
         .card-fav-btn {
             position: absolute;
             top: 8px; right: 8px;
-            width: 32px; height: 32px;
+            width: 30px; height: 30px;
             background: var(--box-bg);
             border: 2px solid var(--border);
             border-radius: 50%;
             display: flex; justify-content: center; align-items: center;
-            font-size: 14px;
+            font-size: 13px;
             cursor: pointer;
             z-index: 10;
             box-shadow: 2px 2px 0px var(--border);
@@ -347,33 +297,62 @@
             text-transform: uppercase;
             margin-bottom: 6px;
         }
-        body.theme-black .badge {
-            background: #ffffff;
-            color: #000000;
-        }
+        body.theme-black .badge { background: #ffffff; color: #000000; }
         .title { font-size: 13px; font-weight: 800; margin: 0 0 4px 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text); }
-        .price-tag { font-size: 15px; font-weight: 900; margin: 6px 0; color: var(--text); }
+        .price-tag { font-size: 14px; font-weight: 900; margin: 4px 0 8px 0; color: var(--text); }
         
-        .btn-action {
-            width: 100%;
-            padding: 9px 0;
-            background: var(--accent);
-            color: #000000;
+        /* CARD BUTTON GRID */
+        .card-actions-grid {
+            display: flex;
+            gap: 6px;
+            margin-top: auto;
+        }
+
+        .btn-info-small {
+            width: 36px;
+            padding: 8px 0;
+            background: var(--item-bg);
+            color: var(--text);
             border: 2px solid var(--border);
             border-radius: 10px;
             font-weight: 800;
             font-size: 12px;
             cursor: pointer;
             box-shadow: 2px 2px 0px var(--border);
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
         }
-        .btn-action:active { transform: translate(2px, 2px); box-shadow: 0px 0px 0px var(--border); }
+
+        .btn-cart-toggle {
+            flex-grow: 1;
+            padding: 8px 0;
+            background: var(--accent);
+            color: #000000;
+            border: 2px solid var(--border);
+            border-radius: 10px;
+            font-weight: 900;
+            font-size: 11px;
+            cursor: pointer;
+            box-shadow: 2px 2px 0px var(--border);
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+            transition: background 0.2s ease, color 0.2s ease;
+        }
+        
+        /* TOGGLE GREEN COLOR WHEN SELECTED */
+        .btn-cart-toggle.selected {
+            background: var(--green) !important;
+            color: #ffffff !important;
+        }
+
+        .btn-cart-toggle:active, .btn-info-small:active { transform: translate(1.5px, 1.5px); box-shadow: 0px 0px 0px var(--border); }
 
         .btn-view-order-card {
             width: 100%;
-            padding: 9px 0;
-            background: #10b981 !important;
+            padding: 8px 0;
+            background: var(--green) !important;
             color: #ffffff !important;
             border: 2px solid var(--border);
             border-radius: 10px;
@@ -382,9 +361,7 @@
             cursor: pointer;
             box-shadow: 2px 2px 0px var(--border);
             text-transform: uppercase;
-            letter-spacing: 0.5px;
         }
-        .btn-view-order-card:active { transform: translate(2px, 2px); box-shadow: 0px 0px 0px var(--border); }
 
         .btn-demo {
             background: var(--item-bg);
@@ -397,260 +374,118 @@
             padding: 12px 18px;
             box-shadow: 2px 2px 0px var(--border);
             text-transform: uppercase;
-            letter-spacing: 0.5px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 6px;
+            display: flex; align-items: center; justify-content: center; gap: 6px;
         }
-        .btn-demo:active { transform: translate(2px, 2px); box-shadow: 0px 0px 0px var(--border); }
 
-        /* ---------------- NEW BOTTOM BUTTON PURCHASED CARD STYLING ---------------- */
-        .purchased-card {
-            display: flex;
-            flex-direction: column;
-            background: var(--card-bg);
+        /* ---------------- FLOATING CART BAR ---------------- */
+        .floating-cart-bar {
+            position: fixed;
+            bottom: 60px;
+            left: 16px; right: 16px;
+            background: #000000;
+            color: #ffffff;
             border: 2.5px solid var(--border);
             border-radius: 16px;
-            padding: 12px;
-            margin-bottom: 14px;
-            box-shadow: var(--shadow);
-            gap: 12px;
-        }
-
-        .purchased-top-content {
+            padding: 12px 16px;
             display: flex;
             align-items: center;
-            gap: 12px;
-            width: 100%;
+            justify-content: space-between;
+            box-shadow: 4px 4px 0px var(--border);
+            z-index: 99;
+            transform: translateY(150%);
+            transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        .floating-cart-bar.active {
+            transform: translateY(0);
+        }
+        body.theme-black .floating-cart-bar {
+            background: #ffffff;
+            color: #000000;
         }
 
-        .purchased-img {
-            width: 75px;
-            height: 75px;
-            border-radius: 12px;
-            object-fit: cover;
-            border: 2px solid var(--border);
-            flex-shrink: 0;
-        }
+        .cart-info { display: flex; flex-direction: column; }
+        .cart-count-txt { font-size: 11px; font-weight: 800; opacity: 0.8; text-transform: uppercase; }
+        .cart-total-txt { font-size: 16px; font-weight: 900; }
 
-        .purchased-details {
-            flex-grow: 1;
-            display: flex;
-            flex-direction: column;
-            gap: 4px;
-            overflow: hidden;
-        }
-
-        .purchased-title {
-            font-size: 15px;
-            font-weight: 900;
-            color: var(--text);
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-
-        .purchased-meta {
-            font-size: 11px;
-            font-weight: 700;
-            opacity: 0.75;
-            color: var(--text);
-        }
-
-        .purchased-tags {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            margin-top: 2px;
-        }
-
-        .mini-app-badge {
-            background: #10b981;
-            color: #ffffff;
-            font-size: 9px;
-            font-weight: 900;
-            padding: 3px 7px;
-            border-radius: 5px;
-            text-transform: uppercase;
-        }
-
-        .purchased-price {
-            font-size: 12px;
-            font-weight: 900;
-            color: var(--text);
-        }
-
-        /* ACTIONS BUTTON GRID FOR UNLOCKED ORDERS */
-        .order-actions-grid {
-            display: flex;
-            gap: 8px;
-            width: 100%;
-        }
-
-        .btn-view-order {
-            flex: 1;
+        .btn-checkout-cart {
             background: var(--accent);
             color: #000000;
-            border: 2.5px solid var(--border);
-            border-radius: 12px;
-            padding: 10px 0;
-            font-size: 11px;
+            border: 2px solid var(--border);
+            padding: 8px 16px;
+            border-radius: 10px;
             font-weight: 900;
+            font-size: 12px;
             cursor: pointer;
             box-shadow: 2px 2px 0px var(--border);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 4px;
             text-transform: uppercase;
-            transition: transform 0.1s ease;
         }
+        .btn-checkout-cart:active { transform: translate(1.5px, 1.5px); box-shadow: 0px 0px 0px var(--border); }
 
-        .btn-view-order:active {
-            transform: translate(1.5px, 1.5px);
-            box-shadow: 0px 0px 0px var(--border);
+        /* ---------------- PURCHASES / ORDERS ---------------- */
+        .purchased-card {
+            display: flex; flex-direction: column; background: var(--card-bg);
+            border: 2.5px solid var(--border); border-radius: 16px; padding: 12px; margin-bottom: 14px;
+            box-shadow: var(--shadow); gap: 12px;
         }
-
-        /* BOTTOM FULL-WIDTH BUTTON */
+        .purchased-top-content { display: flex; align-items: center; gap: 12px; width: 100%; }
+        .purchased-img { width: 75px; height: 75px; border-radius: 12px; object-fit: cover; border: 2px solid var(--border); flex-shrink: 0; }
+        .purchased-details { flex-grow: 1; display: flex; flex-direction: column; gap: 4px; overflow: hidden; }
+        .purchased-title { font-size: 15px; font-weight: 900; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .purchased-meta { font-size: 11px; font-weight: 700; opacity: 0.75; color: var(--text); }
+        .purchased-tags { display: flex; align-items: center; gap: 8px; margin-top: 2px; }
+        .mini-app-badge { background: var(--green); color: #ffffff; font-size: 9px; font-weight: 900; padding: 3px 7px; border-radius: 5px; text-transform: uppercase; }
+        .purchased-price { font-size: 12px; font-weight: 900; color: var(--text); }
+        .order-actions-grid { display: flex; gap: 8px; width: 100%; }
+        
+        .btn-view-order {
+            flex: 1; background: var(--accent); color: #000000; border: 2.5px solid var(--border);
+            border-radius: 12px; padding: 10px 0; font-size: 11px; font-weight: 900; cursor: pointer;
+            box-shadow: 2px 2px 0px var(--border); display: flex; align-items: center; justify-content: center; gap: 4px; text-transform: uppercase;
+        }
         .btn-telegram-action {
-            flex: 1.2;
-            background: var(--item-bg);
-            color: var(--text);
-            border: 2.5px solid var(--border);
-            border-radius: 12px;
-            padding: 10px 0;
-            font-size: 11px;
-            font-weight: 900;
-            cursor: pointer;
-            box-shadow: 2px 2px 0px var(--border);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 4px;
-            text-transform: uppercase;
-            transition: transform 0.1s ease;
+            flex: 1.2; background: var(--item-bg); color: var(--text); border: 2.5px solid var(--border);
+            border-radius: 12px; padding: 10px 0; font-size: 11px; font-weight: 900; cursor: pointer;
+            box-shadow: 2px 2px 0px var(--border); display: flex; align-items: center; justify-content: center; gap: 4px; text-transform: uppercase;
         }
 
-        .btn-telegram-action:active {
-            transform: translate(1.5px, 1.5px);
-            box-shadow: 0px 0px 0px var(--border);
-        }
-
-        /* ---------------- SLOW RGB GLOW ANIMATION FOR VERSION & POWERED BY ---------------- */
-        .rgb-glow-text {
-            font-weight: 900;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            animation: slowRgbGlow 8s infinite linear;
-        }
-
+        /* ---------------- RGB GLOW ---------------- */
+        .rgb-glow-text { font-weight: 900; text-transform: uppercase; letter-spacing: 1px; animation: slowRgbGlow 8s infinite linear; }
         @keyframes slowRgbGlow {
-            0% {
-                color: #ff0055;
-                text-shadow: 0 0 8px rgba(255, 0, 85, 0.6);
-            }
-            25% {
-                color: #00e5ff;
-                text-shadow: 0 0 8px rgba(0, 229, 255, 0.6);
-            }
-            50% {
-                color: #00ff66;
-                text-shadow: 0 0 8px rgba(0, 255, 102, 0.6);
-            }
-            75% {
-                color: #ffcc00;
-                text-shadow: 0 0 8px rgba(255, 204, 0, 0.6);
-            }
-            100% {
-                color: #ff0055;
-                text-shadow: 0 0 8px rgba(255, 0, 85, 0.6);
-            }
+            0% { color: #ff0055; text-shadow: 0 0 8px rgba(255, 0, 85, 0.6); }
+            25% { color: #00e5ff; text-shadow: 0 0 8px rgba(0, 229, 255, 0.6); }
+            50% { color: #00ff66; text-shadow: 0 0 8px rgba(0, 255, 102, 0.6); }
+            75% { color: #ffcc00; text-shadow: 0 0 8px rgba(255, 204, 0, 0.6); }
+            100% { color: #ff0055; text-shadow: 0 0 8px rgba(255, 0, 85, 0.6); }
         }
 
-        /* ---------------- CHECK IN PM CUSTOM DIALOG ---------------- */
+        /* ---------------- PM DIALOG ---------------- */
         .pm-dialog-overlay {
-            position: fixed;
-            top: 0; left: 0; width: 100vw; height: 100vh;
-            background: rgba(0, 0, 0, 0.75);
-            backdrop-filter: blur(4px);
-            z-index: 10000;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 20px;
-            opacity: 0;
-            visibility: hidden;
-            transition: opacity 0.25s ease, visibility 0.25s ease;
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            background: rgba(0, 0, 0, 0.75); backdrop-filter: blur(4px); z-index: 10000;
+            display: flex; align-items: center; justify-content: center; padding: 20px;
+            opacity: 0; visibility: hidden; transition: opacity 0.25s ease, visibility 0.25s ease;
         }
-        .pm-dialog-overlay.active {
-            opacity: 1;
-            visibility: visible;
-        }
+        .pm-dialog-overlay.active { opacity: 1; visibility: visible; }
         .pm-dialog-box {
-            background: var(--box-bg);
-            border: 3px solid var(--border);
-            border-radius: 20px;
-            padding: 24px 20px 20px;
-            width: 100%;
-            max-width: 310px;
-            text-align: center;
-            box-shadow: 5px 5px 0px var(--border);
-            transform: scale(0.9);
+            background: var(--box-bg); border: 3px solid var(--border); border-radius: 20px;
+            padding: 24px 20px 20px; width: 100%; max-width: 310px; text-align: center;
+            box-shadow: 5px 5px 0px var(--border); transform: scale(0.9);
             transition: transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
         }
-        .pm-dialog-overlay.active .pm-dialog-box {
-            transform: scale(1);
-        }
-        .pm-icon {
-            font-size: 40px;
-            margin-bottom: 12px;
-            display: inline-block;
-        }
-        .pm-dialog-title {
-            font-size: 17px;
-            font-weight: 900;
-            color: var(--text);
-            margin-bottom: 8px;
-            text-transform: uppercase;
-        }
-        .pm-dialog-desc {
-            font-size: 13px;
-            font-weight: 600;
-            color: var(--text);
-            opacity: 0.85;
-            line-height: 1.45;
-            margin-bottom: 20px;
-        }
+        .pm-dialog-overlay.active .pm-dialog-box { transform: scale(1); }
+        .pm-icon { font-size: 40px; margin-bottom: 12px; display: inline-block; }
+        .pm-dialog-title { font-size: 17px; font-weight: 900; color: var(--text); margin-bottom: 8px; text-transform: uppercase; }
+        .pm-dialog-desc { font-size: 13px; font-weight: 600; color: var(--text); opacity: 0.85; line-height: 1.45; margin-bottom: 20px; }
         .pm-btn-ok {
-            width: 100%;
-            background: var(--accent);
-            color: #000000;
-            border: 2.5px solid var(--border);
-            border-radius: 12px;
-            padding: 12px 0;
-            font-size: 13px;
-            font-weight: 900;
-            cursor: pointer;
-            box-shadow: 3px 3px 0px var(--border);
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-        .pm-btn-ok:active {
-            transform: translate(2px, 2px);
-            box-shadow: 0px 0px 0px var(--border);
+            width: 100%; background: var(--accent); color: #000000; border: 2.5px solid var(--border);
+            border-radius: 12px; padding: 12px 0; font-size: 13px; font-weight: 900; cursor: pointer;
+            box-shadow: 3px 3px 0px var(--border); text-transform: uppercase;
         }
 
-        /* ---------------- FULL SCREEN STORY DETAIL MODAL ---------------- */
+        /* ---------------- MODAL DETAIL ---------------- */
         .modal-overlay {
-            position: fixed;
-            top: 0; left: 0; width: 100vw; height: 100vh;
-            background: var(--bg);
-            z-index: 1000;
-            display: flex;
-            flex-direction: column;
-            opacity: 0;
-            visibility: hidden;
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: var(--bg);
+            z-index: 1000; display: flex; flex-direction: column; opacity: 0; visibility: hidden;
             transition: opacity 0.3s ease, visibility 0.3s ease;
         }
         .modal-overlay.active { opacity: 1; visibility: visible; }
@@ -661,8 +496,7 @@
             position: absolute; top: 16px; right: 16px; width: 36px; height: 36px;
             background: var(--box-bg); color: var(--text); border: 2.5px solid var(--border);
             border-radius: 50%; font-weight: 900; font-size: 16px; display: flex;
-            justify-content: center; align-items: center; cursor: pointer;
-            box-shadow: var(--shadow); z-index: 10;
+            justify-content: center; align-items: center; cursor: pointer; box-shadow: var(--shadow); z-index: 10;
         }
         .modal-poster-wrapper { position: absolute; bottom: 16px; left: 16px; z-index: 5; }
         .modal-poster-img { width: 105px; height: 140px; object-fit: cover; border-radius: 14px; border: 2.5px solid var(--border); box-shadow: var(--shadow); background: var(--box-bg); }
@@ -680,17 +514,7 @@
         .modal-bottom-bar { position: absolute; bottom: 0; left: 0; right: 0; background: var(--box-bg); border-top: 2.5px solid var(--border); padding: 14px 16px; display: flex; align-items: center; justify-content: space-between; gap: 10px; z-index: 20; }
         .modal-price { font-size: 22px; font-weight: 900; color: var(--text); }
 
-        .profile-card {
-            background: var(--box-bg);
-            border: 2.5px solid var(--border);
-            border-radius: 20px;
-            padding: 16px;
-            box-shadow: var(--shadow);
-            display: flex;
-            align-items: center;
-            gap: 14px;
-            margin-bottom: 16px;
-        }
+        .profile-card { background: var(--box-bg); border: 2.5px solid var(--border); border-radius: 20px; padding: 16px; box-shadow: var(--shadow); display: flex; align-items: center; gap: 14px; margin-bottom: 16px; }
         .avatar { width: 62px; height: 62px; border-radius: 16px; border: 2.5px solid var(--border); object-fit: cover; }
         .id-badge { display: inline-block; background: var(--accent); color: #000000; border: 1.5px solid var(--border); padding: 3px 10px; border-radius: 10px; font-size: 11px; font-weight: 800; margin-top: 4px; }
 
@@ -704,50 +528,18 @@
         .item-row { display: flex; justify-content: space-between; align-items: center; padding: 12px; border: 2px solid var(--border); border-radius: 12px; margin-bottom: 8px; background: var(--item-bg); cursor: pointer; color: var(--text); }
         .item-row:active { transform: translate(1px, 1px); }
 
-        .btn-support {
-            background: var(--accent) !important;
-            color: #000000 !important;
-        }
+        .btn-support { background: var(--accent) !important; color: #000000 !important; }
 
-        /* ---------------- THEME SWITCHING ANIMATED BUTTONS ---------------- */
         .theme-grid { display: flex; gap: 10px; margin-top: 8px; }
         .theme-btn {
-            flex: 1;
-            padding: 12px;
-            border: 2.5px solid var(--border);
-            border-radius: 12px;
-            font-size: 12px;
-            font-weight: 900;
-            cursor: pointer;
-            text-align: center;
-            box-shadow: 3px 3px 0px var(--border);
-            transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275), box-shadow 0.2s ease, background-color 0.3s ease;
-            position: relative;
-            overflow: hidden;
+            flex: 1; padding: 12px; border: 2.5px solid var(--border); border-radius: 12px; font-size: 12px; font-weight: 900;
+            cursor: pointer; text-align: center; box-shadow: 3px 3px 0px var(--border); transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
         }
-        .theme-btn:active {
-            transform: scale(0.92) translate(2px, 2px);
-            box-shadow: 0px 0px 0px var(--border);
-        }
-
-        @keyframes themePulse {
-            0% { transform: scale(1); }
-            50% { transform: scale(1.06); }
-            100% { transform: scale(1); }
-        }
-        .theme-btn.animating {
-            animation: themePulse 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-        }
+        .theme-btn:active { transform: scale(0.92) translate(2px, 2px); box-shadow: 0px 0px 0px var(--border); }
 
         .bottom-nav {
-            position: fixed;
-            bottom: 0; left: 0; width: 100%;
-            background: var(--box-bg);
-            border-top: 2.5px solid var(--border);
-            display: flex;
-            justify-content: space-around;
-            padding: 8px 0;
-            z-index: 100;
+            position: fixed; bottom: 0; left: 0; width: 100%; background: var(--box-bg); border-top: 2.5px solid var(--border);
+            display: flex; justify-content: space-around; padding: 8px 0; z-index: 100;
         }
         .nav-link { display: flex; flex-direction: column; align-items: center; font-size: 9px; font-weight: 900; color: var(--text); text-decoration: none; opacity: 0.6; cursor: pointer; }
         .nav-link.active { opacity: 1; color: var(--text); }
@@ -872,12 +664,20 @@
                 </div>
             </div>
 
-            <!-- VERSION AND POWERED BY WITH RGB GLOW ANIMATION -->
             <div style="text-align: center; margin-top: 20px; opacity: 0.9; font-size: 11px; font-weight: 800; letter-spacing: 1px;">
                 <span class="rgb-glow-text">VERSION 2.02</span><br>
                 <span class="rgb-glow-text" style="font-size: 10px;">POWERED BY GW KALU 2026 ALL RIGHT RESERVED</span>
             </div>
         </div>
+    </div>
+
+    <!-- FLOATING CART BAR FOR MULTI-SELECTION CHECKOUT -->
+    <div class="floating-cart-bar" id="floatingCart">
+        <div class="cart-info">
+            <span class="cart-count-txt" id="cartCountTxt">0 STORIES SELECTED</span>
+            <span class="cart-total-txt" id="cartTotalTxt">Total: ₹0</span>
+        </div>
+        <button class="btn-checkout-cart" onclick="checkoutCart()">CHECKOUT 🛒</button>
     </div>
 
     <!-- CHECK IN PM CUSTOM DIALOG -->
@@ -966,6 +766,7 @@
 
         let stories = [];
         let userPurchases = [];
+        let cartItems = []; // Multi-Cart Selected Stories Array
         let splashInterval = null;
 
         function triggerHaptic(type = 'light') {
@@ -980,10 +781,70 @@
             } catch(e) { console.error("Haptic error:", e); }
         }
 
-        /* --- HELPER FUNCTION FOR FETCHING ORIGINAL IMAGES PROPERLY --- */
+        /* --- HELPER FUNCTION FOR FETCHING ORIGINAL IMAGES --- */
         function getOriginalPhoto(item) {
             if (!item) return 'https://picsum.photos/200';
             return item.photo || item.cover_image_url || item.image || item.poster || 'https://picsum.photos/200';
+        }
+
+        /* --- CART MANAGEMENT SYSTEM --- */
+        function toggleCartItem(event, storyKeyRaw) {
+            if (event) event.stopPropagation();
+            triggerHaptic('medium');
+
+            const storyKey = decodeURIComponent(storyKeyRaw);
+            const story = stories.find(s => String(s.id) === String(storyKey) || String(s.title) === String(storyKey));
+            
+            if (!story) return;
+
+            const existingIdx = cartItems.findIndex(item => String(item.id || item.title) === String(story.id || story.title));
+
+            if (existingIdx > -1) {
+                cartItems.splice(existingIdx, 1);
+            } else {
+                cartItems.push(story);
+            }
+
+            updateCartUI();
+            renderGrid(stories, 'homeGrid');
+            renderGrid(stories, 'exploreGrid');
+        }
+
+        function updateCartUI() {
+            const bar = document.getElementById('floatingCart');
+            const countTxt = document.getElementById('cartCountTxt');
+            const totalTxt = document.getElementById('cartTotalTxt');
+
+            if (cartItems.length > 0) {
+                let total = cartItems.reduce((sum, item) => sum + (parseFloat(item.price) || 0), 0);
+                countTxt.innerText = `${cartItems.length} STORY${cartItems.length > 1 ? 'S' : ''} SELECTED`;
+                totalTxt.innerText = `Total: ₹${total}`;
+                bar.classList.add('active');
+            } else {
+                bar.classList.remove('active');
+            }
+        }
+
+        function checkoutCart() {
+            triggerHaptic('success');
+            if (cartItems.length === 0) return;
+
+            let titlesList = cartItems.map(item => item.title);
+            let totalPrice = cartItems.reduce((sum, item) => sum + (parseFloat(item.price) || 0), 0);
+
+            // WebApp Data directly Bot ko bhejna
+            if (tg && tg.sendData) {
+                tg.sendData(JSON.stringify({
+                    action: "cart_checkout",
+                    stories: titlesList,
+                    total_price: totalPrice
+                }));
+                tg.close();
+            } else {
+                let encodedTitles = titlesList.map(t => t.replace(/\s+/g, "_")).join("__");
+                let deepLink = `https://t.me/${BOT_USERNAME}?start=cart_${encodedTitles}`;
+                window.location.href = deepLink;
+            }
         }
 
         /* --- ANIMATED THEME SWITCHING SYSTEM --- */
@@ -997,23 +858,17 @@
 
         function changeTheme(themeName, btnElement) {
             triggerHaptic('medium');
-            
             if (btnElement) {
                 btnElement.classList.add('animating');
-                setTimeout(() => {
-                    btnElement.classList.remove('animating');
-                }, 350);
+                setTimeout(() => { btnElement.classList.remove('animating'); }, 350);
             }
-
             localStorage.setItem('user_theme', themeName);
             applySavedTheme();
         }
 
         /* --- WISHLIST SYSTEM --- */
         function getWishlist() {
-            try {
-                return JSON.parse(localStorage.getItem('user_wishlist')) || [];
-            } catch(e) { return []; }
+            try { return JSON.parse(localStorage.getItem('user_wishlist')) || []; } catch(e) { return []; }
         }
 
         function toggleWishlist(e, storyId) {
@@ -1024,11 +879,8 @@
             const strId = String(storyId);
             const index = wishlist.indexOf(strId);
 
-            if (index > -1) {
-                wishlist.splice(index, 1);
-            } else {
-                wishlist.push(strId);
-            }
+            if (index > -1) wishlist.splice(index, 1);
+            else wishlist.push(strId);
 
             localStorage.setItem('user_wishlist', JSON.stringify(wishlist));
             renderGrid(stories, 'homeGrid');
@@ -1075,12 +927,10 @@
             let current = 0;
             const interval = setInterval(() => {
                 current += 2;
-                
                 if (current >= 100) {
                     current = 100;
                     counter.innerText = '100%';
                     clearInterval(interval);
-                    
                     setTimeout(() => {
                         loader.classList.remove('active');
                         if (callback) callback();
@@ -1203,14 +1053,13 @@
                 const res = await fetch(`/api/user_purchases?user_id=${userId}`);
                 userPurchases = await res.json();
                 
-                // Re-render grids so the purchased items switch to "VIEW DETAILS"
                 renderGrid(stories, 'homeGrid');
                 renderGrid(stories, 'exploreGrid');
                 renderUnlockedList();
             } catch(e) { console.error(e); }
         }
 
-        /* --- UPDATED ORDERS LIST FUNCTION WITH VIEW DETAILS BUTTON --- */
+        /* --- ORDERS LIST FUNCTION --- */
         function renderUnlockedList() {
             document.getElementById('unlockedCount').innerText = userPurchases.length;
             if (document.getElementById('pUnlocked')) {
@@ -1262,7 +1111,7 @@
             `}).join('');
         }
 
-        /* --- UPDATED RENDER GRID: "BUY & UNLOCK" REPLACED BY "VIEW ORDER" FOR UNLOCKED ITEMS --- */
+        /* --- UPDATED RENDER GRID: CARD BUTTON & GREEN TOGGLE EFFECT --- */
         function renderGrid(list, target) {
             const el = document.getElementById(target);
             if(!el) return;
@@ -1284,13 +1133,26 @@
                     String(p.story_id) === String(s.id)
                 ));
 
-                // If purchased -> show "VIEW ORDER" button, else show "BUY & UNLOCK" / "CLAIM FREE"
-                const actionBtnHtml = isPurchased 
-                    ? `<button class="btn-view-order-card" onclick="event.stopPropagation(); goToOrdersTab()">📖 VIEW ORDER</button>`
-                    : `<button class="btn-action">${s.price == 0 ? 'CLAIM FREE' : 'BUY & UNLOCK'}</button>`;
+                // Check if story is selected in Cart
+                const isInCart = cartItems.some(item => String(item.id || item.title) === String(sKey));
+
+                let actionButtonsHtml = "";
+
+                if (isPurchased) {
+                    actionButtonsHtml = `<button class="btn-view-order-card" onclick="event.stopPropagation(); goToOrdersTab()">📖 VIEW ORDER</button>`;
+                } else {
+                    actionButtonsHtml = `
+                        <div class="card-actions-grid">
+                            <button class="btn-info-small" title="View Details" onclick="event.stopPropagation(); openStoryModal('${encodeURIComponent(sKey)}')">ℹ️</button>
+                            <button class="btn-cart-toggle ${isInCart ? 'selected' : ''}" onclick="toggleCartItem(event, '${encodeURIComponent(sKey)}')">
+                                ${isInCart ? 'SELECTED ✅' : '🛒 CART'}
+                            </button>
+                        </div>
+                    `;
+                }
 
                 return `
-                <div class="card" onclick="openStoryModal('${encodeURIComponent(sKey)}')">
+                <div class="card ${isInCart ? 'in-cart' : ''}" onclick="toggleCartItem(event, '${encodeURIComponent(sKey)}')">
                     <div class="card-fav-btn" onclick="toggleWishlist(event, '${encodeURIComponent(sKey)}')">
                         ${isFav ? '❤️' : '🤍'}
                     </div>
@@ -1299,7 +1161,7 @@
                         <span class="badge">${s.platform || 'AUDIO'}</span>
                         <h4 class="title">${s.title}</h4>
                         <div class="price-tag">${isPurchased ? 'UNLOCKED' : (s.price == 0 ? 'FREE' : '₹' + s.price)}</div>
-                        ${actionBtnHtml}
+                        ${actionButtonsHtml}
                     </div>
                 </div>
             `}).join('');
@@ -1439,15 +1301,10 @@
         /* --- CHECK IN PM DIALOG LOGIC --- */
         function openStoryLink(url) {
             triggerHaptic('light');
-            
             if (url && url !== '#') {
-                if (tg && tg.openTelegramLink) {
-                    tg.openTelegramLink(url);
-                } else {
-                    window.open(url, '_blank');
-                }
+                if (tg && tg.openTelegramLink) tg.openTelegramLink(url);
+                else window.open(url, '_blank');
             }
-
             const pmModal = document.getElementById('pmDialog');
             if(pmModal) pmModal.classList.add('active');
         }
@@ -1464,10 +1321,8 @@
             renderGrid(f, 'homeGrid');
         }
 
-        /* --- FIXED EXPLORE CATEGORY SWITCHING & YELLOW HIGHLIGHT --- */
         function filterCat(cat, btnElem) {
             triggerHaptic('light');
-
             if (btnElem) {
                 const buttons = document.querySelectorAll('#exploreCategoryWrapper .explore-btn');
                 buttons.forEach(b => b.classList.remove('chip-yellow'));
