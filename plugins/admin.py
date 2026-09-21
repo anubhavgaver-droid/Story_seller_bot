@@ -9,12 +9,14 @@ from database.db import (
     get_all_stories, 
     send_log,
     add_wallet_balance,
-    stories_col
+    stories_col,
+    users_col
 )
 from plugins.post import send_story_to_channel
 
 ADD_STATE = {}
 DELETE_STATE = {}
+UPDATE_STATE = {}
 
 def extract_msg_id(text: str):
     """Link या Message ID में से Numeric Message ID निकालने का Helper फ़ंक्शन"""
@@ -132,9 +134,10 @@ async def add_money_handler(client, message):
 @Client.on_message(filters.command("cancel") & filters.user(ADMIN_ID) & filters.private, group=1)
 async def cancel_action(client, message):
     user_id = message.from_user.id
-    if user_id in ADD_STATE or user_id in DELETE_STATE:
+    if user_id in ADD_STATE or user_id in DELETE_STATE or user_id in UPDATE_STATE:
         ADD_STATE.pop(user_id, None)
         DELETE_STATE.pop(user_id, None)
+        UPDATE_STATE.pop(user_id, None)
         await message.reply_text("❌ <b>ᴘʀᴏᴄᴇss ᴄᴀɴᴄᴇʟʟᴇᴅ!</b>")
     else:
         await message.reply_text("❓ ʏᴏᴜ ʜᴀᴠᴇ ɴᴏ ᴀᴄᴛɪᴠᴇ ᴘʀᴏᴄᴇss.")
@@ -186,7 +189,7 @@ async def start_delete(client, message):
     )
 
 # 3.1 Delete Input Execution Handler
-@Client.on_message(filters.private & filters.user(ADMIN_ID) & ~filters.command(["start", "addstory", "deletestory", "allstories", "cancel", "addmoney", "refreshstories"]), group=1)
+@Client.on_message(filters.private & filters.user(ADMIN_ID) & ~filters.command(["start", "addstory", "deletestory", "allstories", "cancel", "addmoney", "refreshstories", "addepisodes"]), group=1)
 async def process_delete_input(client, message):
     user_id = message.from_user.id
 
@@ -207,6 +210,114 @@ async def process_delete_input(client, message):
             pass
     else:
         await message.reply_text(f"❌ <b>ғᴀɪʟᴇᴅ ᴛᴏ ᴅᴇʟᴇᴛᴇ!</b> Story name <code>{story_title}</code> not found in database.")
+
+# ------------------ ONGOING STORY UPDATE SYSTEM (/addepisodes) ------------------
+@Client.on_message(filters.command("addepisodes") & filters.user(ADMIN_ID) & filters.private, group=1)
+async def start_add_episodes(client, message):
+    user_id = message.from_user.id
+    UPDATE_STATE[user_id] = {'step': 'TITLE'}
+    await message.reply_text(
+        "🔄 <b>ON-GOING STORY EPISODES UPDATE:</b>\n\n"
+        "जिस स्टोरी में नए एपिसोड जोड़ने हैं उसका **Exact Title** लिखें:\n"
+        "<i>(टाइप करें /cancel कैंसिल करने के लिए)</i>",
+        reply_markup=ForceReply(True)
+    )
+
+@Client.on_message(filters.private & filters.user(ADMIN_ID) & ~filters.command(["start", "addstory", "deletestory", "allstories", "cancel", "addmoney", "refreshstories", "addepisodes"]), group=1)
+async def process_update_episodes(client, message):
+    user_id = message.from_user.id
+
+    if user_id not in UPDATE_STATE or 'step' not in UPDATE_STATE[user_id]:
+        message.continue_propagation()
+        return
+
+    step = UPDATE_STATE[user_id]['step']
+
+    if step == 'TITLE':
+        story_title = message.text.strip().split("\n")[0]
+        story = await stories_col.find_one({"title": story_title})
+        
+        if not story:
+            return await message.reply_text(f"❌ Story <code>{story_title}</code> डेटाबेस में नहीं मिली। कृपया सही नाम लिखें:")
+
+        UPDATE_STATE[user_id]['story'] = story
+        UPDATE_STATE[user_id]['step'] = 'NEW_LAST_MSG'
+        
+        await message.reply_text(
+            f"📖 <b>Story Found:</b> {story['title']}\n"
+            f"📌 <b>Current Last Msg ID:</b> <code>{story.get('last_msg_id')}</code>\n\n"
+            f"अब नई <b>Last Message ID / Link</b> भेजें:",
+            reply_markup=ForceReply(True)
+        )
+
+    elif step == 'NEW_LAST_MSG':
+        new_last_id = extract_msg_id(message.text)
+        if not new_last_id:
+            return await message.reply_text("❌ अमान्य ID/Link! सही Link या ID भेजें:")
+
+        story = UPDATE_STATE[user_id]['story']
+        old_last_id = story.get('last_msg_id', 0)
+
+        if new_last_id <= old_last_id:
+            return await message.reply_text(f"❌ नई ID ({new_last_id}) पुरानी Last ID ({old_last_id}) से बड़ी होनी चाहिए!")
+
+        UPDATE_STATE[user_id]['new_last_id'] = new_last_id
+        UPDATE_STATE[user_id]['step'] = 'EPISODES_TEXT'
+        
+        await message.reply_text(
+            f"🎬 अब अपडेटेड Episodes टेक्स्ट लिखें:\n"
+            f"<i>(उदाहरण: 100 Episodes या Ongoing - Ep 80 Added)</i>",
+            reply_markup=ForceReply(True)
+        )
+
+    elif step == 'EPISODES_TEXT':
+        ep_text = message.text.strip()
+        story = UPDATE_STATE[user_id]['story']
+        new_last_id = UPDATE_STATE[user_id]['new_last_id']
+        
+        first_id = story.get('first_msg_id', 1)
+        calc_files = (new_last_id - first_id) + 1
+
+        # Database Update
+        await stories_col.update_one(
+            {"_id": story["_id"]},
+            {"$set": {
+                "last_msg_id": new_last_id,
+                "episodes": ep_text,
+                "total_files": f"{calc_files} files"
+            }}
+        )
+
+        UPDATE_STATE.pop(user_id, None)
+
+        await message.reply_text(
+            f"✅ <b>STORY UPDATED SUCCESSFULLY!</b>\n\n"
+            f"📖 <b>Title:</b> {story['title']}\n"
+            f"📦 <b>New Last Msg ID:</b> {new_last_id}\n"
+            f"🎬 <b>New Episodes Text:</b> {ep_text}\n\n"
+            f"📢 <i>अब इस स्टोरी को खरीदने वाले सभी खरीदारों को नोटिफिकेशन भेजा जा रहा है...</i>"
+        )
+
+        # Notify Buyers Automatically
+        notified_users = 0
+        async for user in users_col.find({"purchased_stories": story['title']}):
+            try:
+                clean_title = story['title'].strip().split("\n")[0].replace(" ", "_")
+                bot_link = f"https://t.me/{BOT_USERNAME}?start=story_{clean_title}"
+                
+                msg = (
+                    f"🎉 <b>NEW EPISODES ADDED!</b>\n\n"
+                    f"🎧 आपकी खरीदी गई स्टोरी <b>{story['title']}</b> में नए एपिसोड जोड़ दिए गए हैं!\n\n"
+                    f"🎬 <b>Updated Episodes:</b> {ep_text}\n"
+                    f"👇 सुनने के लिए नीचे बटन पर क्लिक करें:"
+                )
+                btn = InlineKeyboardMarkup([[InlineKeyboardButton("🎧 Listen Now", url=bot_link)]])
+                await client.send_message(chat_id=user["user_id"], text=msg, reply_markup=btn)
+                notified_users += 1
+            except Exception:
+                pass
+
+        await message.reply_text(f"📢 **Notification Report:** कुल `{notified_users}` खरीदारों को अपडेट का मैसेज भेज दिया गया है!")
 
 # 4. Add Story Command Start
 @Client.on_message(filters.command("addstory") & filters.user(ADMIN_ID) & filters.private, group=1)
@@ -377,7 +488,7 @@ async def finalize_add_story(client, message, data):
     )
 
 # 7. Admin Add Story Input Wizard
-@Client.on_message(filters.private & filters.user(ADMIN_ID) & ~filters.command(["start", "addstory", "deletestory", "allstories", "cancel", "addmoney", "refreshstories"]), group=1)
+@Client.on_message(filters.private & filters.user(ADMIN_ID) & ~filters.command(["start", "addstory", "deletestory", "allstories", "cancel", "addmoney", "refreshstories", "addepisodes"]), group=1)
 async def wizard_inputs(client, message):
     user_id = message.from_user.id
 
@@ -395,12 +506,12 @@ async def wizard_inputs(client, message):
     elif step == 'STATUS':
         ADD_STATE[user_id]['status'] = message.text.strip()
         ADD_STATE[user_id]['step'] = 'EPISODES'
-        await message.reply_text("<b>[sᴛᴇᴘ 5/10]</b> 🎬 ᴇɴᴛᴇʀ ᴛᴏᴛᴀtotal ᴇᴘɪsᴏᴅᴇs:\n<i>(उदाहरण: 80 Episodes, 100+ Episodes या Ongoing)</i>", reply_markup=ForceReply(True))
+        await message.reply_text("<b>[sᴛᴇᴘ 5/10]</b> 🎬 ᴇɴᴛᴇʀ ᴛᴏᴛᴀʟ ᴇᴘɪsᴏᴅᴇs:\n<i>(उदाहरण: 80 Episodes, 100+ Episodes या Ongoing)</i>", reply_markup=ForceReply(True))
 
     elif step == 'EPISODES':
         ADD_STATE[user_id]['episodes'] = message.text.strip()
         ADD_STATE[user_id]['step'] = 'PHOTO'
-        await message.reply_text("<b>[sᴛᴇᴘ 6/10]</b> sᴇɴᴅ ᴛʜᴇ sᴛᴏʀʏ ᴘᴏsᴛᴇʀ ᴘʜᴏᴛᴏ (ᴏʀ ᴇɴᴛᴇʀ ᴀɴ ɪᴍᴀɢᴇ ᴜʀʟ):", reply_markup=ForceReply(True))
+        await message.reply_text("<b>[sᴛᴇᴘ 6/10]</b> sᴇɴᴅ ᴛʜᴇ sᴛᴏʀʏ ᴘᴏsᴛᴇʀ ᴘʜᴏᴛᴏ (ᴏʀ ᴇɴᴛᴇʀ ᴀɴ ɪᴍᴀɢᴇ ᴜᴜʀʟ):", reply_markup=ForceReply(True))
         
     elif step == 'PHOTO':
         if message.photo:
@@ -457,7 +568,7 @@ async def wizard_inputs(client, message):
         
         ADD_STATE[user_id]['first_msg_id'] = first_id
         ADD_STATE[user_id]['step'] = 'LAST_MSG'
-        await message.reply_text("<b>[sᴛᴇᴘ 10/10]</b> DB Channel से स्टोरी की <b>FIRST Message ID / Link</b> भेजें:", reply_markup=ForceReply(True))
+        await message.reply_text("<b>[sᴛᴇᴘ 10/10]</b> DB Channel से स्टोरी की <b>LAST Message ID / Link</b> भेजें:", reply_markup=ForceReply(True))
 
     elif step == 'LAST_MSG':
         last_id = extract_msg_id(message.text)
@@ -472,23 +583,19 @@ async def wizard_inputs(client, message):
 
         total_files = (data['last_msg_id'] - data['first_msg_id']) + 1
 
-        if total_files > 100:
-            data['custom_ranges'] = []
-            kb = InlineKeyboardMarkup([
-                [
-                    InlineKeyboardButton("✅ Yes (Custom Buttons)", callback_data="setrange_yes"),
-                    InlineKeyboardButton("❌ No (Single Delivery)", callback_data="setrange_no")
-                ]
-            ])
-            return await message.reply_text(
-                f"📦 <b>ᴛᴏᴛᴀʟ ғɪʟᴇs: {total_files}</b> (100 से ज़्यादा)\n\n"
-                f"क्या आप इस स्टोरी के लिए Custom Range Buttons (जैसे Ep 1-50, Ep 51-100) बनाना चाहते हैं?",
-                reply_markup=kb
-            )
-        else:
-            data['custom_ranges'] = []
-            ADD_STATE.pop(user_id, None)
-            await finalize_add_story(client, message, data)
+        # लिमिट हटा दी गई है - अब हमेशा एडमिन से पूछा जाएगा
+        data['custom_ranges'] = []
+        kb = InlineKeyboardMarkup([
+            [
+                InlineKeyboardButton("✅ Yes (Custom Buttons)", callback_data="setrange_yes"),
+                InlineKeyboardButton("❌ No (Single Delivery)", callback_data="setrange_no")
+            ]
+        ])
+        return await message.reply_text(
+            f"📦 <b>ᴛᴏᴛᴀʟ ғɪʟᴇs: {total_files}</b>\n\n"
+            f"क्या आप इस स्टोरी के लिए Custom Range Buttons (जैसे Ep 1-50, Ep 51-100) बनाना चाहते हैं?",
+            reply_markup=kb
+        )
 
     # Dynamic Range Steps
     elif step == 'RANGE_NAME':
