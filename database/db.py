@@ -171,8 +171,10 @@ async def get_referred_users_count(user_id: int) -> int:
 
 # -------------------- USER PURCHASES & ACCESS CHECK --------------------
 async def add_user_purchase(user_id: int, story_title: str, story_link: str = "#"):
-    """ऑटो-पेमेंट या Wallet deduction कन्फर्म होने पर खरीदे गए टाइटल की पहली लाइन सेव करेगा"""
+    """ऑटो-पेमेंट या Wallet deduction कन्फर्म होने पर खरीदे गए टाइटल की पहली लाइन और खरीदे गए टाइटल का रिकॉर्ड सेव करेगा"""
     clean_title = story_title.strip().split("\n")[0]
+    
+    # Purchases Collection में रिकॉर्ड जोड़ना
     await purchases_col.update_one(
         {"user_id": user_id, "story_title": clean_title},
         {
@@ -185,6 +187,12 @@ async def add_user_purchase(user_id: int, story_title: str, story_link: str = "#
             }
         },
         upsert=True
+    )
+
+    # Users Collection में भी purchased_stories की लिस्ट में जोड़ना ताकि /addepisodes नोटिफिकेशन काम कर सके
+    await users_col.update_one(
+        {"user_id": user_id},
+        {"$addToSet": {"purchased_stories": clean_title}}
     )
 
 async def is_story_unlocked(user_id: int, story_title: str) -> bool:
@@ -213,7 +221,7 @@ async def get_story_by_id(story_id: str):
 async def add_story_db(data: dict):
     """
     स्टोरी जोड़ते या अपडेट करते समय Title की केवल पहली लाइन को ही Clean Title बनाएगा।
-    हर स्टोरी के लिए एक सिंपल story_id और free_link सेट होगी।
+    हर स्टोरी के लिए एक सिंपल story_id, free_link और custom_ranges बिना किसी लिमिट के सेट होगी।
     """
     if "title" in data:
         data["title"] = data["title"].strip().split("\n")[0]
@@ -226,10 +234,13 @@ async def add_story_db(data: dict):
     custom_ranges = data.get("custom_ranges", [])
     free_link = data.get("free_link", None)
 
+    # फ़ाइलों की कुल गिनती
+    total_files_count = (last_msg_id - first_msg_id + 1) if (first_msg_id and last_msg_id) else 0
+
     # ऑटो-एपिसोड्स कैलकुलेशन
     episodes = data.get("episodes")
-    if not episodes and first_msg_id and last_msg_id:
-        episodes = (last_msg_id - first_msg_id + 1)
+    if not episodes and total_files_count > 0:
+        episodes = f"{total_files_count} Episodes"
     elif not episodes:
         episodes = "N/A"
 
@@ -245,6 +256,7 @@ async def add_story_db(data: dict):
         "status": data.get("status", "Completed"),
         "genre": data.get("genre", "Drama"),
         "episodes": episodes,
+        "total_files": f"{total_files_count} files" if total_files_count > 0 else "N/A",
         "photo": data.get("photo", ""),
         "price": data.get("price", 0),
         "desc": data.get("desc", ""),
@@ -276,9 +288,14 @@ async def update_story_demo_status(title: str, is_enabled: bool) -> bool:
 async def update_story_range(title: str, first_msg_id: int, last_msg_id: int) -> bool:
     """किसी स्टोरी के लिए First और Last Message ID सेट करने का फ़ंक्शन"""
     clean_title = title.strip().split("\n")[0]
+    calc_files = (int(last_msg_id) - int(first_msg_id)) + 1
     res = await stories_col.update_one(
         {"title": clean_title},
-        {"$set": {"first_msg_id": int(first_msg_id), "last_msg_id": int(last_msg_id)}}
+        {"$set": {
+            "first_msg_id": int(first_msg_id), 
+            "last_msg_id": int(last_msg_id),
+            "total_files": f"{calc_files} files"
+        }}
     )
     return res.modified_count > 0
 
