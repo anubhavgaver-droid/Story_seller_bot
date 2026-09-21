@@ -1,5 +1,7 @@
 import re
 import random
+import secrets
+import string
 from pyrogram import Client, filters
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ForceReply
 from config import ADMIN_ID, BOT_USERNAME, WEB_APP_URL, CHANNEL_ID
@@ -26,6 +28,11 @@ def extract_msg_id(text: str):
     match = re.search(r"/(\d+)$", text)
     return int(match.group(1)) if match else None
 
+def generate_story_id(length=8):
+    """Deep Link/Share Link न टूटे इसके लिए रैंडम Unique ID जनरेट करता है"""
+    chars = string.ascii_letters + string.digits
+    return ''.join(secrets.choice(chars) for _ in range(length))
+
 # ------------------ ADMIN REFRESH COMMAND FOR ALL STORIES ------------------
 @Client.on_message(filters.command("refreshstories") & filters.user(ADMIN_ID) & filters.private, group=1)
 async def refresh_all_stories(client, message):
@@ -41,6 +48,10 @@ async def refresh_all_stories(client, message):
             last_id = story.get("last_msg_id")
             
             update_data = {}
+            
+            # Agar purani stories me story_id nahi hai to random id set kar do
+            if not story.get("story_id"):
+                update_data["story_id"] = generate_story_id()
             
             # Total Files Calculation
             if first_id and last_id and last_id >= first_id:
@@ -151,8 +162,10 @@ async def list_stories(client, message):
         
     text = "<b>📚 sᴀᴠᴇᴅ sᴛᴏʀɪᴇs ʟɪsᴛ:</b>\n\n"
     for idx, s in enumerate(stories, start=1):
-        clean_title = s['title'].strip().split("\n")[0].replace(" ", "_")
-        bot_link = f"https://t.me/{BOT_USERNAME}?start=story_{clean_title}"
+        # Fallback agar puraane DB record me story_id na ho
+        story_id = s.get('story_id') or s['title'].strip().split("\n")[0].replace(" ", "_")
+        bot_link = f"https://t.me/{BOT_USERNAME}?start=story_{story_id}"
+        
         f_id = s.get('first_msg_id', 'N/A')
         l_id = s.get('last_msg_id', 'N/A')
         episodes = s.get('episodes', 'N/A')
@@ -325,8 +338,10 @@ async def finalize_add_story(client, message, data):
     data['demo_enabled'] = data.get('demo_enabled', False)
     data['demo_msg_ids'] = demo_msg_ids
 
-    clean_title = data['title'].strip().split("\n")[0].replace(" ", "_")
-    data['link'] = f"https://t.me/{BOT_USERNAME}?start=get_{clean_title}"
+    # 🔑 TITLE Ke bajaye Random Alphanumeric ID generate karna
+    story_id = generate_story_id()
+    data['story_id'] = story_id
+    data['link'] = f"https://t.me/{BOT_USERNAME}?start=get_{story_id}"
 
     # Database updates
     await add_story_db(data)
@@ -337,7 +352,8 @@ async def finalize_add_story(client, message, data):
     except Exception as e:
         print(f"⚠️ Auto post failed: {e}")
 
-    bot_share_link = f"https://t.me/{BOT_USERNAME}?start=story_{clean_title}"
+    # Random Story ID ke sath shareable link
+    bot_share_link = f"https://t.me/{BOT_USERNAME}?start=story_{story_id}"
     total_files = data['last_msg_id'] - data['first_msg_id'] + 1
     demo_status = "✅ Enabled (Auto Synced to Mini App)" if data.get('demo_enabled', False) else "❌ Disabled"
     ranges_count = len(data.get('custom_ranges', []))
@@ -346,6 +362,7 @@ async def finalize_add_story(client, message, data):
     log_msg = (
         f"<b>➕ ɴᴇᴡ sᴛᴏʀʏ ᴀᴅᴅᴇᴅ!</b>\n\n"
         f"♨️ <b>Story :</b> {data['title']}\n"
+        f"🆔 <b>Story ID :</b> <code>{story_id}</code>\n"
         f"🔰 <b>Status :</b> {data.get('status', 'Completed')}\n"
         f"🖥️ <b>Platform :</b> {data.get('category', 'Pocket FM')}\n"
         f"🧩 <b>Genre :</b> {data.get('genre', 'Drama')}\n"
@@ -366,6 +383,7 @@ async def finalize_add_story(client, message, data):
     await message.reply_text(
         f"✅ <b>sᴛᴏʀʏ ᴀᴅᴅᴇᴅ sᴜᴄᴄᴇssғᴜʟʟʏ!</b>\n\n"
         f"♨️ <b>Story :</b> {data['title']}\n"
+        f"🆔 <b>Story ID :</b> <code>{story_id}</code>\n"
         f"🔰 <b>Status :</b> {data.get('status', 'Completed')}\n"
         f"🖥️ <b>Platform :</b> {data.get('category', 'Pocket FM')}\n"
         f"🧩 <b>Genre :</b> {data.get('genre', 'Drama')}\n"
@@ -399,7 +417,7 @@ async def wizard_inputs(client, message):
     elif step == 'STATUS':
         ADD_STATE[user_id]['status'] = message.text.strip()
         ADD_STATE[user_id]['step'] = 'EPISODES'
-        await message.reply_text("<b>[sᴛᴇᴘ 5/10]</b> 🎬 ᴇɴᴛᴇʀ ᴛᴏᴛᴀʟ ᴇᴘɪsᴏᴅᴇs:\n<i>(उदाहरण: 80 Episodes, 100+ Episodes या Ongoing)</i>", reply_markup=ForceReply(True))
+        await message.reply_text("<b>[sᴛᴇᴘ 5/10]</b> 🎬 ᴇɴᴛᴇR ᴛᴏᴛᴀʟ ᴇᴘɪsᴏᴅᴇs:\n<i>(उदाहरण: 80 Episodes, 100+ Episodes या Ongoing)</i>", reply_markup=ForceReply(True))
 
     elif step == 'EPISODES':
         ADD_STATE[user_id]['episodes'] = message.text.strip()
@@ -419,7 +437,7 @@ async def wizard_inputs(client, message):
         
     elif step == 'PRICE':
         if not message.text or not message.text.isdigit():
-            return await message.reply_text("❌ ᴘʟᴇᴀsᴇ ᴇɴᴛᴇʀ ᴛʜᴇ ᴘʀɪᴄᴇ ɪɴ ɴᴜᴍʙᴇʀs ᴏɴʟʏ (ᴇ.ɢ., 99):")
+            return await message.reply_text("❌ ᴘʟᴇᴀsᴇ ᴇɴᴛᴇʀ ᴛʜᴇ ᴘʀɪᴄᴇ ɪɴ ɴᴜᴍʙᴇRs ᴏɴʟʏ (ᴇ.ɢ., 99):")
         ADD_STATE[user_id]['price'] = int(message.text)
         ADD_STATE[user_id]['step'] = 'DESC'
         await message.reply_text("<b>[sᴛᴇᴘ 8/10]</b> ᴇɴᴛᴇʀ ᴛʜᴇ ᴅᴇsᴄʀɪᴘᴛɪᴏɴ:", reply_markup=ForceReply(True))
@@ -476,7 +494,6 @@ async def wizard_inputs(client, message):
 
         total_files = (data['last_msg_id'] - data['first_msg_id']) + 1
 
-        # लिमिट हटा दी गई है - अब हमेशा एडमिन से पूछा जाएगा
         data['custom_ranges'] = []
         kb = InlineKeyboardMarkup([
             [
