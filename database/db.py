@@ -1,4 +1,4 @@
-Import re
+import re
 import sys
 import os
 import time
