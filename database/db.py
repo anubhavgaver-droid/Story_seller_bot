@@ -15,6 +15,19 @@ users_col = db["users"]        # Collection for User Registration, Wallet & Lang
 purchases_col = db["purchases"]  # Collection for Purchased Stories
 
 
+# -------------------- DATABASE INDEX SETUP --------------------
+async def init_db_indexes():
+    """डाटाबेस परफॉर्मेंस बढ़ाने के लिए Indexes बनाता है"""
+    try:
+        await users_col.create_index("user_id", unique=True)
+        await users_col.create_index("referred_by")
+        await stories_col.create_index("story_id", unique=True)
+        await stories_col.create_index("title")
+        await purchases_col.create_index([("user_id", 1), ("story_title", 1)], unique=True)
+    except Exception as e:
+        print(f"Index creation warning/error: {e}")
+
+
 # -------------------- LOG HELPER FUNCTION --------------------
 async def send_log(client_bot, text: str):
     """Log Channel में मैसेज भेजने के लिए Helper फ़ंक्शन"""
@@ -104,7 +117,8 @@ async def register_user(user_id: int, first_name: str, username: str = None, ref
     
     set_on_insert = {
         "wallet_balance": 0.0,
-        "lang_code": "en"
+        "lang_code": "en",
+        "purchased_stories": []
     }
     
     if referred_by and int(referred_by) != user_id:
@@ -123,10 +137,11 @@ async def get_all_users():
     """
     ब्रॉडकास्ट के लिए डेटाबेस से सभी रजिस्टर्ड यूज़र्स की लिस्ट निकालता है
     """
-    users = []
-    async for doc in users_col.find({}, {"user_id": 1, "_id": 0}):
-        users.append(doc)
-    return users
+    try:
+        return await users_col.find({}, {"user_id": 1, "_id": 0}).to_list(length=None)
+    except Exception as e:
+        print(f"Error getting all users: {e}")
+        return []
 
 async def get_user_lang_db(user_id: int) -> str:
     """यूज़र की सिलेक्टेड भाषा ढूँढता है (Default 'en')"""
@@ -166,7 +181,7 @@ async def add_wallet_balance(user_id: int, amount: float) -> float:
         upsert=True,
         return_document=True
     )
-    return float(user.get("wallet_balance", 0.0))
+    return float(user.get("wallet_balance", 0.0)) if user else 0.0
 
 
 # -------------------- REFERRAL DATABASE FUNCTIONS --------------------
@@ -181,6 +196,7 @@ async def add_user_purchase(user_id: int, story_title: str, story_link: str = "#
     clean_title = story_title.strip().split("\n")[0]
     user_id = int(user_id)
     
+    # 1. Purchase collection update
     await purchases_col.update_one(
         {"user_id": user_id, "story_title": clean_title},
         {
@@ -195,6 +211,7 @@ async def add_user_purchase(user_id: int, story_title: str, story_link: str = "#
         upsert=True
     )
 
+    # 2. Add to user document
     await users_col.update_one(
         {"user_id": user_id},
         {"$addToSet": {"purchased_stories": clean_title}}
@@ -219,10 +236,9 @@ async def get_story_by_id(story_id: str):
     story = await stories_col.find_one({"story_id": str(story_id)})
     if story:
         return story
-    try:
+    if ObjectId.is_valid(story_id):
         return await stories_col.find_one({"_id": ObjectId(story_id)})
-    except Exception:
-        return None
+    return None
 
 async def add_story_db(data: dict):
     """स्टोरी जोड़ते या अपडेट करते समय डेटा को सेव/अपडेट करता है"""
@@ -285,7 +301,6 @@ async def add_new_episodes_batch(title: str, new_first_id: int = 0, new_last_id:
     if not story:
         return False, 0
 
-    # kwargs या डायरेक्ट पैरामीटर दोनों को हैंडल करने के लिए
     f_id = int(new_first_id or kwargs.get("first_msg_id", 0))
     l_id = int(new_last_id or kwargs.get("last_msg_id", 0))
 
