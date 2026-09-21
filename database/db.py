@@ -1,4 +1,4 @@
-import re
+Import re
 import sys
 import os
 import time
@@ -210,55 +210,18 @@ async def get_user_purchases(user_id: int):
 # -------------------- STORY DATABASE FUNCTIONS --------------------
 async def get_story_by_id(story_id: str):
     """नॉर्मल Story ID या MongoDB ObjectId से स्टोरी ढूँढता है"""
-    if not story_id:
-        return None
-    story_id_str = str(story_id).strip()
-    
-    story = await stories_col.find_one({"story_id": story_id_str})
+    story = await stories_col.find_one({"story_id": str(story_id)})
     if story:
         return story
     try:
-        if len(story_id_str) == 24: # Valid MongoDB ObjectId length
-            return await stories_col.find_one({"_id": ObjectId(story_id_str)})
+        return await stories_col.find_one({"_id": ObjectId(story_id)})
     except Exception:
-        pass
-    return None
-
-async def get_story_by_title(title: str):
-    """टाइटल के आधार पर स्टोरी ढूँढता है (Exact Match Case-Insensitive)"""
-    if not title:
         return None
-    clean_title = title.strip().split("\n")[0]
-    pattern = re.compile(f"^{re.escape(clean_title)}$", re.IGNORECASE)
-    story = await stories_col.find_one({"title": pattern})
-    if not story:
-        # Fallback if title has underscores or extra spaces
-        alt_title = clean_title.replace("_", " ")
-        pattern_alt = re.compile(f"^{re.escape(alt_title)}$", re.IGNORECASE)
-        story = await stories_col.find_one({"title": pattern_alt})
-    return story
-
-async def get_story_by_id_or_title(identifier: str):
-    """
-    स्मार्ट सर्च: सबसे पहले story_id या ObjectId से ढूँढेगा, 
-    अगर नहीं मिले तो Fallback में Title से ढूँढेगा।
-    """
-    if not identifier:
-        return None
-    
-    clean_id = str(identifier).strip()
-    # 1. Search by story_id / ObjectId
-    story = await get_story_by_id(clean_id)
-    if story:
-        return story
-        
-    # 2. Search by Title
-    return await get_story_by_title(clean_id)
 
 async def add_story_db(data: dict):
     """
     स्टोरी जोड़ते या अपडेट करते समय Title की केवल पहली लाइन को ही Clean Title बनाएगा।
-    हर स्टोरी के लिए एक सिंपल story_id, free_link और custom_ranges सेट होगी।
+    हर स्टोरी के लिए एक सिंपल story_id, free_link और custom_ranges बिना किसी लिमिट के सेट होगी।
     """
     if "title" in data:
         data["title"] = data["title"].strip().split("\n")[0]
@@ -283,7 +246,7 @@ async def add_story_db(data: dict):
 
     # पहले से मौजूद ID या नई ID सेट करना
     existing_story = await stories_col.find_one({"title": clean_title})
-    story_id = existing_story.get("story_id") if (existing_story and existing_story.get("story_id")) else data.get("story_id", str(int(time.time())))
+    story_id = existing_story.get("story_id") if existing_story else data.get("story_id", str(int(time.time())))
 
     story_doc = {
         "story_id": str(story_id),
@@ -421,3 +384,12 @@ async def search_stories_db(query_str, page=1, limit=10):
     except Exception as e:
         print(f"Error in search_stories_db: {e}")
         return [], 0
+
+async def get_story_by_title(title: str):
+    """टाइटल के आधार पर स्टोरी ढूँढता है (Exact Match Case-Insensitive)"""
+    clean_title = title.strip().split("\n")[0]
+    pattern = re.compile(f"^{re.escape(clean_title)}$", re.IGNORECASE)
+    return await stories_col.find_one({"title": pattern})
+
+
+#db.py
