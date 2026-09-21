@@ -19,7 +19,6 @@
             --item-bg: #f1f5f9;
             --shadow: 3px 3px 0px #000000;
             --glow: 0 0 10px rgba(234, 179, 8, 0.5);
-            --green: #10b981;
         }
 
         /* ---------------- BLACK THEME ---------------- */
@@ -34,7 +33,6 @@
             --item-bg: #1e1e1e;
             --shadow: 3px 3px 0px #333333;
             --glow: 0 0 10px rgba(255, 204, 0, 0.4);
-            --green: #10b981;
         }
 
         * {
@@ -44,7 +42,7 @@
 
         body {
             margin: 0;
-            padding: 0 0 140px 0;
+            padding: 0 0 90px 0;
             background-color: var(--bg);
             color: var(--text);
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -166,19 +164,73 @@
             will-change: transform, opacity;
         }
 
-        .hd-stack-card.pos-front { transform: translate3d(0, 0, 0) rotate(0deg) scale(1); z-index: 5; opacity: 1; filter: brightness(1); }
-        .hd-stack-card.pos-next-1 { transform: translate3d(22px, 8px, -20px) rotate(6deg) scale(0.96); z-index: 4; opacity: 0.95; filter: brightness(0.9); }
-        .hd-stack-card.pos-next-2 { transform: translate3d(40px, 16px, -40px) rotate(11deg) scale(0.92); z-index: 3; opacity: 0.85; filter: brightness(0.8); }
-        .hd-stack-card.pos-next-3 { transform: translate3d(55px, 24px, -60px) rotate(15deg) scale(0.88); z-index: 2; opacity: 0.7; filter: brightness(0.7); }
-        .hd-stack-card.pos-back-slide { transform: translate3d(-15px, 20px, -80px) rotate(-4deg) scale(0.85); z-index: 1; opacity: 0.2; }
+        .hd-stack-card.pos-front {
+            transform: translate3d(0, 0, 0) rotate(0deg) scale(1);
+            z-index: 5;
+            opacity: 1;
+            filter: brightness(1);
+        }
 
-        .splash-text-group { text-align: center; max-width: 320px; }
+        .hd-stack-card.pos-next-1 {
+            transform: translate3d(22px, 8px, -20px) rotate(6deg) scale(0.96);
+            z-index: 4;
+            opacity: 0.95;
+            filter: brightness(0.9);
+        }
+
+        .hd-stack-card.pos-next-2 {
+            transform: translate3d(40px, 16px, -40px) rotate(11deg) scale(0.92);
+            z-index: 3;
+            opacity: 0.85;
+            filter: brightness(0.8);
+        }
+
+        .hd-stack-card.pos-next-3 {
+            transform: translate3d(55px, 24px, -60px) rotate(15deg) scale(0.88);
+            z-index: 2;
+            opacity: 0.7;
+            filter: brightness(0.7);
+        }
+
+        .hd-stack-card.pos-back-slide {
+            transform: translate3d(-15px, 20px, -80px) rotate(-4deg) scale(0.85);
+            z-index: 1;
+            opacity: 0.2;
+        }
+
+        .splash-text-group {
+            text-align: center;
+            max-width: 320px;
+        }
+
         .splash-title { font-size: 21px; font-weight: 900; letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 8px; text-align: center; color: #ffffff; }
         .splash-sub { font-size: 12px; opacity: 0.7; text-align: center; line-height: 1.45; font-weight: 500; color: #d1d5db; }
         
-        .loader-spinner { width: 26px; height: 26px; position: relative; display: inline-block; margin-bottom: 10px; }
-        .loader-spinner div { transform-origin: 13px 13px; animation: loader-spinner-fade 1.2s linear infinite; }
-        .loader-spinner div:after { content: " "; display: block; position: absolute; top: 2px; left: 12px; width: 2.5px; height: 6.5px; border-radius: 20%; background: #ffffff; }
+        .loader-spinner {
+            width: 26px;
+            height: 26px;
+            position: relative;
+            display: inline-block;
+            margin-bottom: 10px;
+        }
+
+        .loader-spinner div {
+            transform-origin: 13px 13px;
+            animation: loader-spinner-fade 1.2s linear infinite;
+        }
+
+        .loader-spinner div:after {
+            content: " ";
+            display: block;
+            position: absolute;
+            top: 2px;
+            left: 12px;
+            width: 2.5px;
+            height: 6.5px;
+            border-radius: 20%;
+            background: #ffffff;
+        }
+
         .loader-spinner div:nth-child(1) { transform: rotate(0deg); animation-delay: -1.1s; }
         .loader-spinner div:nth-child(2) { transform: rotate(30deg); animation-delay: -1s; }
         .loader-spinner div:nth-child(3) { transform: rotate(60deg); animation-delay: -0.9s; }
@@ -192,7 +244,10 @@
         .loader-spinner div:nth-child(11) { transform: rotate(300deg); animation-delay: -0.1s; }
         .loader-spinner div:nth-child(12) { transform: rotate(330deg); animation-delay: 0s; }
 
-        @keyframes loader-spinner-fade { 0% { opacity: 1; } 100% { opacity: 0.15; } }
+        @keyframes loader-spinner-fade {
+            0% { opacity: 1; }
+            100% { opacity: 0.15; }
+        }
 
         /* ---------------- MAIN UI STYLES ---------------- */
         .top-bar {
@@ -247,7 +302,7 @@
 
         .story-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(145px, 1fr));
+            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
             gap: 14px;
         }
         .card {
@@ -258,27 +313,22 @@
             box-shadow: var(--shadow);
             display: flex;
             flex-direction: column;
+            cursor: pointer;
             position: relative;
-            transition: transform 0.1s ease, border-color 0.2s ease;
+            transition: transform 0.1s ease;
         }
-        
-        /* CARD TOGGLE GREEN STATE */
-        .card.in-cart {
-            border-color: var(--green) !important;
-            box-shadow: 3px 3px 0px var(--green) !important;
-        }
-
-        .card-img { width: 100%; height: 140px; object-fit: cover; border-bottom: 2px solid var(--border); }
+        .card:active { transform: translate(2px, 2px); box-shadow: 0px 0px 0px var(--border); }
+        .card-img { width: 100%; height: 145px; object-fit: cover; border-bottom: 2px solid var(--border); }
         
         .card-fav-btn {
             position: absolute;
             top: 8px; right: 8px;
-            width: 30px; height: 30px;
+            width: 32px; height: 32px;
             background: var(--box-bg);
             border: 2px solid var(--border);
             border-radius: 50%;
             display: flex; justify-content: center; align-items: center;
-            font-size: 13px;
+            font-size: 14px;
             cursor: pointer;
             z-index: 10;
             box-shadow: 2px 2px 0px var(--border);
@@ -297,62 +347,59 @@
             text-transform: uppercase;
             margin-bottom: 6px;
         }
-        body.theme-black .badge { background: #ffffff; color: #000000; }
+        body.theme-black .badge {
+            background: #ffffff;
+            color: #000000;
+        }
         .title { font-size: 13px; font-weight: 800; margin: 0 0 4px 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text); }
-        .price-tag { font-size: 14px; font-weight: 900; margin: 4px 0 8px 0; color: var(--text); }
+        .price-tag { font-size: 15px; font-weight: 900; margin: 6px 0; color: var(--text); }
         
-        /* CARD BUTTON GRID */
-        .card-actions-grid {
+        .card-btn-group {
             display: flex;
             gap: 6px;
-            margin-top: auto;
+            margin-top: 4px;
         }
 
-        .btn-info-small {
-            width: 36px;
+        .btn-action {
+            flex: 1;
             padding: 8px 0;
+            background: var(--accent);
+            color: #000000;
+            border: 2px solid var(--border);
+            border-radius: 10px;
+            font-weight: 800;
+            font-size: 11px;
+            cursor: pointer;
+            box-shadow: 2px 2px 0px var(--border);
+            text-transform: uppercase;
+        }
+        .btn-action:active { transform: translate(2px, 2px); box-shadow: 0px 0px 0px var(--border); }
+
+        .btn-cart-add {
+            width: 32px;
+            height: 32px;
             background: var(--item-bg);
             color: var(--text);
             border: 2px solid var(--border);
             border-radius: 10px;
-            font-weight: 800;
+            font-weight: 900;
             font-size: 12px;
             cursor: pointer;
             box-shadow: 2px 2px 0px var(--border);
             display: flex;
             align-items: center;
             justify-content: center;
-            flex-shrink: 0;
         }
-
-        .btn-cart-toggle {
-            flex-grow: 1;
-            padding: 8px 0;
-            background: var(--accent);
-            color: #000000;
-            border: 2px solid var(--border);
-            border-radius: 10px;
-            font-weight: 900;
-            font-size: 11px;
-            cursor: pointer;
-            box-shadow: 2px 2px 0px var(--border);
-            text-transform: uppercase;
-            letter-spacing: 0.3px;
-            transition: background 0.2s ease, color 0.2s ease;
+        .btn-cart-add.added {
+            background: #10b981;
+            color: #ffffff;
         }
-        
-        /* TOGGLE GREEN COLOR WHEN SELECTED */
-        .btn-cart-toggle.selected {
-            background: var(--green) !important;
-            color: #ffffff !important;
-        }
-
-        .btn-cart-toggle:active, .btn-info-small:active { transform: translate(1.5px, 1.5px); box-shadow: 0px 0px 0px var(--border); }
+        .btn-cart-add:active { transform: translate(2px, 2px); box-shadow: 0px 0px 0px var(--border); }
 
         .btn-view-order-card {
             width: 100%;
-            padding: 8px 0;
-            background: var(--green) !important;
+            padding: 9px 0;
+            background: #10b981 !important;
             color: #ffffff !important;
             border: 2px solid var(--border);
             border-radius: 10px;
@@ -374,82 +421,165 @@
             padding: 12px 18px;
             box-shadow: 2px 2px 0px var(--border);
             text-transform: uppercase;
-            display: flex; align-items: center; justify-content: center; gap: 6px;
-        }
-
-        /* ---------------- FLOATING CART BAR ---------------- */
-        .floating-cart-bar {
-            position: fixed;
-            bottom: 60px;
-            left: 16px; right: 16px;
-            background: #000000;
-            color: #ffffff;
-            border: 2.5px solid var(--border);
-            border-radius: 16px;
-            padding: 12px 16px;
             display: flex;
             align-items: center;
+            justify-content: center;
+            gap: 6px;
+        }
+
+        /* ---------------- CART SECTION & CARDS STYLING ---------------- */
+        .cart-summary-box {
+            background: var(--box-bg);
+            border: 2.5px solid var(--border);
+            border-radius: 16px;
+            padding: 16px;
+            margin-bottom: 16px;
+            box-shadow: var(--shadow);
+            display: flex;
             justify-content: space-between;
-            box-shadow: 4px 4px 0px var(--border);
-            z-index: 99;
-            transform: translateY(150%);
-            transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            align-items: center;
         }
-        .floating-cart-bar.active {
-            transform: translateY(0);
-        }
-        body.theme-black .floating-cart-bar {
-            background: #ffffff;
-            color: #000000;
-        }
-
-        .cart-info { display: flex; flex-direction: column; }
-        .cart-count-txt { font-size: 11px; font-weight: 800; opacity: 0.8; text-transform: uppercase; }
-        .cart-total-txt { font-size: 16px; font-weight: 900; }
-
-        .btn-checkout-cart {
-            background: var(--accent);
-            color: #000000;
-            border: 2px solid var(--border);
-            padding: 8px 16px;
-            border-radius: 10px;
+        .cart-total-num {
+            font-size: 18px;
             font-weight: 900;
-            font-size: 12px;
-            cursor: pointer;
-            box-shadow: 2px 2px 0px var(--border);
+            color: var(--text);
+        }
+
+        .purchased-card {
+            display: flex;
+            flex-direction: column;
+            background: var(--card-bg);
+            border: 2.5px solid var(--border);
+            border-radius: 16px;
+            padding: 12px;
+            margin-bottom: 14px;
+            box-shadow: var(--shadow);
+            gap: 12px;
+        }
+
+        .purchased-top-content {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            width: 100%;
+        }
+
+        .purchased-img {
+            width: 75px;
+            height: 75px;
+            border-radius: 12px;
+            object-fit: cover;
+            border: 2px solid var(--border);
+            flex-shrink: 0;
+        }
+
+        .purchased-details {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            overflow: hidden;
+        }
+
+        .purchased-title {
+            font-size: 15px;
+            font-weight: 900;
+            color: var(--text);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .purchased-meta {
+            font-size: 11px;
+            font-weight: 700;
+            opacity: 0.75;
+            color: var(--text);
+        }
+
+        .purchased-tags {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 2px;
+        }
+
+        .mini-app-badge {
+            background: #10b981;
+            color: #ffffff;
+            font-size: 9px;
+            font-weight: 900;
+            padding: 3px 7px;
+            border-radius: 5px;
             text-transform: uppercase;
         }
-        .btn-checkout-cart:active { transform: translate(1.5px, 1.5px); box-shadow: 0px 0px 0px var(--border); }
 
-        /* ---------------- PURCHASES / ORDERS ---------------- */
-        .purchased-card {
-            display: flex; flex-direction: column; background: var(--card-bg);
-            border: 2.5px solid var(--border); border-radius: 16px; padding: 12px; margin-bottom: 14px;
-            box-shadow: var(--shadow); gap: 12px;
+        .purchased-price {
+            font-size: 12px;
+            font-weight: 900;
+            color: var(--text);
         }
-        .purchased-top-content { display: flex; align-items: center; gap: 12px; width: 100%; }
-        .purchased-img { width: 75px; height: 75px; border-radius: 12px; object-fit: cover; border: 2px solid var(--border); flex-shrink: 0; }
-        .purchased-details { flex-grow: 1; display: flex; flex-direction: column; gap: 4px; overflow: hidden; }
-        .purchased-title { font-size: 15px; font-weight: 900; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .purchased-meta { font-size: 11px; font-weight: 700; opacity: 0.75; color: var(--text); }
-        .purchased-tags { display: flex; align-items: center; gap: 8px; margin-top: 2px; }
-        .mini-app-badge { background: var(--green); color: #ffffff; font-size: 9px; font-weight: 900; padding: 3px 7px; border-radius: 5px; text-transform: uppercase; }
-        .purchased-price { font-size: 12px; font-weight: 900; color: var(--text); }
-        .order-actions-grid { display: flex; gap: 8px; width: 100%; }
-        
+
+        .order-actions-grid {
+            display: flex;
+            gap: 8px;
+            width: 100%;
+        }
+
         .btn-view-order {
-            flex: 1; background: var(--accent); color: #000000; border: 2.5px solid var(--border);
-            border-radius: 12px; padding: 10px 0; font-size: 11px; font-weight: 900; cursor: pointer;
-            box-shadow: 2px 2px 0px var(--border); display: flex; align-items: center; justify-content: center; gap: 4px; text-transform: uppercase;
-        }
-        .btn-telegram-action {
-            flex: 1.2; background: var(--item-bg); color: var(--text); border: 2.5px solid var(--border);
-            border-radius: 12px; padding: 10px 0; font-size: 11px; font-weight: 900; cursor: pointer;
-            box-shadow: 2px 2px 0px var(--border); display: flex; align-items: center; justify-content: center; gap: 4px; text-transform: uppercase;
+            flex: 1;
+            background: var(--accent);
+            color: #000000;
+            border: 2.5px solid var(--border);
+            border-radius: 12px;
+            padding: 10px 0;
+            font-size: 11px;
+            font-weight: 900;
+            cursor: pointer;
+            box-shadow: 2px 2px 0px var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-transform: uppercase;
         }
 
-        /* ---------------- RGB GLOW ---------------- */
-        .rgb-glow-text { font-weight: 900; text-transform: uppercase; letter-spacing: 1px; animation: slowRgbGlow 8s infinite linear; }
+        .btn-telegram-action {
+            flex: 1.2;
+            background: var(--item-bg);
+            color: var(--text);
+            border: 2.5px solid var(--border);
+            border-radius: 12px;
+            padding: 10px 0;
+            font-size: 11px;
+            font-weight: 900;
+            cursor: pointer;
+            box-shadow: 2px 2px 0px var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-transform: uppercase;
+        }
+
+        .btn-remove-cart {
+            background: #ef4444;
+            color: #ffffff;
+            border: 2px solid var(--border);
+            border-radius: 10px;
+            padding: 8px 12px;
+            font-size: 11px;
+            font-weight: 900;
+            cursor: pointer;
+            box-shadow: 2px 2px 0px var(--border);
+        }
+
+        /* ---------------- RGB GLOW ANIMATION ---------------- */
+        .rgb-glow-text {
+            font-weight: 900;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            animation: slowRgbGlow 8s infinite linear;
+        }
+
         @keyframes slowRgbGlow {
             0% { color: #ff0055; text-shadow: 0 0 8px rgba(255, 0, 85, 0.6); }
             25% { color: #00e5ff; text-shadow: 0 0 8px rgba(0, 229, 255, 0.6); }
@@ -458,18 +588,32 @@
             100% { color: #ff0055; text-shadow: 0 0 8px rgba(255, 0, 85, 0.6); }
         }
 
-        /* ---------------- PM DIALOG ---------------- */
+        /* ---------------- PM CUSTOM DIALOG ---------------- */
         .pm-dialog-overlay {
-            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
-            background: rgba(0, 0, 0, 0.75); backdrop-filter: blur(4px); z-index: 10000;
-            display: flex; align-items: center; justify-content: center; padding: 20px;
-            opacity: 0; visibility: hidden; transition: opacity 0.25s ease, visibility 0.25s ease;
+            position: fixed;
+            top: 0; left: 0; width: 100vw; height: 100vh;
+            background: rgba(0, 0, 0, 0.75);
+            backdrop-filter: blur(4px);
+            z-index: 10000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.25s ease, visibility 0.25s ease;
         }
         .pm-dialog-overlay.active { opacity: 1; visibility: visible; }
         .pm-dialog-box {
-            background: var(--box-bg); border: 3px solid var(--border); border-radius: 20px;
-            padding: 24px 20px 20px; width: 100%; max-width: 310px; text-align: center;
-            box-shadow: 5px 5px 0px var(--border); transform: scale(0.9);
+            background: var(--box-bg);
+            border: 3px solid var(--border);
+            border-radius: 20px;
+            padding: 24px 20px 20px;
+            width: 100%;
+            max-width: 310px;
+            text-align: center;
+            box-shadow: 5px 5px 0px var(--border);
+            transform: scale(0.9);
             transition: transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
         }
         .pm-dialog-overlay.active .pm-dialog-box { transform: scale(1); }
@@ -477,15 +621,29 @@
         .pm-dialog-title { font-size: 17px; font-weight: 900; color: var(--text); margin-bottom: 8px; text-transform: uppercase; }
         .pm-dialog-desc { font-size: 13px; font-weight: 600; color: var(--text); opacity: 0.85; line-height: 1.45; margin-bottom: 20px; }
         .pm-btn-ok {
-            width: 100%; background: var(--accent); color: #000000; border: 2.5px solid var(--border);
-            border-radius: 12px; padding: 12px 0; font-size: 13px; font-weight: 900; cursor: pointer;
-            box-shadow: 3px 3px 0px var(--border); text-transform: uppercase;
+            width: 100%;
+            background: var(--accent);
+            color: #000000;
+            border: 2.5px solid var(--border);
+            border-radius: 12px;
+            padding: 12px 0;
+            font-size: 13px;
+            font-weight: 900;
+            cursor: pointer;
+            box-shadow: 3px 3px 0px var(--border);
+            text-transform: uppercase;
         }
 
-        /* ---------------- MODAL DETAIL ---------------- */
+        /* ---------------- STORY DETAIL MODAL ---------------- */
         .modal-overlay {
-            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: var(--bg);
-            z-index: 1000; display: flex; flex-direction: column; opacity: 0; visibility: hidden;
+            position: fixed;
+            top: 0; left: 0; width: 100vw; height: 100vh;
+            background: var(--bg);
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+            opacity: 0;
+            visibility: hidden;
             transition: opacity 0.3s ease, visibility 0.3s ease;
         }
         .modal-overlay.active { opacity: 1; visibility: visible; }
@@ -496,7 +654,8 @@
             position: absolute; top: 16px; right: 16px; width: 36px; height: 36px;
             background: var(--box-bg); color: var(--text); border: 2.5px solid var(--border);
             border-radius: 50%; font-weight: 900; font-size: 16px; display: flex;
-            justify-content: center; align-items: center; cursor: pointer; box-shadow: var(--shadow); z-index: 10;
+            justify-content: center; align-items: center; cursor: pointer;
+            box-shadow: var(--shadow); z-index: 10;
         }
         .modal-poster-wrapper { position: absolute; bottom: 16px; left: 16px; z-index: 5; }
         .modal-poster-img { width: 105px; height: 140px; object-fit: cover; border-radius: 14px; border: 2.5px solid var(--border); box-shadow: var(--shadow); background: var(--box-bg); }
@@ -506,7 +665,7 @@
         
         .modal-info-cards { display: flex; gap: 10px; justify-content: space-between; margin-top: 4px; margin-bottom: 4px; }
         .info-card { background: var(--box-bg); border: 2.5px solid var(--border); border-radius: 12px; padding: 10px 4px; flex: 1; box-shadow: var(--shadow); display: flex; flex-direction: column; align-items: center; text-align: center; }
-        .info-label { font-size: 9px; font-weight: 800; color: #555; text-transform: uppercase; margin-bottom: 4px; letter-spacing: 0.5px; }
+        .info-label { font-size: 9px; font-weight: 800; color: #555; text-transform: uppercase; margin-bottom: 4px; }
         .info-val { font-size: 13px; font-weight: 900; color: var(--text); }
         body.theme-black .info-label { color: #aaa; }
 
@@ -514,7 +673,17 @@
         .modal-bottom-bar { position: absolute; bottom: 0; left: 0; right: 0; background: var(--box-bg); border-top: 2.5px solid var(--border); padding: 14px 16px; display: flex; align-items: center; justify-content: space-between; gap: 10px; z-index: 20; }
         .modal-price { font-size: 22px; font-weight: 900; color: var(--text); }
 
-        .profile-card { background: var(--box-bg); border: 2.5px solid var(--border); border-radius: 20px; padding: 16px; box-shadow: var(--shadow); display: flex; align-items: center; gap: 14px; margin-bottom: 16px; }
+        .profile-card {
+            background: var(--box-bg);
+            border: 2.5px solid var(--border);
+            border-radius: 20px;
+            padding: 16px;
+            box-shadow: var(--shadow);
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            margin-bottom: 16px;
+        }
         .avatar { width: 62px; height: 62px; border-radius: 16px; border: 2.5px solid var(--border); object-fit: cover; }
         .id-badge { display: inline-block; background: var(--accent); color: #000000; border: 1.5px solid var(--border); padding: 3px 10px; border-radius: 10px; font-size: 11px; font-weight: 800; margin-top: 4px; }
 
@@ -532,13 +701,15 @@
 
         .theme-grid { display: flex; gap: 10px; margin-top: 8px; }
         .theme-btn {
-            flex: 1; padding: 12px; border: 2.5px solid var(--border); border-radius: 12px; font-size: 12px; font-weight: 900;
-            cursor: pointer; text-align: center; box-shadow: 3px 3px 0px var(--border); transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            flex: 1; padding: 12px; border: 2.5px solid var(--border); border-radius: 12px;
+            font-size: 12px; font-weight: 900; cursor: pointer; text-align: center; box-shadow: 3px 3px 0px var(--border);
+            transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
         }
         .theme-btn:active { transform: scale(0.92) translate(2px, 2px); box-shadow: 0px 0px 0px var(--border); }
 
         .bottom-nav {
-            position: fixed; bottom: 0; left: 0; width: 100%; background: var(--box-bg); border-top: 2.5px solid var(--border);
+            position: fixed; bottom: 0; left: 0; width: 100%;
+            background: var(--box-bg); border-top: 2.5px solid var(--border);
             display: flex; justify-content: space-around; padding: 8px 0; z-index: 100;
         }
         .nav-link { display: flex; flex-direction: column; align-items: center; font-size: 9px; font-weight: 900; color: var(--text); text-decoration: none; opacity: 0.6; cursor: pointer; }
@@ -576,7 +747,7 @@
     <div class="top-bar">
         <div class="brand-logo">AC PREMIUM</div>
         <div class="header-chips">
-            <span class="chip">🎧 AUDIO</span>
+            <span class="chip" onclick="switchTab('cart')">🛒 <span id="cartChipCount">0</span></span>
             <span class="chip chip-yellow" onclick="switchTab('orders')">🔑 <span id="unlockedCount">0</span> UNLOCKED</span>
         </div>
     </div>
@@ -606,7 +777,24 @@
             <div class="story-grid" id="exploreGrid"></div>
         </div>
 
-        <!-- TAB 3: ORDERS -->
+        <!-- TAB 3: CART (NEW) -->
+        <div id="tab-cart" class="tab-content">
+            <div class="cart-summary-box">
+                <div>
+                    <div style="font-size: 11px; font-weight: 800; opacity: 0.7;">TOTAL ITEMS: <span id="cartItemsCount">0</span></div>
+                    <div class="cart-total-num" id="cartTotalPrice">₹0</div>
+                </div>
+                <button class="btn-action" style="padding: 10px 16px;" onclick="checkoutCart()">CHECKOUT ALL 🛒</button>
+            </div>
+            <div class="section-box">
+                <div class="section-title">Your Cart Items 🛒</div>
+                <div id="cartListContainer">
+                    <p style="font-size:12px; font-weight:700;">Your cart is empty!</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 4: ORDERS -->
         <div id="tab-orders" class="tab-content">
             <div class="section-box">
                 <div class="section-title">Unlocked Library 📚</div>
@@ -616,7 +804,7 @@
             </div>
         </div>
 
-        <!-- TAB 4: PROFILE -->
+        <!-- TAB 5: PROFILE -->
         <div id="tab-profile" class="tab-content">
             <div class="profile-card">
                 <img id="uPhoto" src="https://picsum.photos/100" class="avatar" alt="Avatar">
@@ -669,15 +857,6 @@
                 <span class="rgb-glow-text" style="font-size: 10px;">POWERED BY GW KALU 2026 ALL RIGHT RESERVED</span>
             </div>
         </div>
-    </div>
-
-    <!-- FLOATING CART BAR FOR MULTI-SELECTION CHECKOUT -->
-    <div class="floating-cart-bar" id="floatingCart">
-        <div class="cart-info">
-            <span class="cart-count-txt" id="cartCountTxt">0 STORIES SELECTED</span>
-            <span class="cart-total-txt" id="cartTotalTxt">Total: ₹0</span>
-        </div>
-        <button class="btn-checkout-cart" onclick="checkoutCart()">CHECKOUT 🛒</button>
     </div>
 
     <!-- CHECK IN PM CUSTOM DIALOG -->
@@ -738,7 +917,8 @@
                 </div>
                 <div style="display: flex; gap: 8px;">
                     <button class="btn-demo" id="mDemoBtn" style="display: none;">▶ DEMO</button>
-                    <button class="btn-action" id="mBuyBtn" style="width: auto; padding: 12px 20px;">BUY & UNLOCK</button>
+                    <button class="btn-action" id="mBuyBtn" style="width: auto; padding: 12px 16px;">BUY & UNLOCK</button>
+                    <button class="btn-cart-add" id="mModalCartBtn" onclick="toggleCartModal()" style="width: 42px; height: 42px;">🛒</button>
                 </div>
             </div>
         </div>
@@ -751,6 +931,9 @@
         </div>
         <div class="nav-link" onclick="switchTab('explore')">
             <span class="nav-icon">🧩</span>EXPLORE
+        </div>
+        <div class="nav-link" onclick="switchTab('cart')">
+            <span class="nav-icon">🛒</span>CART
         </div>
         <div class="nav-link" onclick="switchTab('orders')">
             <span class="nav-icon">🔒</span>ORDERS
@@ -766,7 +949,7 @@
 
         let stories = [];
         let userPurchases = [];
-        let cartItems = []; // Multi-Cart Selected Stories Array
+        let currentModalStoryKey = null;
         let splashInterval = null;
 
         function triggerHaptic(type = 'light') {
@@ -781,73 +964,11 @@
             } catch(e) { console.error("Haptic error:", e); }
         }
 
-        /* --- HELPER FUNCTION FOR FETCHING ORIGINAL IMAGES --- */
         function getOriginalPhoto(item) {
             if (!item) return 'https://picsum.photos/200';
             return item.photo || item.cover_image_url || item.image || item.poster || 'https://picsum.photos/200';
         }
 
-        /* --- CART MANAGEMENT SYSTEM --- */
-        function toggleCartItem(event, storyKeyRaw) {
-            if (event) event.stopPropagation();
-            triggerHaptic('medium');
-
-            const storyKey = decodeURIComponent(storyKeyRaw);
-            const story = stories.find(s => String(s.id) === String(storyKey) || String(s.title) === String(storyKey));
-            
-            if (!story) return;
-
-            const existingIdx = cartItems.findIndex(item => String(item.id || item.title) === String(story.id || story.title));
-
-            if (existingIdx > -1) {
-                cartItems.splice(existingIdx, 1);
-            } else {
-                cartItems.push(story);
-            }
-
-            updateCartUI();
-            renderGrid(stories, 'homeGrid');
-            renderGrid(stories, 'exploreGrid');
-        }
-
-        function updateCartUI() {
-            const bar = document.getElementById('floatingCart');
-            const countTxt = document.getElementById('cartCountTxt');
-            const totalTxt = document.getElementById('cartTotalTxt');
-
-            if (cartItems.length > 0) {
-                let total = cartItems.reduce((sum, item) => sum + (parseFloat(item.price) || 0), 0);
-                countTxt.innerText = `${cartItems.length} STORY${cartItems.length > 1 ? 'S' : ''} SELECTED`;
-                totalTxt.innerText = `Total: ₹${total}`;
-                bar.classList.add('active');
-            } else {
-                bar.classList.remove('active');
-            }
-        }
-
-        function checkoutCart() {
-            triggerHaptic('success');
-            if (cartItems.length === 0) return;
-
-            let titlesList = cartItems.map(item => item.title);
-            let totalPrice = cartItems.reduce((sum, item) => sum + (parseFloat(item.price) || 0), 0);
-
-            // WebApp Data directly Bot ko bhejna
-            if (tg && tg.sendData) {
-                tg.sendData(JSON.stringify({
-                    action: "cart_checkout",
-                    stories: titlesList,
-                    total_price: totalPrice
-                }));
-                tg.close();
-            } else {
-                let encodedTitles = titlesList.map(t => t.replace(/\s+/g, "_")).join("__");
-                let deepLink = `https://t.me/${BOT_USERNAME}?start=cart_${encodedTitles}`;
-                window.location.href = deepLink;
-            }
-        }
-
-        /* --- ANIMATED THEME SWITCHING SYSTEM --- */
         function applySavedTheme() {
             const savedTheme = localStorage.getItem('user_theme') || 'white';
             document.body.className = '';
@@ -858,12 +979,120 @@
 
         function changeTheme(themeName, btnElement) {
             triggerHaptic('medium');
-            if (btnElement) {
-                btnElement.classList.add('animating');
-                setTimeout(() => { btnElement.classList.remove('animating'); }, 350);
-            }
             localStorage.setItem('user_theme', themeName);
             applySavedTheme();
+        }
+
+        /* --- CART MANAGEMENT SYSTEM --- */
+        function getCart() {
+            try {
+                return JSON.parse(localStorage.getItem('user_cart')) || [];
+            } catch(e) { return []; }
+        }
+
+        function toggleCart(e, storyId) {
+            if(e) e.stopPropagation();
+            triggerHaptic('medium');
+
+            let cart = getCart();
+            const strId = String(storyId);
+            const index = cart.indexOf(strId);
+
+            if (index > -1) {
+                cart.splice(index, 1);
+            } else {
+                cart.push(strId);
+            }
+
+            localStorage.setItem('user_cart', JSON.stringify(cart));
+            renderGrid(stories, 'homeGrid');
+            renderGrid(stories, 'exploreGrid');
+            renderCartList();
+            updateCartBadge();
+        }
+
+        function toggleCartModal() {
+            if (!currentModalStoryKey) return;
+            toggleCart(null, currentModalStoryKey);
+            
+            // Update modal cart button UI style
+            const cart = getCart();
+            const isAdded = cart.includes(String(currentModalStoryKey));
+            const modalBtn = document.getElementById('mModalCartBtn');
+            if (modalBtn) {
+                modalBtn.classList.toggle('added', isAdded);
+                modalBtn.innerText = isAdded ? '✓' : '🛒';
+            }
+        }
+
+        function updateCartBadge() {
+            const cart = getCart();
+            const chipCount = document.getElementById('cartChipCount');
+            if (chipCount) chipCount.innerText = cart.length;
+        }
+
+        function renderCartList() {
+            const container = document.getElementById('cartListContainer');
+            const itemsCountElem = document.getElementById('cartItemsCount');
+            const totalPriceElem = document.getElementById('cartTotalPrice');
+            if (!container) return;
+
+            const cartIds = getCart();
+            const cartStories = stories.filter(s => cartIds.includes(String(s.id)) || cartIds.includes(String(s.title)));
+
+            if (itemsCountElem) itemsCountElem.innerText = cartStories.length;
+
+            let totalPrice = 0;
+            cartStories.forEach(s => {
+                const p = parseFloat(s.price);
+                if (!isNaN(p)) totalPrice += p;
+            });
+            if (totalPriceElem) totalPriceElem.innerText = `₹${totalPrice}`;
+
+            if (cartStories.length === 0) {
+                container.innerHTML = '<p style="font-size:12px; font-weight:700;">Your cart is empty!</p>';
+                return;
+            }
+
+            container.innerHTML = cartStories.map(s => {
+                const sKey = s.id !== undefined ? s.id : s.title;
+                const photo = getOriginalPhoto(s);
+                const price = s.price == 0 ? 'FREE' : `₹${s.price}`;
+                return `
+                <div class="purchased-card">
+                    <div class="purchased-top-content">
+                        <img src="${photo}" class="purchased-img" alt="${s.title}">
+                        <div class="purchased-details">
+                            <div class="purchased-title">${s.title}</div>
+                            <div class="purchased-meta">${s.platform || 'AUDIO'}</div>
+                            <div class="purchased-tags">
+                                <span class="mini-app-badge">IN CART</span>
+                                <span class="purchased-price">${price}</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="order-actions-grid">
+                        <button class="btn-view-order" onclick="openStoryModal('${encodeURIComponent(sKey)}')">VIEW</button>
+                        <button class="btn-remove-cart" onclick="toggleCart(event, '${encodeURIComponent(sKey)}')">REMOVE</button>
+                    </div>
+                </div>
+            `}).join('');
+        }
+
+        function checkoutCart() {
+            triggerHaptic('success');
+            const cart = getCart();
+            if (cart.length === 0) {
+                alert("Your cart is empty!");
+                return;
+            }
+            const deepLink = `https://t.me/${BOT_USERNAME}?start=cart_checkout`;
+            if (tg && tg.openTelegramLink) {
+                tg.openTelegramLink(deepLink);
+                tg.close();
+            } else {
+                window.location.href = deepLink;
+            }
         }
 
         /* --- WISHLIST SYSTEM --- */
@@ -874,14 +1103,11 @@
         function toggleWishlist(e, storyId) {
             if(e) e.stopPropagation();
             triggerHaptic('medium');
-
             let wishlist = getWishlist();
             const strId = String(storyId);
             const index = wishlist.indexOf(strId);
-
             if (index > -1) wishlist.splice(index, 1);
             else wishlist.push(strId);
-
             localStorage.setItem('user_wishlist', JSON.stringify(wishlist));
             renderGrid(stories, 'homeGrid');
             renderGrid(stories, 'exploreGrid');
@@ -891,7 +1117,6 @@
         function renderWishlist() {
             const container = document.getElementById('wishlistContainer');
             if (!container) return;
-
             const wishlistIds = getWishlist();
             const favStories = stories.filter(s => wishlistIds.includes(String(s.id)) || wishlistIds.includes(String(s.title)));
 
@@ -918,10 +1143,8 @@
             const splash = document.getElementById('splash-screen');
             if(splash) splash.classList.add('hidden');
             if(splashInterval) clearInterval(splashInterval);
-
             const loader = document.getElementById('redirect-loader');
             const counter = document.getElementById('counterNum');
-            
             loader.classList.add('active');
 
             let current = 0;
@@ -938,23 +1161,20 @@
                 } else {
                     counter.innerText = `${current}%`;
                 }
-            }, 25); 
+            }, 25);
         }
 
-        /* --- ROUTING CHECK FOR TELEGRAM DEEP LINKS --- */
         function checkUrlParamRouting() {
             let targetParam = null;
-
             if (tg.initDataUnsafe && tg.initDataUnsafe.start_param) {
                 targetParam = tg.initDataUnsafe.start_param;
             } else {
                 const urlParams = new URLSearchParams(window.location.search);
-                targetParam = urlParams.get('startapp') || urlParams.get('story') || urlParams.get('start') || urlParams.get('tgWebAppStartParam');
+                targetParam = urlParams.get('startapp') || urlParams.get('story') || urlParams.get('start');
             }
 
             if (targetParam) {
                 const cleanParam = targetParam.replace(/^story_/, '').toLowerCase().trim();
-                
                 const foundStory = stories.find(s => {
                     const idMatch = s.id && String(s.id).toLowerCase().trim() === cleanParam;
                     const titleMatch = s.title && s.title.toLowerCase().replace(/\s+/g, '_').trim() === cleanParam;
@@ -962,10 +1182,7 @@
                 });
 
                 if (foundStory) {
-                    const originalPhoto = getOriginalPhoto(foundStory);
-                    if (originalPhoto) {
-                        document.getElementById('loaderAnimeImg').src = originalPhoto;
-                    }
+                    document.getElementById('loaderAnimeImg').src = getOriginalPhoto(foundStory);
                     runDirectRedirectAnimation(() => {
                         openStoryModal(foundStory.id !== undefined ? foundStory.id : foundStory.title);
                     });
@@ -975,12 +1192,10 @@
             return false;
         }
 
-        /* --- HD STACK CAROUSEL ROTATION --- */
         function setupSplashScreen(list) {
             const wrapper = document.getElementById('cardsWrapper');
             if(!wrapper) return;
             wrapper.innerHTML = '';
-            
             const shuffled = [...list].sort(() => 0.5 - Math.random());
             const picked = shuffled.slice(0, 5);
             
@@ -988,7 +1203,6 @@
                 const img = document.createElement('img');
                 img.src = getOriginalPhoto(story);
                 img.className = 'hd-stack-card';
-                img.alt = "Splash HD Poster";
                 wrapper.appendChild(img);
             });
 
@@ -1000,7 +1214,6 @@
                 cards.forEach((card, index) => {
                     card.className = 'hd-stack-card';
                     const offset = (index - activeIdx + total) % total;
-
                     if (offset === 0) card.classList.add('pos-front');
                     else if (offset === 1) card.classList.add('pos-next-1');
                     else if (offset === 2) card.classList.add('pos-next-2');
@@ -1012,7 +1225,6 @@
 
             rotateStack();
             splashInterval = setInterval(rotateStack, 1100);
-            
             setTimeout(() => {
                 const splash = document.getElementById('splash-screen');
                 if(splash) splash.classList.add('hidden');
@@ -1028,23 +1240,20 @@
                 renderGrid(stories, 'homeGrid');
                 renderGrid(stories, 'exploreGrid');
                 renderWishlist();
+                renderCartList();
+                updateCartBadge();
                 
                 if (document.getElementById('pTotal')) {
                     document.getElementById('pTotal').innerText = stories.length;
                 }
 
-                const isDeepLinked = checkUrlParamRouting();
-                if (!isDeepLinked) {
+                if (!checkUrlParamRouting()) {
                     if (stories.length > 0) setupSplashScreen(stories);
-                    else {
-                        const splash = document.getElementById('splash-screen');
-                        if(splash) splash.classList.add('hidden');
-                    }
+                    else document.getElementById('splash-screen').classList.add('hidden');
                 }
             } catch(e) {
-                console.error("Failed to fetch stories:", e);
-                const splash = document.getElementById('splash-screen');
-                if(splash) splash.classList.add('hidden');
+                console.error(e);
+                document.getElementById('splash-screen').classList.add('hidden');
             }
         }
 
@@ -1052,19 +1261,15 @@
             try {
                 const res = await fetch(`/api/user_purchases?user_id=${userId}`);
                 userPurchases = await res.json();
-                
                 renderGrid(stories, 'homeGrid');
                 renderGrid(stories, 'exploreGrid');
                 renderUnlockedList();
             } catch(e) { console.error(e); }
         }
 
-        /* --- ORDERS LIST FUNCTION --- */
         function renderUnlockedList() {
             document.getElementById('unlockedCount').innerText = userPurchases.length;
-            if (document.getElementById('pUnlocked')) {
-                document.getElementById('pUnlocked').innerText = userPurchases.length;
-            }
+            if (document.getElementById('pUnlocked')) document.getElementById('pUnlocked').innerText = userPurchases.length;
             
             const box = document.getElementById('unlockedList');
             if(!box) return;
@@ -1076,152 +1281,111 @@
             
             box.innerHTML = userPurchases.map(p => {
                 const title = p.story_title || p.title || 'Untitled Story';
-                const cleanTitle = title.replace(/\s+/g, '_');
-                const deliveryLink = p.link || `https://t.me/${BOT_USERNAME}?start=get_${cleanTitle}`;
-                
-                let matchedStory = stories.find(s => String(s.title).toLowerCase().trim() === String(title).toLowerCase().trim() || String(s.id) === String(p.story_id));
+                const deliveryLink = p.link || `https://t.me/${BOT_USERNAME}?start=get_${title.replace(/\s+/g, '_')}`;
+                let matchedStory = stories.find(s => String(s.title).toLowerCase() === String(title).toLowerCase());
                 const photo = matchedStory ? getOriginalPhoto(matchedStory) : getOriginalPhoto(p);
                 const sKey = matchedStory ? (matchedStory.id !== undefined ? matchedStory.id : matchedStory.title) : title;
-
-                const platform = p.platform || (matchedStory ? matchedStory.platform : 'Audio Series');
-                const price = (p.price !== undefined && p.price !== null && p.price !== '') ? `₹${p.price}` : (matchedStory ? `₹${matchedStory.price}` : 'FREE');
 
                 return `
                 <div class="purchased-card">
                     <div class="purchased-top-content">
-                        <img src="${photo}" class="purchased-img" alt="${title}" onerror="this.src='https://picsum.photos/200'">
+                        <img src="${photo}" class="purchased-img" alt="${title}">
                         <div class="purchased-details">
                             <div class="purchased-title">${title}</div>
-                            <div class="purchased-meta">${platform}</div>
+                            <div class="purchased-meta">${p.platform || 'Audio Series'}</div>
                             <div class="purchased-tags">
                                 <span class="mini-app-badge">UNLOCKED</span>
-                                <span class="purchased-price">${price}</span>
+                                <span class="purchased-price">₹${p.price || 0}</span>
                             </div>
                         </div>
                     </div>
                     <div class="order-actions-grid">
-                        <button class="btn-view-order" onclick="openStoryModal('${encodeURIComponent(sKey)}')">
-                            📖 VIEW DETAILS
-                        </button>
-                        <button class="btn-telegram-action" onclick="openStoryLink('${deliveryLink}')">
-                            GET ON TELEGRAM ✈️
-                        </button>
+                        <button class="btn-view-order" onclick="openStoryModal('${encodeURIComponent(sKey)}')">📖 VIEW DETAILS</button>
+                        <button class="btn-telegram-action" onclick="openStoryLink('${deliveryLink}')">GET ON TELEGRAM ✈️</button>
                     </div>
                 </div>
             `}).join('');
         }
 
-        /* --- UPDATED RENDER GRID: CARD BUTTON & GREEN TOGGLE EFFECT --- */
         function renderGrid(list, target) {
             const el = document.getElementById(target);
             if(!el) return;
             if(list.length === 0) {
-                el.innerHTML = '<p style="font-size:12px; font-weight:800; grid-column:1/-1; text-align:center; padding: 20px 0;">No audio packs found.</p>';
+                el.innerHTML = '<p style="font-size:12px; font-weight:800; grid-column:1/-1; text-align:center;">No audio packs found.</p>';
                 return;
             }
 
             const wishlist = getWishlist();
+            const cart = getCart();
 
             el.innerHTML = list.map((s) => {
                 const sKey = s.id !== undefined ? s.id : s.title;
                 const isFav = wishlist.includes(String(sKey));
+                const isInCart = cart.includes(String(sKey));
                 const originalPhoto = getOriginalPhoto(s);
 
-                // Check if user already unlocked/purchased this story
-                const isPurchased = userPurchases.some(p => (
-                    String(p.story_title || p.title).toLowerCase().trim() === String(s.title).toLowerCase().trim() || 
-                    String(p.story_id) === String(s.id)
-                ));
+                const isPurchased = userPurchases.some(p => String(p.story_title || p.title).toLowerCase() === String(s.title).toLowerCase());
 
-                // Check if story is selected in Cart
-                const isInCart = cartItems.some(item => String(item.id || item.title) === String(sKey));
-
-                let actionButtonsHtml = "";
-
-                if (isPurchased) {
-                    actionButtonsHtml = `<button class="btn-view-order-card" onclick="event.stopPropagation(); goToOrdersTab()">📖 VIEW ORDER</button>`;
-                } else {
-                    actionButtonsHtml = `
-                        <div class="card-actions-grid">
-                            <button class="btn-info-small" title="View Details" onclick="event.stopPropagation(); openStoryModal('${encodeURIComponent(sKey)}')">ℹ️</button>
-                            <button class="btn-cart-toggle ${isInCart ? 'selected' : ''}" onclick="toggleCartItem(event, '${encodeURIComponent(sKey)}')">
-                                ${isInCart ? 'SELECTED ✅' : '🛒 CART'}
-                            </button>
-                        </div>
-                    `;
-                }
+                const actionBtnHtml = isPurchased 
+                    ? `<button class="btn-view-order-card" onclick="event.stopPropagation(); switchTab('orders')">📖 VIEW ORDER</button>`
+                    : `<div class="card-btn-group">
+                           <button class="btn-action" onclick="event.stopPropagation(); openStoryModal('${encodeURIComponent(sKey)}')">${s.price == 0 ? 'CLAIM' : 'BUY'}</button>
+                           <button class="btn-cart-add ${isInCart ? 'added' : ''}" onclick="toggleCart(event, '${encodeURIComponent(sKey)}')">${isInCart ? '✓' : '🛒'}</button>
+                       </div>`;
 
                 return `
-                <div class="card ${isInCart ? 'in-cart' : ''}" onclick="toggleCartItem(event, '${encodeURIComponent(sKey)}')">
-                    <div class="card-fav-btn" onclick="toggleWishlist(event, '${encodeURIComponent(sKey)}')">
-                        ${isFav ? '❤️' : '🤍'}
-                    </div>
-                    <img src="${originalPhoto}" class="card-img" alt="${s.title}" onerror="this.src='https://picsum.photos/200'">
+                <div class="card" onclick="openStoryModal('${encodeURIComponent(sKey)}')">
+                    <div class="card-fav-btn" onclick="toggleWishlist(event, '${encodeURIComponent(sKey)}')">${isFav ? '❤️' : '🤍'}</div>
+                    <img src="${originalPhoto}" class="card-img" alt="${s.title}">
                     <div class="card-body">
                         <span class="badge">${s.platform || 'AUDIO'}</span>
                         <h4 class="title">${s.title}</h4>
                         <div class="price-tag">${isPurchased ? 'UNLOCKED' : (s.price == 0 ? 'FREE' : '₹' + s.price)}</div>
-                        ${actionButtonsHtml}
+                        ${actionBtnHtml}
                     </div>
                 </div>
             `}).join('');
-        }
-
-        function goToOrdersTab() {
-            triggerHaptic('light');
-            switchTab('orders');
         }
 
         function openStoryModal(storyKeyRaw) {
             triggerHaptic('light');
             const storyKey = decodeURIComponent(storyKeyRaw);
-            let story = stories.find(s => String(s.id) === String(storyKey) || String(s.title) === String(storyKey));
+            currentModalStoryKey = storyKey;
             
-            if (!story) {
-                story = { title: storyKey, platform: 'Audio Series', price: 'Unlocked', description: 'Unlocked Series in your library.' };
-            }
+            let story = stories.find(s => String(s.id) === String(storyKey) || String(s.title) === String(storyKey));
+            if (!story) story = { title: storyKey, platform: 'Audio Series', price: 'Unlocked' };
 
             const photoUrl = getOriginalPhoto(story);
             document.getElementById('mBgImg').src = photoUrl;
             document.getElementById('mPosterImg').src = photoUrl;
             document.getElementById('mTitle').innerText = story.title;
-            
             document.getElementById('mInfoPlatform').innerText = story.platform || 'Pocket FM';
             document.getElementById('mInfoEps').innerText = story.episodes || '30';
             document.getElementById('mInfoFiles').innerText = story.total_files || '24 files';
-            
-            const priceText = story.price == 0 ? 'FREE' : (typeof story.price === 'number' ? `₹${story.price}` : story.price);
-            document.getElementById('mPrice').innerText = priceText;
+            document.getElementById('mPrice').innerText = story.price == 0 ? 'FREE' : `₹${story.price}`;
             document.getElementById('mAccessType').innerText = story.price == 0 ? '🎁 FREE ACCESS' : '💎 PAID SHOW';
-            document.getElementById('mDesc').innerText = story.description || story.desc || 'Complete audio series package with high quality audio episodes. Instant access after unlocking.';
+            document.getElementById('mDesc').innerText = story.description || 'Complete audio series package with high quality audio episodes.';
 
-            const buyBtn = document.getElementById('mBuyBtn');
-            const isPurchased = userPurchases.some(p => (
-                String(p.story_title || p.title).toLowerCase().trim() === String(story.title).toLowerCase().trim() || 
-                String(p.story_id) === String(story.id)
-            ));
-
-            if (isPurchased) {
-                buyBtn.innerText = 'OPEN IN TELEGRAM';
-                const cleanTitle = encodeURIComponent(story.title.replace(/\s+/g, "_"));
-                const deliveryLink = story.link || `https://t.me/${BOT_USERNAME}?start=get_${cleanTitle}`;
-                buyBtn.onclick = function() { openStoryLink(deliveryLink); };
-            } else if (story.price == 0) {
-                buyBtn.innerText = 'CLAIM NOW (FREE)';
-                buyBtn.onclick = function() { claimFreeStory(story); };
-            } else {
-                buyBtn.innerText = 'BUY & UNLOCK';
-                buyBtn.onclick = function() { buyStory(story.title, story.price); };
+            const cart = getCart();
+            const isInCart = cart.includes(String(storyKey));
+            const modalCartBtn = document.getElementById('mModalCartBtn');
+            if (modalCartBtn) {
+                modalCartBtn.classList.toggle('added', isInCart);
+                modalCartBtn.innerText = isInCart ? '✓' : '🛒';
             }
 
-            const demoBtn = document.getElementById('mDemoBtn');
-            const hasDemoAvailable = story.has_demo || story.demo_enabled || (story.demo_msg_ids && story.demo_msg_ids.length > 0);
-            
-            if (hasDemoAvailable) {
-                demoBtn.style.display = 'inline-flex';
-                demoBtn.onclick = function() { playDemo(story); };
+            const buyBtn = document.getElementById('mBuyBtn');
+            const isPurchased = userPurchases.some(p => String(p.story_title || p.title).toLowerCase() === String(story.title).toLowerCase());
+
+            if (isPurchased) {
+                buyBtn.innerText = 'OPEN TELEGRAM';
+                buyBtn.onclick = () => openStoryLink(story.link || `https://t.me/${BOT_USERNAME}?start=get_${story.title.replace(/\s+/g, '_')}`);
+            } else if (story.price == 0) {
+                buyBtn.innerText = 'CLAIM FREE';
+                buyBtn.onclick = () => claimFreeStory(story);
             } else {
-                demoBtn.style.display = 'none';
+                buyBtn.innerText = 'BUY & UNLOCK';
+                buyBtn.onclick = () => buyStory(story.title, story.price);
             }
 
             document.getElementById('storyModal').classList.add('active');
@@ -1232,109 +1396,52 @@
             document.getElementById('storyModal').classList.remove('active');
         }
 
-        function playDemo(story) {
-            triggerHaptic('medium');
-            const cleanTitle = encodeURIComponent(story.title.replace(/\s+/g, "_"));
-            const demoLink = story.demo_link || `https://t.me/${BOT_USERNAME}?start=demo_${cleanTitle}`;
-
-            if (tg && tg.openTelegramLink) {
-                tg.openTelegramLink(demoLink);
-                tg.close();
-            } else {
-                window.location.href = demoLink;
-            }
-        }
-
         function claimFreeStory(story) {
             triggerHaptic('success');
-            
-            const alreadyUnlocked = userPurchases.some(p => (p.story_title === story.title || p.title === story.title));
-            if (!alreadyUnlocked) {
-                userPurchases.push({
-                    story_title: story.title,
-                    link: story.link || '#',
-                    photo: getOriginalPhoto(story),
-                    platform: story.platform,
-                    price: story.price
-                });
-                renderGrid(stories, 'homeGrid');
-                renderGrid(stories, 'exploreGrid');
-                renderUnlockedList();
-            }
-
+            userPurchases.push({ story_title: story.title, platform: story.platform, price: story.price });
+            renderGrid(stories, 'homeGrid');
+            renderGrid(stories, 'exploreGrid');
+            renderUnlockedList();
             closeModal();
             switchTab('orders');
-            
-            if (tg.showAlert) {
-                tg.showAlert(`🎉 "${story.title}" unlocked successfully! You can access it directly now.`);
-            } else {
-                alert(`🎉 "${story.title}" unlocked successfully! You can access it directly now.`);
-            }
         }
 
         function buyStory(title, price) {
             triggerHaptic('success');
-
-            const cleanTitle = encodeURIComponent(title.replace(/\s+/g, "_"));
-            const deepLink = `https://t.me/${BOT_USERNAME}?start=story_${cleanTitle}`;
-
-            if (tg && tg.openTelegramLink) {
-                tg.openTelegramLink(deepLink);
-                tg.close();
-            } else {
-                window.location.href = deepLink;
-            }
+            const deepLink = `https://t.me/${BOT_USERNAME}?start=story_${encodeURIComponent(title.replace(/\s+/g, "_"))}`;
+            if (tg && tg.openTelegramLink) { tg.openTelegramLink(deepLink); tg.close(); }
+            else window.location.href = deepLink;
         }
 
-        function openChannel(url) {
-            triggerHaptic('light');
-            if (tg && tg.openTelegramLink) tg.openTelegramLink(url);
-            else window.open(url, '_blank');
-        }
+        function openChannel(url) { openStoryLink(url); }
+        function openSupport(url) { openStoryLink(url); }
 
-        function openSupport(url) {
-            triggerHaptic('light');
-            if (tg && tg.openTelegramLink) tg.openTelegramLink(url);
-            else window.open(url, '_blank');
-        }
-
-        /* --- CHECK IN PM DIALOG LOGIC --- */
         function openStoryLink(url) {
             triggerHaptic('light');
             if (url && url !== '#') {
                 if (tg && tg.openTelegramLink) tg.openTelegramLink(url);
                 else window.open(url, '_blank');
             }
-            const pmModal = document.getElementById('pmDialog');
-            if(pmModal) pmModal.classList.add('active');
+            document.getElementById('pmDialog').classList.add('active');
         }
 
         function closePmDialog() {
-            triggerHaptic('light');
-            const pmModal = document.getElementById('pmDialog');
-            if(pmModal) pmModal.classList.remove('active');
+            document.getElementById('pmDialog').classList.remove('active');
         }
 
         function doSearch() {
             const q = document.getElementById('searchInp').value.toLowerCase().trim();
-            const f = stories.filter(s => (s.title && s.title.toLowerCase().includes(q)) || (s.platform && s.platform.toLowerCase().includes(q)));
+            const f = stories.filter(s => s.title.toLowerCase().includes(q) || s.platform.toLowerCase().includes(q));
             renderGrid(f, 'homeGrid');
         }
 
         function filterCat(cat, btnElem) {
             triggerHaptic('light');
-            if (btnElem) {
-                const buttons = document.querySelectorAll('#exploreCategoryWrapper .explore-btn');
-                buttons.forEach(b => b.classList.remove('chip-yellow'));
-                btnElem.classList.add('chip-yellow');
-            }
+            document.querySelectorAll('#exploreCategoryWrapper .explore-btn').forEach(b => b.classList.remove('chip-yellow'));
+            if(btnElem) btnElem.classList.add('chip-yellow');
 
-            if (cat === 'all') {
-                renderGrid(stories, 'exploreGrid');
-            } else {
-                const f = stories.filter(s => (s.platform && s.platform.toLowerCase().includes(cat.toLowerCase())));
-                renderGrid(f, 'exploreGrid');
-            }
+            if (cat === 'all') renderGrid(stories, 'exploreGrid');
+            else renderGrid(stories.filter(s => s.platform && s.platform.toLowerCase().includes(cat)), 'exploreGrid');
         }
 
         function switchTab(name) {
@@ -1345,7 +1452,7 @@
             const selectedTab = document.getElementById(`tab-${name}`);
             if(selectedTab) selectedTab.classList.add('active');
             
-            const tabs = ['home', 'explore', 'orders', 'profile'];
+            const tabs = ['home', 'explore', 'cart', 'orders', 'profile'];
             const idx = tabs.indexOf(name);
             if(idx !== -1 && document.querySelectorAll('.nav-link')[idx]) {
                 document.querySelectorAll('.nav-link')[idx].classList.add('active');
@@ -1354,29 +1461,18 @@
 
         function initUserInfo() {
             try {
-                if (tg) {
-                    tg.ready();
-                    tg.expand();
-                }
-
+                if (tg) { tg.ready(); tg.expand(); }
                 let user = (tg && tg.initDataUnsafe) ? tg.initDataUnsafe.user : null;
-
                 if (user && user.id) {
-                    const fullName = ((user.first_name || "") + " " + (user.last_name || "")).trim();
-                    document.getElementById('uName').innerText = fullName || user.username || "Telegram User";
+                    document.getElementById('uName').innerText = `${user.first_name || ""} ${user.last_name || ""}`.trim();
                     document.getElementById('uId').innerText = user.id;
-                    
-                    if (user.photo_url) {
-                        document.getElementById('uPhoto').src = user.photo_url;
-                    }
+                    if (user.photo_url) document.getElementById('uPhoto').src = user.photo_url;
                     loadUserPurchases(user.id);
                 } else {
                     document.getElementById('uName').innerText = "Guest User";
                     document.getElementById('uId').innerText = "Not Connected";
                 }
-            } catch (err) {
-                console.error("Error fetching user info:", err);
-            }
+            } catch (err) { console.error(err); }
         }
 
         document.addEventListener('DOMContentLoaded', () => {
