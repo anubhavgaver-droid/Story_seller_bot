@@ -613,13 +613,13 @@ async def process_wallet_payment(client, callback_query):
         print(f"Error processing wallet payment: {e}")
         await callback_query.answer("❌ Error processing wallet payment!", show_alert=True)
 
-# ------------------ Cart Checkout & Payment Handler (UPDATED) ------------------
-@Client.on_callback_query(filters.regex(r"^cartpay_"))
+# ------------------ Cart Checkout & Payment Handler (FIXED REGEX) ------------------
+@Client.on_callback_query(filters.regex(r"^cartpay_(.*)"))
 async def process_cart_payment(client, callback_query):
     try:
         data_parts = callback_query.data.split("_")
         
-        # 1. डेटा वैलिडेशन (Check if cart data is valid)
+        # 1. डेटा वैलिडेशन
         if len(data_parts) < 3:
             return await callback_query.answer("❌ Your cart is empty or invalid!", show_alert=True)
 
@@ -923,7 +923,7 @@ async def start_handler(client, message):
         asyncio.create_task(auto_delete_task(sent_messages))
         return
 
-    # Deep-Link Logic for Cart Section (UPDATED / FIXED)
+    # Deep-Link Logic for Cart Section
     if len(args) > 1 and args[1].startswith("cart_"):
         raw_param = args[1]
         try:
