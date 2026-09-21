@@ -276,47 +276,47 @@ async def add_story_db(data: dict):
     )
     return True
 
-async def add_new_episodes_batch(title: str, first_msg_id: int, last_msg_id: int, custom_range_text: str = None) -> bool:
+async def add_new_episodes_batch(title: str, new_first_id: int = 0, new_last_id: int = 0, custom_range_text: str = None, **kwargs) -> tuple:
     """
     मौजूदा स्टोरी में नए एपिसोड्स/मैसेज-रेंज या कस्टम रेंज जोड़ने के लिए फ़ंक्शन
     """
     clean_title = title.strip().split("\n")[0]
     story = await stories_col.find_one({"title": re.compile(f"^{re.escape(clean_title)}$", re.IGNORECASE)})
     if not story:
-        return False
+        return False, 0
 
-    first_msg_id = int(first_msg_id)
-    last_msg_id = int(last_msg_id)
+    # kwargs या डायरेक्ट पैरामीटर दोनों को हैंडल करने के लिए
+    f_id = int(new_first_id or kwargs.get("first_msg_id", 0))
+    l_id = int(new_last_id or kwargs.get("last_msg_id", 0))
 
-    # Calculate update for main first/last IDs
     curr_first = story.get("first_msg_id", 0)
     curr_last = story.get("last_msg_id", 0)
 
-    new_first = first_msg_id if curr_first == 0 else min(curr_first, first_msg_id)
-    new_last = max(curr_last, last_msg_id)
-    total_files = (new_last - new_first) + 1 if (new_first and new_last) else 0
+    updated_first = f_id if curr_first == 0 else min(curr_first, f_id)
+    updated_last = max(curr_last, l_id)
+    total_files = (updated_last - updated_first) + 1 if (updated_first and updated_last) else 0
 
     update_fields = {
-        "first_msg_id": new_first,
-        "last_msg_id": new_last,
+        "first_msg_id": updated_first,
+        "last_msg_id": updated_last,
         "total_files": f"{total_files} files",
         "episodes": f"{total_files} Episodes"
     }
 
     update_query = {"$set": update_fields}
 
-    # Add custom range if provided
     if custom_range_text:
         update_query["$push"] = {
             "custom_ranges": {
                 "range_text": custom_range_text,
-                "first_msg_id": first_msg_id,
-                "last_msg_id": last_msg_id
+                "first_msg_id": f_id,
+                "last_msg_id": l_id
             }
         }
 
     res = await stories_col.update_one({"_id": story["_id"]}, update_query)
-    return res.modified_count > 0
+    success = res.modified_count > 0 or res.matched_count > 0
+    return success, total_files
 
 async def update_story_demo_status(title: str, is_enabled: bool) -> bool:
     """किसी स्टोरी के लिए Demo टॉगल करने का फ़ंक्शन"""
