@@ -122,7 +122,6 @@ async def register_user(user_id: int, first_name: str, username: str = None, ref
 async def get_all_users():
     """
     ब्रॉडकास्ट के लिए डेटाबेस से सभी रजिस्टर्ड यूज़र्स की लिस्ट निकालता है
-    (Batched stream cursor avoids out-of-memory crashes on large datasets)
     """
     users = []
     async for doc in users_col.find({}, {"user_id": 1, "_id": 0}):
@@ -277,6 +276,48 @@ async def add_story_db(data: dict):
     )
     return True
 
+async def add_new_episodes_batch(title: str, first_msg_id: int, last_msg_id: int, custom_range_text: str = None) -> bool:
+    """
+    मौजूदा स्टोरी में नए एपिसोड्स/मैसेज-रेंज या कस्टम रेंज जोड़ने के लिए फ़ंक्शन
+    """
+    clean_title = title.strip().split("\n")[0]
+    story = await stories_col.find_one({"title": re.compile(f"^{re.escape(clean_title)}$", re.IGNORECASE)})
+    if not story:
+        return False
+
+    first_msg_id = int(first_msg_id)
+    last_msg_id = int(last_msg_id)
+
+    # Calculate update for main first/last IDs
+    curr_first = story.get("first_msg_id", 0)
+    curr_last = story.get("last_msg_id", 0)
+
+    new_first = first_msg_id if curr_first == 0 else min(curr_first, first_msg_id)
+    new_last = max(curr_last, last_msg_id)
+    total_files = (new_last - new_first) + 1 if (new_first and new_last) else 0
+
+    update_fields = {
+        "first_msg_id": new_first,
+        "last_msg_id": new_last,
+        "total_files": f"{total_files} files",
+        "episodes": f"{total_files} Episodes"
+    }
+
+    update_query = {"$set": update_fields}
+
+    # Add custom range if provided
+    if custom_range_text:
+        update_query["$push"] = {
+            "custom_ranges": {
+                "range_text": custom_range_text,
+                "first_msg_id": first_msg_id,
+                "last_msg_id": last_msg_id
+            }
+        }
+
+    res = await stories_col.update_one({"_id": story["_id"]}, update_query)
+    return res.modified_count > 0
+
 async def update_story_demo_status(title: str, is_enabled: bool) -> bool:
     """किसी स्टोरी के लिए Demo टॉगल करने का फ़ंक्शन"""
     clean_title = title.strip().split("\n")[0]
@@ -359,7 +400,7 @@ async def get_stories_by_cat(cat_key, page=1, limit=10):
 
 async def search_stories_db(query_str, page=1, limit=10):
     """टाइटल या विवरण के आधार पर पेजिनेटेड सर्च परिणाम देता है"""
-    clean_query = str(query_str).strip()[:100]  # Limit length to mitigate ReDoS
+    clean_query = str(query_str).strip()[:100]
     pattern = re.compile(re.escape(clean_query), re.IGNORECASE)
     query = {
         "$or": [
