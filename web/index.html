@@ -354,47 +354,21 @@
         .title { font-size: 13px; font-weight: 800; margin: 0 0 4px 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text); }
         .price-tag { font-size: 15px; font-weight: 900; margin: 6px 0; color: var(--text); }
         
-        .card-btn-group {
-            display: flex;
-            gap: 6px;
-            margin-top: 4px;
-        }
-
         .btn-action {
-            flex: 1;
-            padding: 8px 0;
+            width: 100%;
+            padding: 9px 0;
             background: var(--accent);
             color: #000000;
             border: 2px solid var(--border);
             border-radius: 10px;
             font-weight: 800;
-            font-size: 11px;
-            cursor: pointer;
-            box-shadow: 2px 2px 0px var(--border);
-            text-transform: uppercase;
-        }
-        .btn-action:active { transform: translate(2px, 2px); box-shadow: 0px 0px 0px var(--border); }
-
-        .btn-cart-add {
-            width: 32px;
-            height: 32px;
-            background: var(--item-bg);
-            color: var(--text);
-            border: 2px solid var(--border);
-            border-radius: 10px;
-            font-weight: 900;
             font-size: 12px;
             cursor: pointer;
             box-shadow: 2px 2px 0px var(--border);
-            display: flex;
-            align-items: center;
-            justify-content: center;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
         }
-        .btn-cart-add.added {
-            background: #10b981;
-            color: #ffffff;
-        }
-        .btn-cart-add:active { transform: translate(2px, 2px); box-shadow: 0px 0px 0px var(--border); }
+        .btn-action:active { transform: translate(2px, 2px); box-shadow: 0px 0px 0px var(--border); }
 
         .btn-view-order-card {
             width: 100%;
@@ -408,7 +382,9 @@
             cursor: pointer;
             box-shadow: 2px 2px 0px var(--border);
             text-transform: uppercase;
+            letter-spacing: 0.5px;
         }
+        .btn-view-order-card:active { transform: translate(2px, 2px); box-shadow: 0px 0px 0px var(--border); }
 
         .btn-demo {
             background: var(--item-bg);
@@ -421,30 +397,15 @@
             padding: 12px 18px;
             box-shadow: 2px 2px 0px var(--border);
             text-transform: uppercase;
+            letter-spacing: 0.5px;
             display: flex;
             align-items: center;
             justify-content: center;
             gap: 6px;
         }
+        .btn-demo:active { transform: translate(2px, 2px); box-shadow: 0px 0px 0px var(--border); }
 
-        /* ---------------- CART SECTION & CARDS STYLING ---------------- */
-        .cart-summary-box {
-            background: var(--box-bg);
-            border: 2.5px solid var(--border);
-            border-radius: 16px;
-            padding: 16px;
-            margin-bottom: 16px;
-            box-shadow: var(--shadow);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        .cart-total-num {
-            font-size: 18px;
-            font-weight: 900;
-            color: var(--text);
-        }
-
+        /* ---------------- NEW BOTTOM BUTTON PURCHASED CARD STYLING ---------------- */
         .purchased-card {
             display: flex;
             flex-direction: column;
@@ -520,6 +481,7 @@
             color: var(--text);
         }
 
+        /* ACTIONS BUTTON GRID FOR UNLOCKED ORDERS */
         .order-actions-grid {
             display: flex;
             gap: 8px;
@@ -540,9 +502,17 @@
             display: flex;
             align-items: center;
             justify-content: center;
+            gap: 4px;
             text-transform: uppercase;
+            transition: transform 0.1s ease;
         }
 
+        .btn-view-order:active {
+            transform: translate(1.5px, 1.5px);
+            box-shadow: 0px 0px 0px var(--border);
+        }
+
+        /* BOTTOM FULL-WIDTH BUTTON */
         .btn-telegram-action {
             flex: 1.2;
             background: var(--item-bg);
@@ -557,22 +527,17 @@
             display: flex;
             align-items: center;
             justify-content: center;
+            gap: 4px;
             text-transform: uppercase;
+            transition: transform 0.1s ease;
         }
 
-        .btn-remove-cart {
-            background: #ef4444;
-            color: #ffffff;
-            border: 2px solid var(--border);
-            border-radius: 10px;
-            padding: 8px 12px;
-            font-size: 11px;
-            font-weight: 900;
-            cursor: pointer;
-            box-shadow: 2px 2px 0px var(--border);
+        .btn-telegram-action:active {
+            transform: translate(1.5px, 1.5px);
+            box-shadow: 0px 0px 0px var(--border);
         }
 
-        /* ---------------- RGB GLOW ANIMATION ---------------- */
+        /* ---------------- SLOW RGB GLOW ANIMATION FOR VERSION & POWERED BY ---------------- */
         .rgb-glow-text {
             font-weight: 900;
             text-transform: uppercase;
@@ -581,14 +546,29 @@
         }
 
         @keyframes slowRgbGlow {
-            0% { color: #ff0055; text-shadow: 0 0 8px rgba(255, 0, 85, 0.6); }
-            25% { color: #00e5ff; text-shadow: 0 0 8px rgba(0, 229, 255, 0.6); }
-            50% { color: #00ff66; text-shadow: 0 0 8px rgba(0, 255, 102, 0.6); }
-            75% { color: #ffcc00; text-shadow: 0 0 8px rgba(255, 204, 0, 0.6); }
-            100% { color: #ff0055; text-shadow: 0 0 8px rgba(255, 0, 85, 0.6); }
+            0% {
+                color: #ff0055;
+                text-shadow: 0 0 8px rgba(255, 0, 85, 0.6);
+            }
+            25% {
+                color: #00e5ff;
+                text-shadow: 0 0 8px rgba(0, 229, 255, 0.6);
+            }
+            50% {
+                color: #00ff66;
+                text-shadow: 0 0 8px rgba(0, 255, 102, 0.6);
+            }
+            75% {
+                color: #ffcc00;
+                text-shadow: 0 0 8px rgba(255, 204, 0, 0.6);
+            }
+            100% {
+                color: #ff0055;
+                text-shadow: 0 0 8px rgba(255, 0, 85, 0.6);
+            }
         }
 
-        /* ---------------- PM CUSTOM DIALOG ---------------- */
+        /* ---------------- CHECK IN PM CUSTOM DIALOG ---------------- */
         .pm-dialog-overlay {
             position: fixed;
             top: 0; left: 0; width: 100vw; height: 100vh;
@@ -603,7 +583,10 @@
             visibility: hidden;
             transition: opacity 0.25s ease, visibility 0.25s ease;
         }
-        .pm-dialog-overlay.active { opacity: 1; visibility: visible; }
+        .pm-dialog-overlay.active {
+            opacity: 1;
+            visibility: visible;
+        }
         .pm-dialog-box {
             background: var(--box-bg);
             border: 3px solid var(--border);
@@ -616,10 +599,29 @@
             transform: scale(0.9);
             transition: transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
         }
-        .pm-dialog-overlay.active .pm-dialog-box { transform: scale(1); }
-        .pm-icon { font-size: 40px; margin-bottom: 12px; display: inline-block; }
-        .pm-dialog-title { font-size: 17px; font-weight: 900; color: var(--text); margin-bottom: 8px; text-transform: uppercase; }
-        .pm-dialog-desc { font-size: 13px; font-weight: 600; color: var(--text); opacity: 0.85; line-height: 1.45; margin-bottom: 20px; }
+        .pm-dialog-overlay.active .pm-dialog-box {
+            transform: scale(1);
+        }
+        .pm-icon {
+            font-size: 40px;
+            margin-bottom: 12px;
+            display: inline-block;
+        }
+        .pm-dialog-title {
+            font-size: 17px;
+            font-weight: 900;
+            color: var(--text);
+            margin-bottom: 8px;
+            text-transform: uppercase;
+        }
+        .pm-dialog-desc {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text);
+            opacity: 0.85;
+            line-height: 1.45;
+            margin-bottom: 20px;
+        }
         .pm-btn-ok {
             width: 100%;
             background: var(--accent);
@@ -632,9 +634,14 @@
             cursor: pointer;
             box-shadow: 3px 3px 0px var(--border);
             text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .pm-btn-ok:active {
+            transform: translate(2px, 2px);
+            box-shadow: 0px 0px 0px var(--border);
         }
 
-        /* ---------------- STORY DETAIL MODAL ---------------- */
+        /* ---------------- FULL SCREEN STORY DETAIL MODAL ---------------- */
         .modal-overlay {
             position: fixed;
             top: 0; left: 0; width: 100vw; height: 100vh;
@@ -665,7 +672,7 @@
         
         .modal-info-cards { display: flex; gap: 10px; justify-content: space-between; margin-top: 4px; margin-bottom: 4px; }
         .info-card { background: var(--box-bg); border: 2.5px solid var(--border); border-radius: 12px; padding: 10px 4px; flex: 1; box-shadow: var(--shadow); display: flex; flex-direction: column; align-items: center; text-align: center; }
-        .info-label { font-size: 9px; font-weight: 800; color: #555; text-transform: uppercase; margin-bottom: 4px; }
+        .info-label { font-size: 9px; font-weight: 800; color: #555; text-transform: uppercase; margin-bottom: 4px; letter-spacing: 0.5px; }
         .info-val { font-size: 13px; font-weight: 900; color: var(--text); }
         body.theme-black .info-label { color: #aaa; }
 
@@ -697,20 +704,50 @@
         .item-row { display: flex; justify-content: space-between; align-items: center; padding: 12px; border: 2px solid var(--border); border-radius: 12px; margin-bottom: 8px; background: var(--item-bg); cursor: pointer; color: var(--text); }
         .item-row:active { transform: translate(1px, 1px); }
 
-        .btn-support { background: var(--accent) !important; color: #000000 !important; }
+        .btn-support {
+            background: var(--accent) !important;
+            color: #000000 !important;
+        }
 
+        /* ---------------- THEME SWITCHING ANIMATED BUTTONS ---------------- */
         .theme-grid { display: flex; gap: 10px; margin-top: 8px; }
         .theme-btn {
-            flex: 1; padding: 12px; border: 2.5px solid var(--border); border-radius: 12px;
-            font-size: 12px; font-weight: 900; cursor: pointer; text-align: center; box-shadow: 3px 3px 0px var(--border);
-            transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            flex: 1;
+            padding: 12px;
+            border: 2.5px solid var(--border);
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 900;
+            cursor: pointer;
+            text-align: center;
+            box-shadow: 3px 3px 0px var(--border);
+            transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275), box-shadow 0.2s ease, background-color 0.3s ease;
+            position: relative;
+            overflow: hidden;
         }
-        .theme-btn:active { transform: scale(0.92) translate(2px, 2px); box-shadow: 0px 0px 0px var(--border); }
+        .theme-btn:active {
+            transform: scale(0.92) translate(2px, 2px);
+            box-shadow: 0px 0px 0px var(--border);
+        }
+
+        @keyframes themePulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.06); }
+            100% { transform: scale(1); }
+        }
+        .theme-btn.animating {
+            animation: themePulse 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
 
         .bottom-nav {
-            position: fixed; bottom: 0; left: 0; width: 100%;
-            background: var(--box-bg); border-top: 2.5px solid var(--border);
-            display: flex; justify-content: space-around; padding: 8px 0; z-index: 100;
+            position: fixed;
+            bottom: 0; left: 0; width: 100%;
+            background: var(--box-bg);
+            border-top: 2.5px solid var(--border);
+            display: flex;
+            justify-content: space-around;
+            padding: 8px 0;
+            z-index: 100;
         }
         .nav-link { display: flex; flex-direction: column; align-items: center; font-size: 9px; font-weight: 900; color: var(--text); text-decoration: none; opacity: 0.6; cursor: pointer; }
         .nav-link.active { opacity: 1; color: var(--text); }
@@ -747,7 +784,7 @@
     <div class="top-bar">
         <div class="brand-logo">AC PREMIUM</div>
         <div class="header-chips">
-            <span class="chip" onclick="switchTab('cart')">🛒 <span id="cartChipCount">0</span></span>
+            <span class="chip">🎧 AUDIO</span>
             <span class="chip chip-yellow" onclick="switchTab('orders')">🔑 <span id="unlockedCount">0</span> UNLOCKED</span>
         </div>
     </div>
@@ -777,24 +814,7 @@
             <div class="story-grid" id="exploreGrid"></div>
         </div>
 
-        <!-- TAB 3: CART -->
-        <div id="tab-cart" class="tab-content">
-            <div class="cart-summary-box">
-                <div>
-                    <div style="font-size: 11px; font-weight: 800; opacity: 0.7;">TOTAL ITEMS: <span id="cartItemsCount">0</span></div>
-                    <div class="cart-total-num" id="cartTotalPrice">₹0</div>
-                </div>
-                <button class="btn-action" style="padding: 10px 16px;" onclick="checkoutCart()">CHECKOUT ALL 🛒</button>
-            </div>
-            <div class="section-box">
-                <div class="section-title">Your Cart Items 🛒</div>
-                <div id="cartListContainer">
-                    <p style="font-size:12px; font-weight:700;">Your cart is empty!</p>
-                </div>
-            </div>
-        </div>
-
-        <!-- TAB 4: ORDERS -->
+        <!-- TAB 3: ORDERS -->
         <div id="tab-orders" class="tab-content">
             <div class="section-box">
                 <div class="section-title">Unlocked Library 📚</div>
@@ -804,7 +824,7 @@
             </div>
         </div>
 
-        <!-- TAB 5: PROFILE -->
+        <!-- TAB 4: PROFILE -->
         <div id="tab-profile" class="tab-content">
             <div class="profile-card">
                 <img id="uPhoto" src="https://picsum.photos/100" class="avatar" alt="Avatar">
@@ -852,6 +872,7 @@
                 </div>
             </div>
 
+            <!-- VERSION AND POWERED BY WITH RGB GLOW ANIMATION -->
             <div style="text-align: center; margin-top: 20px; opacity: 0.9; font-size: 11px; font-weight: 800; letter-spacing: 1px;">
                 <span class="rgb-glow-text">VERSION 2.02</span><br>
                 <span class="rgb-glow-text" style="font-size: 10px;">POWERED BY GW KALU 2026 ALL RIGHT RESERVED</span>
@@ -917,8 +938,7 @@
                 </div>
                 <div style="display: flex; gap: 8px;">
                     <button class="btn-demo" id="mDemoBtn" style="display: none;">▶ DEMO</button>
-                    <button class="btn-action" id="mBuyBtn" style="width: auto; padding: 12px 16px;">BUY & UNLOCK</button>
-                    <button class="btn-cart-add" id="mModalCartBtn" onclick="toggleCartModal()" style="width: 42px; height: 42px;">🛒</button>
+                    <button class="btn-action" id="mBuyBtn" style="width: auto; padding: 12px 20px;">BUY & UNLOCK</button>
                 </div>
             </div>
         </div>
@@ -931,9 +951,6 @@
         </div>
         <div class="nav-link" onclick="switchTab('explore')">
             <span class="nav-icon">🧩</span>EXPLORE
-        </div>
-        <div class="nav-link" onclick="switchTab('cart')">
-            <span class="nav-icon">🛒</span>CART
         </div>
         <div class="nav-link" onclick="switchTab('orders')">
             <span class="nav-icon">🔒</span>ORDERS
@@ -949,7 +966,6 @@
 
         let stories = [];
         let userPurchases = [];
-        let currentModalStoryKey = null;
         let splashInterval = null;
 
         function triggerHaptic(type = 'light') {
@@ -964,11 +980,13 @@
             } catch(e) { console.error("Haptic error:", e); }
         }
 
+        /* --- HELPER FUNCTION FOR FETCHING ORIGINAL IMAGES PROPERLY --- */
         function getOriginalPhoto(item) {
             if (!item) return 'https://picsum.photos/200';
             return item.photo || item.cover_image_url || item.image || item.poster || 'https://picsum.photos/200';
         }
 
+        /* --- ANIMATED THEME SWITCHING SYSTEM --- */
         function applySavedTheme() {
             const savedTheme = localStorage.getItem('user_theme') || 'white';
             document.body.className = '';
@@ -979,152 +997,39 @@
 
         function changeTheme(themeName, btnElement) {
             triggerHaptic('medium');
+            
+            if (btnElement) {
+                btnElement.classList.add('animating');
+                setTimeout(() => {
+                    btnElement.classList.remove('animating');
+                }, 350);
+            }
+
             localStorage.setItem('user_theme', themeName);
             applySavedTheme();
         }
 
-        /* --- CART MANAGEMENT SYSTEM --- */
-        function getCart() {
-            try {
-                return JSON.parse(localStorage.getItem('user_cart')) || [];
-            } catch(e) { return []; }
-        }
-
-        function toggleCart(e, storyId) {
-            if(e) e.stopPropagation();
-            triggerHaptic('medium');
-
-            let cart = getCart();
-            const strId = String(storyId);
-            const index = cart.indexOf(strId);
-
-            if (index > -1) {
-                cart.splice(index, 1);
-            } else {
-                cart.push(strId);
-            }
-
-            localStorage.setItem('user_cart', JSON.stringify(cart));
-            renderGrid(stories, 'homeGrid');
-            renderGrid(stories, 'exploreGrid');
-            renderCartList();
-            updateCartBadge();
-        }
-
-        function toggleCartModal() {
-            if (!currentModalStoryKey) return;
-            toggleCart(null, currentModalStoryKey);
-            
-            const cart = getCart();
-            const isAdded = cart.includes(String(currentModalStoryKey));
-            const modalBtn = document.getElementById('mModalCartBtn');
-            if (modalBtn) {
-                modalBtn.classList.toggle('added', isAdded);
-                modalBtn.innerText = isAdded ? '✓' : '🛒';
-            }
-        }
-
-        function updateCartBadge() {
-            const cart = getCart();
-            const chipCount = document.getElementById('cartChipCount');
-            if (chipCount) chipCount.innerText = cart.length;
-        }
-
-        function renderCartList() {
-            const container = document.getElementById('cartListContainer');
-            const itemsCountElem = document.getElementById('cartItemsCount');
-            const totalPriceElem = document.getElementById('cartTotalPrice');
-            if (!container) return;
-
-            const cartIds = getCart();
-            const cartStories = stories.filter(s => cartIds.includes(String(s.id)) || cartIds.includes(String(s.title)));
-
-            if (itemsCountElem) itemsCountElem.innerText = cartStories.length;
-
-            let totalPrice = 0;
-            cartStories.forEach(s => {
-                const p = parseFloat(s.price);
-                if (!isNaN(p)) totalPrice += p;
-            });
-            if (totalPriceElem) totalPriceElem.innerText = `₹${totalPrice}`;
-
-            if (cartStories.length === 0) {
-                container.innerHTML = '<p style="font-size:12px; font-weight:700;">Your cart is empty!</p>';
-                return;
-            }
-
-            container.innerHTML = cartStories.map(s => {
-                const sKey = s.id !== undefined ? s.id : s.title;
-                const photo = getOriginalPhoto(s);
-                const price = s.price == 0 ? 'FREE' : `₹${s.price}`;
-                return `
-                <div class="purchased-card">
-                    <div class="purchased-top-content">
-                        <img src="${photo}" class="purchased-img" alt="${s.title}">
-                        <div class="purchased-details">
-                            <div class="purchased-title">${s.title}</div>
-                            <div class="purchased-meta">${s.platform || 'AUDIO'}</div>
-                            <div class="purchased-tags">
-                                <span class="mini-app-badge">IN CART</span>
-                                <span class="purchased-price">${price}</span>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="order-actions-grid">
-                        <button class="btn-view-order" onclick="openStoryModal('${encodeURIComponent(sKey)}')">VIEW</button>
-                        <button class="btn-remove-cart" onclick="toggleCart(event, '${encodeURIComponent(sKey)}')">REMOVE</button>
-                    </div>
-                </div>
-            `}).join('');
-        }
-
-        /* --- FIXED CHECKOUT CART FUNCTION --- */
-        function checkoutCart() {
-            triggerHaptic('success');
-            const cartIds = getCart();
-            if (cartIds.length === 0) {
-                alert("Your cart is empty!");
-                return;
-            }
-
-            // Extract matching stories from state
-            const cartStories = stories.filter(s => 
-                cartIds.includes(String(s.id)) || cartIds.includes(String(s.title))
-            );
-
-            if (cartStories.length === 0) {
-                alert("Your cart items are invalid!");
-                return;
-            }
-
-            // Convert spaces to '__' for each title and combine with '__'
-            const formattedTitles = cartStories.map(s => {
-                return encodeURIComponent(s.title.trim().replace(/\s+/g, "__"));
-            }).join("__");
-
-            const deepLink = `https://t.me/${BOT_USERNAME}?start=cart_${formattedTitles}`;
-
-            if (tg && tg.openTelegramLink) {
-                tg.openTelegramLink(deepLink);
-                tg.close();
-            } else {
-                window.location.href = deepLink;
-            }
-        }
-
         /* --- WISHLIST SYSTEM --- */
         function getWishlist() {
-            try { return JSON.parse(localStorage.getItem('user_wishlist')) || []; } catch(e) { return []; }
+            try {
+                return JSON.parse(localStorage.getItem('user_wishlist')) || [];
+            } catch(e) { return []; }
         }
 
         function toggleWishlist(e, storyId) {
             if(e) e.stopPropagation();
             triggerHaptic('medium');
+
             let wishlist = getWishlist();
             const strId = String(storyId);
             const index = wishlist.indexOf(strId);
-            if (index > -1) wishlist.splice(index, 1);
-            else wishlist.push(strId);
+
+            if (index > -1) {
+                wishlist.splice(index, 1);
+            } else {
+                wishlist.push(strId);
+            }
+
             localStorage.setItem('user_wishlist', JSON.stringify(wishlist));
             renderGrid(stories, 'homeGrid');
             renderGrid(stories, 'exploreGrid');
@@ -1134,6 +1039,7 @@
         function renderWishlist() {
             const container = document.getElementById('wishlistContainer');
             if (!container) return;
+
             const wishlistIds = getWishlist();
             const favStories = stories.filter(s => wishlistIds.includes(String(s.id)) || wishlistIds.includes(String(s.title)));
 
@@ -1160,17 +1066,21 @@
             const splash = document.getElementById('splash-screen');
             if(splash) splash.classList.add('hidden');
             if(splashInterval) clearInterval(splashInterval);
+
             const loader = document.getElementById('redirect-loader');
             const counter = document.getElementById('counterNum');
+            
             loader.classList.add('active');
 
             let current = 0;
             const interval = setInterval(() => {
                 current += 2;
+                
                 if (current >= 100) {
                     current = 100;
                     counter.innerText = '100%';
                     clearInterval(interval);
+                    
                     setTimeout(() => {
                         loader.classList.remove('active');
                         if (callback) callback();
@@ -1178,20 +1088,23 @@
                 } else {
                     counter.innerText = `${current}%`;
                 }
-            }, 25);
+            }, 25); 
         }
 
+        /* --- ROUTING CHECK FOR TELEGRAM DEEP LINKS --- */
         function checkUrlParamRouting() {
             let targetParam = null;
+
             if (tg.initDataUnsafe && tg.initDataUnsafe.start_param) {
                 targetParam = tg.initDataUnsafe.start_param;
             } else {
                 const urlParams = new URLSearchParams(window.location.search);
-                targetParam = urlParams.get('startapp') || urlParams.get('story') || urlParams.get('start');
+                targetParam = urlParams.get('startapp') || urlParams.get('story') || urlParams.get('start') || urlParams.get('tgWebAppStartParam');
             }
 
             if (targetParam) {
                 const cleanParam = targetParam.replace(/^story_/, '').toLowerCase().trim();
+                
                 const foundStory = stories.find(s => {
                     const idMatch = s.id && String(s.id).toLowerCase().trim() === cleanParam;
                     const titleMatch = s.title && s.title.toLowerCase().replace(/\s+/g, '_').trim() === cleanParam;
@@ -1199,7 +1112,10 @@
                 });
 
                 if (foundStory) {
-                    document.getElementById('loaderAnimeImg').src = getOriginalPhoto(foundStory);
+                    const originalPhoto = getOriginalPhoto(foundStory);
+                    if (originalPhoto) {
+                        document.getElementById('loaderAnimeImg').src = originalPhoto;
+                    }
                     runDirectRedirectAnimation(() => {
                         openStoryModal(foundStory.id !== undefined ? foundStory.id : foundStory.title);
                     });
@@ -1209,10 +1125,12 @@
             return false;
         }
 
+        /* --- HD STACK CAROUSEL ROTATION --- */
         function setupSplashScreen(list) {
             const wrapper = document.getElementById('cardsWrapper');
             if(!wrapper) return;
             wrapper.innerHTML = '';
+            
             const shuffled = [...list].sort(() => 0.5 - Math.random());
             const picked = shuffled.slice(0, 5);
             
@@ -1220,6 +1138,7 @@
                 const img = document.createElement('img');
                 img.src = getOriginalPhoto(story);
                 img.className = 'hd-stack-card';
+                img.alt = "Splash HD Poster";
                 wrapper.appendChild(img);
             });
 
@@ -1231,6 +1150,7 @@
                 cards.forEach((card, index) => {
                     card.className = 'hd-stack-card';
                     const offset = (index - activeIdx + total) % total;
+
                     if (offset === 0) card.classList.add('pos-front');
                     else if (offset === 1) card.classList.add('pos-next-1');
                     else if (offset === 2) card.classList.add('pos-next-2');
@@ -1242,6 +1162,7 @@
 
             rotateStack();
             splashInterval = setInterval(rotateStack, 1100);
+            
             setTimeout(() => {
                 const splash = document.getElementById('splash-screen');
                 if(splash) splash.classList.add('hidden');
@@ -1257,20 +1178,23 @@
                 renderGrid(stories, 'homeGrid');
                 renderGrid(stories, 'exploreGrid');
                 renderWishlist();
-                renderCartList();
-                updateCartBadge();
                 
                 if (document.getElementById('pTotal')) {
                     document.getElementById('pTotal').innerText = stories.length;
                 }
 
-                if (!checkUrlParamRouting()) {
+                const isDeepLinked = checkUrlParamRouting();
+                if (!isDeepLinked) {
                     if (stories.length > 0) setupSplashScreen(stories);
-                    else document.getElementById('splash-screen').classList.add('hidden');
+                    else {
+                        const splash = document.getElementById('splash-screen');
+                        if(splash) splash.classList.add('hidden');
+                    }
                 }
             } catch(e) {
-                console.error(e);
-                document.getElementById('splash-screen').classList.add('hidden');
+                console.error("Failed to fetch stories:", e);
+                const splash = document.getElementById('splash-screen');
+                if(splash) splash.classList.add('hidden');
             }
         }
 
@@ -1278,15 +1202,20 @@
             try {
                 const res = await fetch(`/api/user_purchases?user_id=${userId}`);
                 userPurchases = await res.json();
+                
+                // Re-render grids so the purchased items switch to "VIEW DETAILS"
                 renderGrid(stories, 'homeGrid');
                 renderGrid(stories, 'exploreGrid');
                 renderUnlockedList();
             } catch(e) { console.error(e); }
         }
 
+        /* --- UPDATED ORDERS LIST FUNCTION WITH VIEW DETAILS BUTTON --- */
         function renderUnlockedList() {
             document.getElementById('unlockedCount').innerText = userPurchases.length;
-            if (document.getElementById('pUnlocked')) document.getElementById('pUnlocked').innerText = userPurchases.length;
+            if (document.getElementById('pUnlocked')) {
+                document.getElementById('pUnlocked').innerText = userPurchases.length;
+            }
             
             const box = document.getElementById('unlockedList');
             if(!box) return;
@@ -1298,62 +1227,74 @@
             
             box.innerHTML = userPurchases.map(p => {
                 const title = p.story_title || p.title || 'Untitled Story';
-                const deliveryLink = p.link || `https://t.me/${BOT_USERNAME}?start=get_${title.replace(/\s+/g, '_')}`;
-                let matchedStory = stories.find(s => String(s.title).toLowerCase() === String(title).toLowerCase());
+                const cleanTitle = title.replace(/\s+/g, '_');
+                const deliveryLink = p.link || `https://t.me/${BOT_USERNAME}?start=get_${cleanTitle}`;
+                
+                let matchedStory = stories.find(s => String(s.title).toLowerCase().trim() === String(title).toLowerCase().trim() || String(s.id) === String(p.story_id));
                 const photo = matchedStory ? getOriginalPhoto(matchedStory) : getOriginalPhoto(p);
                 const sKey = matchedStory ? (matchedStory.id !== undefined ? matchedStory.id : matchedStory.title) : title;
+
+                const platform = p.platform || (matchedStory ? matchedStory.platform : 'Audio Series');
+                const price = (p.price !== undefined && p.price !== null && p.price !== '') ? `₹${p.price}` : (matchedStory ? `₹${matchedStory.price}` : 'FREE');
 
                 return `
                 <div class="purchased-card">
                     <div class="purchased-top-content">
-                        <img src="${photo}" class="purchased-img" alt="${title}">
+                        <img src="${photo}" class="purchased-img" alt="${title}" onerror="this.src='https://picsum.photos/200'">
                         <div class="purchased-details">
                             <div class="purchased-title">${title}</div>
-                            <div class="purchased-meta">${p.platform || 'Audio Series'}</div>
+                            <div class="purchased-meta">${platform}</div>
                             <div class="purchased-tags">
                                 <span class="mini-app-badge">UNLOCKED</span>
-                                <span class="purchased-price">₹${p.price || 0}</span>
+                                <span class="purchased-price">${price}</span>
                             </div>
                         </div>
                     </div>
                     <div class="order-actions-grid">
-                        <button class="btn-view-order" onclick="openStoryModal('${encodeURIComponent(sKey)}')">📖 VIEW DETAILS</button>
-                        <button class="btn-telegram-action" onclick="openStoryLink('${deliveryLink}')">GET ON TELEGRAM ✈️</button>
+                        <button class="btn-view-order" onclick="openStoryModal('${encodeURIComponent(sKey)}')">
+                            📖 VIEW DETAILS
+                        </button>
+                        <button class="btn-telegram-action" onclick="openStoryLink('${deliveryLink}')">
+                            GET ON TELEGRAM ✈️
+                        </button>
                     </div>
                 </div>
             `}).join('');
         }
 
+        /* --- UPDATED RENDER GRID: "BUY & UNLOCK" REPLACED BY "VIEW ORDER" FOR UNLOCKED ITEMS --- */
         function renderGrid(list, target) {
             const el = document.getElementById(target);
             if(!el) return;
             if(list.length === 0) {
-                el.innerHTML = '<p style="font-size:12px; font-weight:800; grid-column:1/-1; text-align:center;">No audio packs found.</p>';
+                el.innerHTML = '<p style="font-size:12px; font-weight:800; grid-column:1/-1; text-align:center; padding: 20px 0;">No audio packs found.</p>';
                 return;
             }
 
             const wishlist = getWishlist();
-            const cart = getCart();
 
             el.innerHTML = list.map((s) => {
                 const sKey = s.id !== undefined ? s.id : s.title;
                 const isFav = wishlist.includes(String(sKey));
-                const isInCart = cart.includes(String(sKey));
                 const originalPhoto = getOriginalPhoto(s);
 
-                const isPurchased = userPurchases.some(p => String(p.story_title || p.title).toLowerCase() === String(s.title).toLowerCase());
+                // Check if user already unlocked/purchased this story
+                const isPurchased = userPurchases.some(p => (
+                    String(p.story_title || p.title).toLowerCase().trim() === String(s.title).toLowerCase().trim() || 
+                    String(p.story_id) === String(s.id)
+                ));
 
+                // If purchased -> show "VIEW ORDER" button, else show "BUY & UNLOCK" / "CLAIM FREE"
                 const actionBtnHtml = isPurchased 
-                    ? `<button class="btn-view-order-card" onclick="event.stopPropagation(); switchTab('orders')">📖 VIEW ORDER</button>`
-                    : `<div class="card-btn-group">
-                           <button class="btn-action" onclick="event.stopPropagation(); openStoryModal('${encodeURIComponent(sKey)}')">${s.price == 0 ? 'CLAIM' : 'BUY'}</button>
-                           <button class="btn-cart-add ${isInCart ? 'added' : ''}" onclick="toggleCart(event, '${encodeURIComponent(sKey)}')">${isInCart ? '✓' : '🛒'}</button>
-                       </div>`;
+                    ? `<button class="btn-view-order-card" onclick="event.stopPropagation(); goToOrdersTab()">📖 VIEW ORDER</button>`
+                    : `<button class="btn-action">${s.price == 0 ? 'CLAIM FREE' : 'BUY & UNLOCK'}</button>`;
 
                 return `
                 <div class="card" onclick="openStoryModal('${encodeURIComponent(sKey)}')">
-                    <div class="card-fav-btn" onclick="toggleWishlist(event, '${encodeURIComponent(sKey)}')">${isFav ? '❤️' : '🤍'}</div>
-                    <img src="${originalPhoto}" class="card-img" alt="${s.title}">
+                    <div class="card-fav-btn" onclick="toggleWishlist(event, '${encodeURIComponent(sKey)}')">
+                        ${isFav ? '❤️' : '🤍'}
+                    </div>
+                    <img src="${originalPhoto}" class="card-img" alt="${s.title}" onerror="this.src='https://picsum.photos/200'">
                     <div class="card-body">
                         <span class="badge">${s.platform || 'AUDIO'}</span>
                         <h4 class="title">${s.title}</h4>
@@ -1364,45 +1305,61 @@
             `}).join('');
         }
 
+        function goToOrdersTab() {
+            triggerHaptic('light');
+            switchTab('orders');
+        }
+
         function openStoryModal(storyKeyRaw) {
             triggerHaptic('light');
             const storyKey = decodeURIComponent(storyKeyRaw);
-            currentModalStoryKey = storyKey;
-            
             let story = stories.find(s => String(s.id) === String(storyKey) || String(s.title) === String(storyKey));
-            if (!story) story = { title: storyKey, platform: 'Audio Series', price: 'Unlocked' };
+            
+            if (!story) {
+                story = { title: storyKey, platform: 'Audio Series', price: 'Unlocked', description: 'Unlocked Series in your library.' };
+            }
 
             const photoUrl = getOriginalPhoto(story);
             document.getElementById('mBgImg').src = photoUrl;
             document.getElementById('mPosterImg').src = photoUrl;
             document.getElementById('mTitle').innerText = story.title;
+            
             document.getElementById('mInfoPlatform').innerText = story.platform || 'Pocket FM';
             document.getElementById('mInfoEps').innerText = story.episodes || '30';
             document.getElementById('mInfoFiles').innerText = story.total_files || '24 files';
-            document.getElementById('mPrice').innerText = story.price == 0 ? 'FREE' : `₹${story.price}`;
+            
+            const priceText = story.price == 0 ? 'FREE' : (typeof story.price === 'number' ? `₹${story.price}` : story.price);
+            document.getElementById('mPrice').innerText = priceText;
             document.getElementById('mAccessType').innerText = story.price == 0 ? '🎁 FREE ACCESS' : '💎 PAID SHOW';
-            document.getElementById('mDesc').innerText = story.description || 'Complete audio series package with high quality audio episodes.';
-
-            const cart = getCart();
-            const isInCart = cart.includes(String(storyKey));
-            const modalCartBtn = document.getElementById('mModalCartBtn');
-            if (modalCartBtn) {
-                modalCartBtn.classList.toggle('added', isInCart);
-                modalCartBtn.innerText = isInCart ? '✓' : '🛒';
-            }
+            document.getElementById('mDesc').innerText = story.description || story.desc || 'Complete audio series package with high quality audio episodes. Instant access after unlocking.';
 
             const buyBtn = document.getElementById('mBuyBtn');
-            const isPurchased = userPurchases.some(p => String(p.story_title || p.title).toLowerCase() === String(story.title).toLowerCase());
+            const isPurchased = userPurchases.some(p => (
+                String(p.story_title || p.title).toLowerCase().trim() === String(story.title).toLowerCase().trim() || 
+                String(p.story_id) === String(story.id)
+            ));
 
             if (isPurchased) {
-                buyBtn.innerText = 'OPEN TELEGRAM';
-                buyBtn.onclick = () => openStoryLink(story.link || `https://t.me/${BOT_USERNAME}?start=get_${story.title.replace(/\s+/g, '_')}`);
+                buyBtn.innerText = 'OPEN IN TELEGRAM';
+                const cleanTitle = encodeURIComponent(story.title.replace(/\s+/g, "_"));
+                const deliveryLink = story.link || `https://t.me/${BOT_USERNAME}?start=get_${cleanTitle}`;
+                buyBtn.onclick = function() { openStoryLink(deliveryLink); };
             } else if (story.price == 0) {
-                buyBtn.innerText = 'CLAIM FREE';
-                buyBtn.onclick = () => claimFreeStory(story);
+                buyBtn.innerText = 'CLAIM NOW (FREE)';
+                buyBtn.onclick = function() { claimFreeStory(story); };
             } else {
                 buyBtn.innerText = 'BUY & UNLOCK';
-                buyBtn.onclick = () => buyStory(story.title, story.price);
+                buyBtn.onclick = function() { buyStory(story.title, story.price); };
+            }
+
+            const demoBtn = document.getElementById('mDemoBtn');
+            const hasDemoAvailable = story.has_demo || story.demo_enabled || (story.demo_msg_ids && story.demo_msg_ids.length > 0);
+            
+            if (hasDemoAvailable) {
+                demoBtn.style.display = 'inline-flex';
+                demoBtn.onclick = function() { playDemo(story); };
+            } else {
+                demoBtn.style.display = 'none';
             }
 
             document.getElementById('storyModal').classList.add('active');
@@ -1413,52 +1370,116 @@
             document.getElementById('storyModal').classList.remove('active');
         }
 
+        function playDemo(story) {
+            triggerHaptic('medium');
+            const cleanTitle = encodeURIComponent(story.title.replace(/\s+/g, "_"));
+            const demoLink = story.demo_link || `https://t.me/${BOT_USERNAME}?start=demo_${cleanTitle}`;
+
+            if (tg && tg.openTelegramLink) {
+                tg.openTelegramLink(demoLink);
+                tg.close();
+            } else {
+                window.location.href = demoLink;
+            }
+        }
+
         function claimFreeStory(story) {
             triggerHaptic('success');
-            userPurchases.push({ story_title: story.title, platform: story.platform, price: story.price });
-            renderGrid(stories, 'homeGrid');
-            renderGrid(stories, 'exploreGrid');
-            renderUnlockedList();
+            
+            const alreadyUnlocked = userPurchases.some(p => (p.story_title === story.title || p.title === story.title));
+            if (!alreadyUnlocked) {
+                userPurchases.push({
+                    story_title: story.title,
+                    link: story.link || '#',
+                    photo: getOriginalPhoto(story),
+                    platform: story.platform,
+                    price: story.price
+                });
+                renderGrid(stories, 'homeGrid');
+                renderGrid(stories, 'exploreGrid');
+                renderUnlockedList();
+            }
+
             closeModal();
             switchTab('orders');
+            
+            if (tg.showAlert) {
+                tg.showAlert(`🎉 "${story.title}" unlocked successfully! You can access it directly now.`);
+            } else {
+                alert(`🎉 "${story.title}" unlocked successfully! You can access it directly now.`);
+            }
         }
 
         function buyStory(title, price) {
             triggerHaptic('success');
-            const deepLink = `https://t.me/${BOT_USERNAME}?start=story_${encodeURIComponent(title.replace(/\s+/g, "_"))}`;
-            if (tg && tg.openTelegramLink) { tg.openTelegramLink(deepLink); tg.close(); }
-            else window.location.href = deepLink;
+
+            const cleanTitle = encodeURIComponent(title.replace(/\s+/g, "_"));
+            const deepLink = `https://t.me/${BOT_USERNAME}?start=story_${cleanTitle}`;
+
+            if (tg && tg.openTelegramLink) {
+                tg.openTelegramLink(deepLink);
+                tg.close();
+            } else {
+                window.location.href = deepLink;
+            }
         }
 
-        function openChannel(url) { openStoryLink(url); }
-        function openSupport(url) { openStoryLink(url); }
+        function openChannel(url) {
+            triggerHaptic('light');
+            if (tg && tg.openTelegramLink) tg.openTelegramLink(url);
+            else window.open(url, '_blank');
+        }
 
+        function openSupport(url) {
+            triggerHaptic('light');
+            if (tg && tg.openTelegramLink) tg.openTelegramLink(url);
+            else window.open(url, '_blank');
+        }
+
+        /* --- CHECK IN PM DIALOG LOGIC --- */
         function openStoryLink(url) {
             triggerHaptic('light');
+            
             if (url && url !== '#') {
-                if (tg && tg.openTelegramLink) tg.openTelegramLink(url);
-                else window.open(url, '_blank');
+                if (tg && tg.openTelegramLink) {
+                    tg.openTelegramLink(url);
+                } else {
+                    window.open(url, '_blank');
+                }
             }
-            document.getElementById('pmDialog').classList.add('active');
+
+            const pmModal = document.getElementById('pmDialog');
+            if(pmModal) pmModal.classList.add('active');
         }
 
         function closePmDialog() {
-            document.getElementById('pmDialog').classList.remove('active');
+            triggerHaptic('light');
+            const pmModal = document.getElementById('pmDialog');
+            if(pmModal) pmModal.classList.remove('active');
         }
 
         function doSearch() {
             const q = document.getElementById('searchInp').value.toLowerCase().trim();
-            const f = stories.filter(s => s.title.toLowerCase().includes(q) || s.platform.toLowerCase().includes(q));
+            const f = stories.filter(s => (s.title && s.title.toLowerCase().includes(q)) || (s.platform && s.platform.toLowerCase().includes(q)));
             renderGrid(f, 'homeGrid');
         }
 
+        /* --- FIXED EXPLORE CATEGORY SWITCHING & YELLOW HIGHLIGHT --- */
         function filterCat(cat, btnElem) {
             triggerHaptic('light');
-            document.querySelectorAll('#exploreCategoryWrapper .explore-btn').forEach(b => b.classList.remove('chip-yellow'));
-            if(btnElem) btnElem.classList.add('chip-yellow');
 
-            if (cat === 'all') renderGrid(stories, 'exploreGrid');
-            else renderGrid(stories.filter(s => s.platform && s.platform.toLowerCase().includes(cat)), 'exploreGrid');
+            if (btnElem) {
+                const buttons = document.querySelectorAll('#exploreCategoryWrapper .explore-btn');
+                buttons.forEach(b => b.classList.remove('chip-yellow'));
+                btnElem.classList.add('chip-yellow');
+            }
+
+            if (cat === 'all') {
+                renderGrid(stories, 'exploreGrid');
+            } else {
+                const f = stories.filter(s => (s.platform && s.platform.toLowerCase().includes(cat.toLowerCase())));
+                renderGrid(f, 'exploreGrid');
+            }
         }
 
         function switchTab(name) {
@@ -1469,7 +1490,7 @@
             const selectedTab = document.getElementById(`tab-${name}`);
             if(selectedTab) selectedTab.classList.add('active');
             
-            const tabs = ['home', 'explore', 'cart', 'orders', 'profile'];
+            const tabs = ['home', 'explore', 'orders', 'profile'];
             const idx = tabs.indexOf(name);
             if(idx !== -1 && document.querySelectorAll('.nav-link')[idx]) {
                 document.querySelectorAll('.nav-link')[idx].classList.add('active');
@@ -1478,18 +1499,29 @@
 
         function initUserInfo() {
             try {
-                if (tg) { tg.ready(); tg.expand(); }
+                if (tg) {
+                    tg.ready();
+                    tg.expand();
+                }
+
                 let user = (tg && tg.initDataUnsafe) ? tg.initDataUnsafe.user : null;
+
                 if (user && user.id) {
-                    document.getElementById('uName').innerText = `${user.first_name || ""} ${user.last_name || ""}`.trim();
+                    const fullName = ((user.first_name || "") + " " + (user.last_name || "")).trim();
+                    document.getElementById('uName').innerText = fullName || user.username || "Telegram User";
                     document.getElementById('uId').innerText = user.id;
-                    if (user.photo_url) document.getElementById('uPhoto').src = user.photo_url;
+                    
+                    if (user.photo_url) {
+                        document.getElementById('uPhoto').src = user.photo_url;
+                    }
                     loadUserPurchases(user.id);
                 } else {
                     document.getElementById('uName').innerText = "Guest User";
                     document.getElementById('uId').innerText = "Not Connected";
                 }
-            } catch (err) { console.error(err); }
+            } catch (err) {
+                console.error("Error fetching user info:", err);
+            }
         }
 
         document.addEventListener('DOMContentLoaded', () => {
