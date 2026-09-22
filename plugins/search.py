@@ -32,6 +32,9 @@ SEARCH_WAITING = {}
 USER_PAGE_STATE = {}  # Track current page state for users
 PAGE_LIMIT = 10       # Strictly 10 stories per page
 
+# DEFAULT FALLBACK IMAGE (अगर स्टोरी में फोटो न हो या लिंक काम न करे)
+DEFAULT_STORY_PHOTO = "https://picsum.photos/400/200"
+
 
 # 1. Main Market / Platform Keyboard
 MARKET_MENU = ReplyKeyboardMarkup(
@@ -145,7 +148,7 @@ async def handle_pagination(client, message):
         await show_category_page(client, message, state["cat_key"], state["cat_name"], page=current_page - 1)
 
 
-# 4. Back to Menu Handler
+# 4. Back to Menu Handler (UPDATED FOR LINK PREVIEW OPTIONS)
 @Client.on_message(filters.regex("^(🔙 ʙᴀᴄᴋ ᴛᴏ ᴍᴇɴᴜ|🔙 Back to Menu|🔙 BACK TO MENU)$") & filters.private)
 async def back_to_menu_handler(client, message):
     user_id = message.from_user.id
@@ -191,6 +194,7 @@ async def back_to_menu_handler(client, message):
     await message.reply_text(
         text=welcome_msg,
         reply_markup=main_inline_kb,
+        link_preview_options=LinkPreviewOptions(is_disabled=True),
         quote=True
     )
 
@@ -207,7 +211,7 @@ async def back_to_platform_handler(client, message):
     )
 
 
-# 6. Story Selection Click Handler
+# 6. Story Selection Click Handler (FIXED FOR PHOTO ATTACHMENT)
 @Client.on_message(filters.regex("^📖 ") & filters.private)
 async def story_selected_handler(client, message):
     user_id = message.from_user.id
@@ -224,7 +228,9 @@ async def story_selected_handler(client, message):
     inline_buttons = []
     
     if story.get('demo_enabled', False):
-        inline_buttons.append([InlineKeyboardButton("🎬 ᴠɪᴇᴡ ᴅᴇᴍᴏ / ᴘʀᴇᴠɪᴇᴡ", style=enums.ButtonStyle.PRIMARY, callback_data=f"viewdemo_{encoded_title}")])
+        inline_buttons.append([
+            InlineKeyboardButton("🎬 ᴠɪᴇᴡ ᴅᴇᴍᴏ / ᴘʀᴇᴠɪᴇᴡ", style=enums.ButtonStyle.PRIMARY, callback_data=f"viewdemo_{encoded_title}")
+        ])
         
     inline_buttons.extend([
         [InlineKeyboardButton(f"💳 ᴅɪʀᴇᴄᴛ ᴘᴀʏ (₹{story['price']})", style=enums.ButtonStyle.PRIMARY, callback_data=f"buy_{encoded_title}_{story['price']}")],
@@ -232,7 +238,10 @@ async def story_selected_handler(client, message):
     ])
     
     btn = InlineKeyboardMarkup(inline_buttons)
-    photo_url = story.get('photo', 'https://picsum.photos/400/200')
+    
+    # Check photo URL validity
+    raw_photo = story.get('photo', '').strip() if story.get('photo') else ''
+    photo_url = raw_photo if raw_photo.startswith(("http://", "https://")) or len(raw_photo) > 10 else DEFAULT_STORY_PHOTO
     
     caption_text = (
         f"📖 <b>sᴛᴏʀʏ :</b> {clean_title}\n"
@@ -245,10 +254,18 @@ async def story_selected_handler(client, message):
         f"<i>👇 sᴇʟᴇᴄᴛ ᴀ ᴘᴀʏᴍᴇɴᴛ ᴍᴇᴛʜᴏᴅ ʙᴇʟᴏᴡ:</i>"
     )
     
+    # Try sending with DB Photo
     try:
         await message.reply_photo(photo=photo_url, caption=caption_text, reply_markup=btn, quote=True)
-    except Exception:
-        await message.reply_text(caption_text, reply_markup=btn, quote=True)
+    except Exception as e:
+        print(f"Failed to send story photo ({photo_url}): {e}")
+        # Fallback to Default Image
+        try:
+            await message.reply_photo(photo=DEFAULT_STORY_PHOTO, caption=caption_text, reply_markup=btn, quote=True)
+        except Exception as err:
+            print(f"Fallback photo also failed: {err}")
+            # Final Text Fallback
+            await message.reply_text(caption_text, reply_markup=btn, quote=True)
 
 
 # 7. View Demo Callback Handler
@@ -273,7 +290,8 @@ async def view_demo_callback(client: Client, callback_query: CallbackQuery):
         header_msg = await client.send_message(
             chat_id=user_id,
             text=f"🎬 <b>ᴅᴇᴍᴏ ᴘʀᴇᴠɪᴇᴡ ғᴏʀ:</b> <code>{story['title'].strip().splitlines()[0]}</code>\n\n"
-                 f"⏰ <i>Auto-delete in 10 minutes!</i>"
+                 f"⏰ <i>Auto-delete in 10 minutes!</i>",
+            link_preview_options=LinkPreviewOptions(is_disabled=True)
         )
         sent_messages.append(header_msg)
         
@@ -347,7 +365,11 @@ async def process_wallet_payment(client, callback_query):
             [InlineKeyboardButton("📂 ɢᴇᴛ ғɪʟᴇs (ᴜɴʟᴏᴄᴋᴇᴅ)", style=enums.ButtonStyle.PRIMARY, url=delivery_link)]
         ])
         
-        await callback_query.message.edit_text(success_text, reply_markup=access_btn)
+        await callback_query.message.edit_text(
+            success_text, 
+            reply_markup=access_btn,
+            link_preview_options=LinkPreviewOptions(is_disabled=True)
+        )
 
     except Exception as e:
         print(f"Error in process_wallet_payment: {e}")
