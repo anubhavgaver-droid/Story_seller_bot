@@ -32,3 +32,4 @@ DELIVERY_STICKER_ID = os.environ.get("DELIVERY_STICKER_ID", "CAACAgUAAxkBAAIekGq
 SEARCH_RANGE_STICKER_ID = os.environ.get("SEARCH_RANGE_STICKER_ID", "CAACAgUAAxkBAAIerGqb8sr1MmSI_TSCRs7sNw8djRcXAAJIFQACyBnYViD0CmfSGf75HgQ")
 
 WATCH_URL = "https://story-seller-bot-0jtb.onrender.com/watch"
+WATCH_BASE_URL = os.environ.get("WATCH_BASE_URL", "https://story-seller-bot-0jtb.onrender.com/watch")
