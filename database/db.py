@@ -2,6 +2,7 @@ import re
 import sys
 import os
 import time
+from urllib.parse import quote
 from bson import ObjectId
 from motor.motor_asyncio import AsyncIOMotorClient
 from config import MONGO_URL, LOG_CHANNEL
@@ -12,30 +13,49 @@ stories_col = db["stories"]
 users_col = db["users"]        # Collection for User Registration, Wallet & Language
 purchases_col = db["purchases"]  # Collection for Purchased Stories
 
+WATCH_BASE_URL = "https://story-seller-bot-0jtb.onrender.com"
+
 # -------------------- STREAM LINK GENERATOR HELPER --------------------
 def get_file_stream_info(msg, clean_title: str):
     """
     Message से Direct Streaming Link और File Title निकालता है।
-    NameError को रोकने के लिए इसे जोड़ा गया है।
     """
-    file_title = clean_title
+    clean_title_single_line = clean_title.strip().split("\n")[0]
+    file_title = clean_title_single_line
     direct_audio_link = None
 
     if msg:
         if getattr(msg, 'audio', None):
-            file_title = msg.audio.title or msg.audio.file_name or clean_title
+            file_title = msg.audio.title or msg.audio.file_name or clean_title_single_line
         elif getattr(msg, 'document', None):
-            file_title = msg.document.file_name or clean_title
+            file_title = msg.document.file_name or clean_title_single_line
         elif getattr(msg, 'video', None):
-            file_title = msg.video.file_name or clean_title
+            file_title = msg.video.file_name or clean_title_single_line
 
         chat_id = getattr(msg.chat, 'id', 0)
         msg_id = getattr(msg, 'id', getattr(msg, 'message_id', 0))
         
         # डायरेक्ट स्ट्रीम लिंक फॉर्मेट
-        direct_audio_link = f"https://story-seller-bot-0jtb.onrender.com/stream/{chat_id}/{msg_id}"
+        direct_audio_link = f"{WATCH_BASE_URL}/stream/{chat_id}/{msg_id}"
 
     return file_title, direct_audio_link
+
+def get_miniapp_watch_url(msg, clean_title: str, cover_url: str = "") -> str:
+    """
+    Telegram Mini App Inline Keyboard के लिए Safe Encoded WebApp Link उत्पन्न करता है।
+    """
+    file_title, stream_url = get_file_stream_info(msg, clean_title)
+    if not stream_url:
+        return ""
+    
+    encoded_name = quote(str(file_title))
+    encoded_stream = quote(str(stream_url))
+    
+    miniapp_url = f"{WATCH_BASE_URL}/watch.html?name={encoded_name}&url={encoded_stream}"
+    if cover_url:
+        miniapp_url += f"&cover={quote(str(cover_url))}"
+        
+    return miniapp_url
 
 # -------------------- LOG HELPER FUNCTION --------------------
 async def send_log(client_bot, text: str):
