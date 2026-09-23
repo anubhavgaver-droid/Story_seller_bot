@@ -36,18 +36,6 @@ async def handle_miniapp(request):
             return web.Response(text=content, content_type="text/html")
     return web.Response(text="<h3>index.html not found in web/ folder!</h3>", content_type="text/html", status=404)
 
-# ------------------ 2.1 Serve Audio Player Mini App (both.html / watch) ------------------
-async def handle_watch_player(request):
-    # web/both.html या web/watch.html में से दोनों में काम करेगा
-    html_path = os.path.join(WEB_DIR, "both.html")
-    if not os.path.exists(html_path):
-        html_path = os.path.join(WEB_DIR, "watch.html")
-        
-    if os.path.exists(html_path):
-        async with aiofiles.open(html_path, mode="r", encoding="utf-8") as f:
-            content = await f.read()
-            return web.Response(text=content, content_type="text/html")
-    return web.Response(text="<h3>both.html or watch.html not found in web/ folder!</h3>", content_type="text/html", status=404)
 
 # ------------------ 3. API Endpoint: Fetch Stories (Demo Synced) ------------------
 async def handle_get_stories(request):
@@ -109,7 +97,6 @@ async def start_web_server():
     
     app_web.router.add_get("/ping", handle_ping)
     app_web.router.add_get("/", handle_miniapp)
-    app_web.router.add_get("/watch", handle_watch_player)  # <-- new endpoint for player
     app_web.router.add_get("/api/stories", handle_get_stories)
     app_web.router.add_get("/api/user_purchases", handle_get_user_purchases)
     
