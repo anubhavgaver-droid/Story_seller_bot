@@ -2,17 +2,15 @@ import re
 import sys
 import os
 import time
-from urllib.parse import quote
 from bson import ObjectId
 from motor.motor_asyncio import AsyncIOMotorClient
-from config import MONGO_URL, LOG_CHANNEL, CHANNEL_ID
+from config import MONGO_URL, LOG_CHANNEL
 
 client = AsyncIOMotorClient(MONGO_URL)
 db = client["story_seller_db"]
 stories_col = db["stories"]
 users_col = db["users"]        # Collection for User Registration, Wallet & Language
 purchases_col = db["purchases"]  # Collection for Purchased Stories
-
 
 # -------------------- LOG HELPER FUNCTION --------------------
 async def send_log(client_bot, text: str):
@@ -41,17 +39,21 @@ def extract_ep_from_file_or_caption(message) -> int:
     elif getattr(message, 'video', None) and message.video.file_name:
         file_name = message.video.file_name
 
+    # Pattern for Ep, Episode, Eps, etc.
     pattern = r'(?:ep|episode|eps|episodes)\b[\s._-]*(\d+)'
     
+    # 1. First check caption
     match = re.search(pattern, caption_text, re.IGNORECASE)
     if match:
         return int(match.group(1))
 
+    # 2. Check File Name if caption didn't match
     if file_name:
         match_file = re.search(pattern, file_name, re.IGNORECASE)
         if match_file:
             return int(match_file.group(1))
 
+    # 3. Fallback: Search for first standalone number
     text_to_search = f"{caption_text} {file_name}"
     numbers = re.findall(r'\b\d+\b', text_to_search)
     if numbers:
@@ -77,6 +79,7 @@ def get_exact_episode_range(fetched_messages) -> str:
             return f"Episode {first_ep}"
         return f"Episode {first_ep} to {last_ep}"
 
+    # Fallback to Message IDs if no numbers found in title/filename
     start_id = getattr(start_msg, 'id', getattr(start_msg, 'message_id', 0))
     end_id = getattr(end_msg, 'id', getattr(end_msg, 'message_id', 0))
     return f"Files {start_id} to {end_id}"
@@ -171,6 +174,7 @@ async def add_user_purchase(user_id: int, story_title: str, story_link: str = "#
     """ऑटो-पेमेंट या Wallet deduction कन्फर्म होने पर खरीदे गए टाइटल की पहली लाइन और खरीदे गए टाइटल का रिकॉर्ड सेव करेगा"""
     clean_title = story_title.strip().split("\n")[0]
     
+    # Purchases Collection में रिकॉर्ड जोड़ना
     await purchases_col.update_one(
         {"user_id": user_id, "story_title": clean_title},
         {
@@ -185,6 +189,7 @@ async def add_user_purchase(user_id: int, story_title: str, story_link: str = "#
         upsert=True
     )
 
+    # Users Collection में भी purchased_stories की लिस्ट में जोड़ना ताकि /addepisodes नोटिफिकेशन काम कर सके
     await users_col.update_one(
         {"user_id": user_id},
         {"$addToSet": {"purchased_stories": clean_title}}
@@ -216,6 +221,7 @@ async def get_story_by_id(story_id: str):
 async def add_story_db(data: dict):
     """
     स्टोरी जोड़ते या अपडेट करते समय Title की केवल पहली लाइन को ही Clean Title बनाएगा।
+    हर स्टोरी के लिए एक सिंपल story_id, free_link और custom_ranges बिना किसी लिमिट के सेट होगी।
     """
     if "title" in data:
         data["title"] = data["title"].strip().split("\n")[0]
@@ -228,14 +234,17 @@ async def add_story_db(data: dict):
     custom_ranges = data.get("custom_ranges", [])
     free_link = data.get("free_link", None)
 
+    # फ़ाइलों की कुल गिनती
     total_files_count = (last_msg_id - first_msg_id + 1) if (first_msg_id and last_msg_id) else 0
 
+    # ऑटो-एपिसोड्स कैलकुलेशन
     episodes = data.get("episodes")
     if not episodes and total_files_count > 0:
         episodes = f"{total_files_count} Episodes"
     elif not episodes:
         episodes = "N/A"
 
+    # पहले से मौजूद ID या नई ID सेट करना
     existing_story = await stories_col.find_one({"title": clean_title})
     story_id = existing_story.get("story_id") if existing_story else data.get("story_id", str(int(time.time())))
 
@@ -291,7 +300,7 @@ async def update_story_range(title: str, first_msg_id: int, last_msg_id: int) ->
     return res.modified_count > 0
 
 async def delete_story_db(title: str) -> bool:
-    """स्टोरी डिलीट करने का फ़ंक्शन"""
+    """स्टोरी डिलीट करने का फ़ंक्शन - Main List और Purchase List दोनों से डिलीट करता है"""
     clean_title = title.strip().split("\n")[0]
     res = await stories_col.delete_one({"title": clean_title})
     
@@ -315,6 +324,10 @@ async def get_all_stories():
         return []
 
 async def get_stories_by_cat(cat_key, page=1, limit=10):
+    """
+    Case-insensitive Regex category fetcher.
+    Matches 'Pocket FM', 'POCKET FM', 'pocket_fm', 'Pratilipi FM', etc.
+    """
     if "pocket" in str(cat_key).lower():
         pattern = re.compile(r"pocket", re.IGNORECASE)
     elif "pratilipi" in str(cat_key).lower():
@@ -346,6 +359,9 @@ async def get_stories_by_cat(cat_key, page=1, limit=10):
         return [], 0
 
 async def search_stories_db(query_str, page=1, limit=10):
+    """
+    टाइटल या विवरण के आधार पर पेजिनेटेड सर्च परिणाम देता है।
+    """
     pattern = re.compile(re.escape(query_str), re.IGNORECASE)
     query = {
         "$or": [
@@ -370,6 +386,10 @@ async def search_stories_db(query_str, page=1, limit=10):
         return [], 0
 
 async def get_story_by_title(title: str):
+    """टाइटल के आधार पर स्टोरी ढूँढता है (Exact Match Case-Insensitive)"""
     clean_title = title.strip().split("\n")[0]
     pattern = re.compile(f"^{re.escape(clean_title)}$", re.IGNORECASE)
     return await stories_col.find_one({"title": pattern})
+
+
+#db.py
