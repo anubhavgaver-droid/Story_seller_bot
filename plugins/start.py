@@ -31,7 +31,6 @@ from database.db import (
     get_exact_episode_range,
     add_wallet_balance,
     get_referred_users_count,
-    get_file_stream_info,
     users_col
 )
 # Config file imports
@@ -40,7 +39,6 @@ from config import (
     WEB_APP_URL, 
     CHANNEL_ID, 
     DELIVERY_STICKER_ID,
-    WATCH_URL,
     SEARCH_RANGE_STICKER_ID
 )
 
@@ -245,29 +243,12 @@ async def send_story_files_start(client, user_id, story, first_id, last_id, clea
             if ep_num is None or not (target_start_ep <= ep_num <= target_end_ep):
                 continue
 
-        # File title aur streaming URL prepare karna
-        file_title, direct_audio_link = get_file_stream_info(msg, clean_title)
-        encoded_name = url_quote(file_title)
-        encoded_url = url_quote(direct_audio_link)
-        
-        miniapp_link = f"{WATCH_URL}?name={encoded_name}&url={encoded_url}"
-        
-        player_keyboard = InlineKeyboardMarkup([
-            [
-                InlineKeyboardButton(
-                    text="▶️ Open Mini App ( Player)", 
-                    web_app=WebAppInfo(url=miniapp_link)
-                )
-            ]
-        ])
-
         while True:
             try:
                 sent_msg = await client.copy_message(
                     chat_id=user_id,
                     from_chat_id=CHANNEL_ID,
                     message_id=msg.id,
-                    reply_markup=player_keyboard,
                     protect_content=True
                 )
                 sent_messages_obj.append(sent_msg)
