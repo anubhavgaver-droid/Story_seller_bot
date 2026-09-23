@@ -38,7 +38,7 @@ from config import (
     BOT_USERNAME, 
     WEB_APP_URL, 
     CHANNEL_ID, 
-    DELIVERY_STICKER_ID,
+    DELIVERY_STICKER_ID, 
     SEARCH_RANGE_STICKER_ID
 )
 
