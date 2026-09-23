@@ -5,7 +5,7 @@ import time
 from urllib.parse import quote
 from bson import ObjectId
 from motor.motor_asyncio import AsyncIOMotorClient
-from config import MONGO_URL, LOG_CHANNEL
+from config import MONGO_URL, LOG_CHANNEL, CHANNEL_ID
 
 client = AsyncIOMotorClient(MONGO_URL)
 db = client["story_seller_db"]
@@ -416,3 +416,50 @@ async def get_story_by_title(title: str):
     clean_title = title.strip().split("\n")[0]
     pattern = re.compile(f"^{re.escape(clean_title)}$", re.IGNORECASE)
     return await stories_col.find_one({"title": pattern})
+
+# -------------------- STREAM INFO FETCHING FOR WEB PLAYER --------------------
+async def get_stream_info(story_title: str, is_demo: bool = False, range_idx: int = None):
+    """
+    स्टोरी टाइटल, डेमो मोड या कस्टम रेंज के आधार पर ऑनलाइन स्ट्रीमिंग के लिए एपिसोड्स की लिस्ट जनरेट करता है।
+    """
+    story = await get_story_by_title(story_title)
+    if not story:
+        return None
+
+    target_msg_ids = []
+
+    # 1. डेमो फ़ाइल्स (अगर डेमो मांगा गया हो)
+    if is_demo:
+        target_msg_ids = story.get("demo_msg_ids", [])
+        if not target_msg_ids and story.get("first_msg_id"):
+            target_msg_ids = [story["first_msg_id"]]
+
+    # 2. कस्टम रेंज (अगर range_idx पास किया गया हो)
+    elif range_idx is not None:
+        custom_ranges = story.get("custom_ranges", [])
+        if 0 <= range_idx < len(custom_ranges):
+            r = custom_ranges[range_idx]
+            target_msg_ids = list(range(r["first_id"], r["last_id"] + 1))
+
+    # 3. फुल स्टोरी रेंज (first_msg_id से last_msg_id)
+    if not target_msg_ids:
+        first_id = story.get("first_msg_id", 0)
+        last_id = story.get("last_msg_id", 0)
+        if first_id and last_id and last_id >= first_id:
+            target_msg_ids = list(range(first_id, last_id + 1))
+
+    episodes = []
+    for idx, msg_id in enumerate(target_msg_ids, start=1):
+        episodes.append({
+            "episode_number": idx,
+            "message_id": msg_id,
+            "stream_url": f"{WATCH_BASE_URL}/stream/{CHANNEL_ID}/{msg_id}",
+            "title": f"Episode {idx}"
+        })
+
+    return {
+        "title": story.get("title"),
+        "cover": story.get("photo", ""),
+        "total_episodes": len(episodes),
+        "episodes": episodes
+    }
