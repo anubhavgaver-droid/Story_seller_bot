@@ -408,9 +408,8 @@
     <div id="fileName" class="file-title">Audio File</div>
     <div class="notice">🔒 Stream Only (Save & Download Disabled)</div>
 
-    <audio id="audio" preload="metadata">
-      <source id="audioSrc" src="" type="audio/mpeg">
-    </audio>
+    <!-- Direct audio element src control -->
+    <audio id="audio" preload="metadata"></audio>
 
     <div class="player-controls-wrap">
       <div class="progress-bar-container">
@@ -484,6 +483,7 @@
     tg.ready();
     tg.expand();
 
+    // Directly extract from URL without double unquoting
     const urlParams = new URLSearchParams(window.location.search);
     const audioUrl = urlParams.get('url') || urlParams.get('audio');
     const name = urlParams.get('name') || urlParams.get('title');
@@ -503,22 +503,26 @@
     let timerTimeout = null;
 
     if (name) {
-      document.getElementById('fileName').innerText = decodeURIComponent(name);
+      document.getElementById('fileName').innerText = name;
     }
     if (posterUrl) {
-      document.getElementById('poster').src = decodeURIComponent(posterUrl);
+      document.getElementById('poster').src = posterUrl;
     }
+    
+    // Direct audio source assignment
     if (audioUrl) {
-      document.getElementById('audioSrc').src = decodeURIComponent(audioUrl);
+      audio.src = audioUrl;
       audio.load();
+    } else {
+      document.getElementById('fileName').innerText = "Unable to load stream link";
     }
 
     function setupMediaSession() {
       if ('mediaSession' in navigator) {
         navigator.mediaSession.metadata = new MediaMetadata({
-          title: decodeURIComponent(name || 'Audio File'),
+          title: name || 'Audio File',
           artist: 'GW KALU Mini App',
-          artwork: [{ src: posterUrl ? decodeURIComponent(posterUrl) : 'https://cdn-icons-png.flaticon.com/512/3293/3293810.png', sizes: '512x512', type: 'image/png' }]
+          artwork: [{ src: posterUrl || 'https://cdn-icons-png.flaticon.com/512/3293/3293810.png', sizes: '512x512', type: 'image/png' }]
         });
 
         navigator.mediaSession.setActionHandler('play', () => audio.play());
@@ -529,8 +533,9 @@
     }
 
     function togglePlay() {
+      if (!audio.src) return;
       if (audio.paused) {
-        audio.play();
+        audio.play().catch(e => console.error("Play error:", e));
       } else {
         audio.pause();
       }
