@@ -1,0 +1,644 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>GW KALU - Premium Web Player</title>
+  
+  <!-- Telegram Web App SDK -->
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #06090e;
+      color: #f0f6fc;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      padding: 20px 15px;
+      overflow-x: hidden;
+      position: relative;
+    }
+
+    .smoke-bg-1 {
+      position: absolute;
+      width: 320px;
+      height: 320px;
+      background: radial-gradient(circle, rgba(124, 58, 237, 0.45) 0%, rgba(0, 0, 0, 0) 70%);
+      filter: blur(80px);
+      top: 5%;
+      left: 5%;
+      z-index: 0;
+      animation: floatSmoke 9s ease-in-out infinite alternate;
+    }
+    .smoke-bg-2 {
+      position: absolute;
+      width: 300px;
+      height: 300px;
+      background: radial-gradient(circle, rgba(6, 182, 212, 0.4) 0%, rgba(0, 0, 0, 0) 70%);
+      filter: blur(85px);
+      bottom: 5%;
+      right: 5%;
+      z-index: 0;
+      animation: floatSmoke 11s ease-in-out infinite alternate-reverse;
+    }
+
+    @keyframes floatSmoke {
+      0% { transform: translate(0, 0) scale(1); }
+      100% { transform: translate(30px, -40px) scale(1.15); }
+    }
+
+    .glass-card {
+      position: relative;
+      z-index: 1;
+      background: rgba(13, 17, 23, 0.75);
+      backdrop-filter: blur(30px) saturate(200%);
+      -webkit-backdrop-filter: blur(30px) saturate(200%);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 32px;
+      padding: 26px 20px;
+      width: 100%;
+      max-width: 380px;
+      text-align: center;
+      box-shadow: 0 25px 60px rgba(0, 0, 0, 0.85),
+                  inset 0 1px 1px rgba(255, 255, 255, 0.25);
+      margin-bottom: 16px;
+    }
+
+    .glass-card-secondary {
+      position: relative;
+      z-index: 1;
+      background: rgba(13, 17, 23, 0.65);
+      backdrop-filter: blur(25px) saturate(180%);
+      -webkit-backdrop-filter: blur(25px) saturate(180%);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 24px;
+      padding: 18px 16px;
+      width: 100%;
+      max-width: 380px;
+      box-shadow: 0 15px 35px rgba(0, 0, 0, 0.6),
+                  inset 0 1px 1px rgba(255, 255, 255, 0.15);
+    }
+
+    .album-art-wrap {
+      position: relative;
+      width: 115px;
+      height: 115px;
+      margin: 0 auto 16px auto;
+    }
+    .album-art {
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      object-fit: cover;
+      border: 3px solid rgba(0, 212, 255, 0.4);
+      box-shadow: 0 0 30px rgba(0, 212, 255, 0.35);
+      animation: spin 18s linear infinite;
+      animation-play-state: paused;
+    }
+    .playing .album-art {
+      animation-play-state: running;
+    }
+
+    @keyframes spin {
+      100% { transform: rotate(360deg); }
+    }
+
+    .file-title {
+      font-size: 16px;
+      font-weight: 700;
+      color: #ffffff;
+      margin-bottom: 10px;
+      word-break: break-word;
+      line-height: 1.4;
+      text-shadow: 0 2px 10px rgba(0, 0, 0, 0.7);
+    }
+
+    .notice {
+      background: rgba(239, 68, 68, 0.15);
+      color: #f87171;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 6px 16px;
+      border-radius: 50px;
+      display: inline-block;
+      margin-bottom: 18px;
+      border: 1px solid rgba(239, 68, 68, 0.3);
+      letter-spacing: 0.5px;
+    }
+
+    .player-controls-wrap {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 20px;
+      padding: 12px 14px;
+      margin-bottom: 16px;
+    }
+
+    .progress-bar-container {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+
+    .time-stamp {
+      font-size: 11.5px;
+      color: #38bdf8;
+      font-weight: 600;
+      min-width: 36px;
+    }
+
+    .progress-bar {
+      flex: 1;
+      -webkit-appearance: none;
+      appearance: none;
+      height: 5px;
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.15);
+      outline: none;
+      cursor: pointer;
+    }
+
+    .progress-bar::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: #38bdf8;
+      box-shadow: 0 0 10px #38bdf8;
+      cursor: pointer;
+    }
+
+    .main-btn-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0 10px;
+    }
+
+    .btn-play-pause {
+      background: linear-gradient(135deg, #00d2ff, #0072ff);
+      border: none;
+      color: #fff;
+      width: 42px;
+      height: 42px;
+      border-radius: 50%;
+      font-size: 17px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      box-shadow: 0 4px 15px rgba(0, 210, 255, 0.4);
+      transition: transform 0.2s ease;
+    }
+
+    .btn-play-pause:active { transform: scale(0.92); }
+
+    .btn-mute {
+      background: transparent;
+      border: none;
+      color: #94a3b8;
+      font-size: 18px;
+      cursor: pointer;
+    }
+
+    .controls {
+      display: flex;
+      justify-content: center;
+      gap: 14px;
+      margin-bottom: 16px;
+    }
+
+    .btn-skip {
+      position: relative;
+      background: linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.02) 100%);
+      color: #38bdf8;
+      border: 1px solid rgba(56, 189, 248, 0.35);
+      padding: 10px 20px;
+      border-radius: 16px;
+      font-size: 13.5px;
+      font-weight: 800;
+      cursor: pointer;
+      backdrop-filter: blur(12px);
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
+      transition: transform 0.2s ease;
+    }
+
+    .btn-skip::after {
+      content: '';
+      position: absolute;
+      top: -50%;
+      left: -150%;
+      width: 80%;
+      height: 200%;
+      background: linear-gradient(60deg, rgba(255,255,255,0) 20%, rgba(255,255,255,0.35) 50%, rgba(255,255,255,0) 80%);
+      transform: rotate(25deg);
+      animation: shineSweep 3.5s infinite ease-in-out;
+    }
+
+    @keyframes shineSweep {
+      0% { left: -150%; }
+      20% { left: 150%; }
+      100% { left: 150%; }
+    }
+
+    .btn-skip:active { transform: scale(0.92); }
+
+    .action-buttons-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .pill-btn {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 16px;
+      padding: 10px 12px;
+      color: #e2e8f0;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      transition: all 0.2s ease;
+    }
+
+    .pill-btn:hover, .pill-btn:active {
+      background: rgba(56, 189, 248, 0.15);
+      border-color: rgba(56, 189, 248, 0.4);
+      color: #38bdf8;
+    }
+
+    .pill-btn span.val {
+      font-size: 11px;
+      color: #0ea5e9;
+      font-weight: 800;
+    }
+
+    .options-tray {
+      display: none;
+      grid-column: span 2;
+      background: rgba(15, 23, 42, 0.9);
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      border-radius: 16px;
+      padding: 10px;
+      gap: 6px;
+      grid-template-columns: repeat(auto-fit, minmax(60px, 1fr));
+      margin-top: 4px;
+      animation: fadeIn 0.2s ease-in-out;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(-5px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .tray-opt {
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 10px;
+      padding: 6px 4px;
+      color: #cbd5e1;
+      font-size: 11px;
+      font-weight: 700;
+      cursor: pointer;
+      text-align: center;
+    }
+
+    .tray-opt.active {
+      background: #0284c7;
+      color: #ffffff;
+      border-color: #38bdf8;
+    }
+
+    .social-links {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      width: 100%;
+    }
+
+    .link-btn {
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 11px 16px;
+      border-radius: 16px;
+      font-size: 13px;
+      font-weight: 700;
+      text-decoration: none;
+      backdrop-filter: blur(15px);
+      overflow: hidden;
+      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .link-btn::after {
+      content: '';
+      position: absolute;
+      top: -50%;
+      left: -150%;
+      width: 80%;
+      height: 200%;
+      background: linear-gradient(60deg, rgba(255,255,255,0) 20%, rgba(255,255,255,0.25) 50%, rgba(255,255,255,0) 80%);
+      transform: rotate(25deg);
+      animation: shineSweep 4s infinite ease-in-out;
+    }
+
+    .btn-story {
+      background: linear-gradient(135deg, rgba(168, 85, 247, 0.2) 0%, rgba(124, 58, 237, 0.08) 100%);
+      border: 1px solid rgba(168, 85, 247, 0.4);
+      color: #c084fc;
+      box-shadow: 0 4px 15px rgba(168, 85, 247, 0.2);
+    }
+
+    .btn-support {
+      background: linear-gradient(135deg, rgba(34, 197, 94, 0.2) 0%, rgba(16, 185, 129, 0.08) 100%);
+      border: 1px solid rgba(34, 197, 94, 0.4);
+      color: #4ade80;
+      box-shadow: 0 4px 15px rgba(34, 197, 94, 0.2);
+    }
+
+    .btn-dev {
+      background: linear-gradient(135deg, rgba(14, 165, 233, 0.2) 0%, rgba(2, 132, 199, 0.08) 100%);
+      border: 1px solid rgba(14, 165, 233, 0.4);
+      color: #38bdf8;
+      box-shadow: 0 4px 15px rgba(14, 165, 233, 0.2);
+    }
+
+    .link-btn:active { transform: scale(0.96); }
+
+    footer {
+      position: relative;
+      z-index: 1;
+      margin-top: 18px;
+      text-align: center;
+      font-size: 11px;
+      color: #64748b;
+      line-height: 1.6;
+    }
+    footer .brand { color: #38bdf8; font-weight: 800; }
+  </style>
+</head>
+<body>
+
+  <div class="smoke-bg-1"></div>
+  <div class="smoke-bg-2"></div>
+
+  <div class="glass-card" id="card">
+    <div class="album-art-wrap">
+      <img id="poster" class="album-art" src="https://cdn-icons-png.flaticon.com/512/3293/3293810.png" alt="Thumbnail">
+    </div>
+
+    <div id="fileName" class="file-title">Audio File</div>
+    <div class="notice">🔒 Stream Only (Save & Download Disabled)</div>
+
+    <audio id="audio" preload="metadata">
+      <source id="audioSrc" src="" type="audio/mpeg">
+    </audio>
+
+    <div class="player-controls-wrap">
+      <div class="progress-bar-container">
+        <span id="currentTime" class="time-stamp">0:00</span>
+        <input type="range" id="progressBar" class="progress-bar" value="0" min="0" max="100">
+        <span id="duration" class="time-stamp">0:00</span>
+      </div>
+      <div class="main-btn-row">
+        <button class="btn-mute" id="muteBtn" onclick="toggleMute()">🔊</button>
+        <button class="btn-play-pause" id="playBtn" onclick="togglePlay()">▶</button>
+        <div style="width: 24px;"></div>
+      </div>
+    </div>
+
+    <div class="controls">
+      <button class="btn-skip" onclick="skip(-10)">⏪ 10s</button>
+      <button class="btn-skip" onclick="skip(10)">10s ⏩</button>
+    </div>
+
+    <div class="action-buttons-grid">
+      <button class="pill-btn" onclick="toggleTray('speedTray')">
+        ⚡ Speed
+        <span id="speedVal" class="val">1.0x</span>
+      </button>
+
+      <button class="pill-btn" onclick="toggleTray('timerTray')">
+        ⏰ Sleep Timer
+        <span id="timerVal" class="val">Off</span>
+      </button>
+
+      <div id="speedTray" class="options-tray">
+        <div class="tray-opt" onclick="setSpeed(0.75, this)">0.75x</div>
+        <div class="tray-opt active" onclick="setSpeed(1.0, this)">1.0x</div>
+        <div class="tray-opt" onclick="setSpeed(1.25, this)">1.25x</div>
+        <div class="tray-opt" onclick="setSpeed(1.5, this)">1.5x</div>
+        <div class="tray-opt" onclick="setSpeed(2.0, this)">2.0x</div>
+      </div>
+
+      <div id="timerTray" class="options-tray">
+        <div class="tray-opt active" onclick="setSleepTimer(0, 'Off', this)">Off</div>
+        <div class="tray-opt" onclick="setSleepTimer(15, '15m', this)">15m</div>
+        <div class="tray-opt" onclick="setSleepTimer(30, '30m', this)">30m</div>
+        <div class="tray-opt" onclick="setSleepTimer(45, '45m', this)">45m</div>
+        <div class="tray-opt" onclick="setSleepTimer(60, '60m', this)">60m</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="glass-card-secondary">
+    <div class="social-links">
+      <a href="https://t.me/FREESTORYHUBMR" target="_blank" class="link-btn btn-story">
+        📖 Story Channel
+      </a>
+      <a href="https://t.me/pratilipifm0900" target="_blank" class="link-btn btn-support">
+        💬 Support Group
+      </a>
+      <a href="https://t.me/hdfilm0900_bot" target="_blank" class="link-btn btn-dev">
+        👨‍💻 Developer Contact
+      </a>
+    </div>
+  </div>
+
+  <footer>
+    <p>This file only streams. Download & save options are disabled.</p>
+    <p>© 2026 GW KALU. All Rights Reserved.</p>
+    <p class="brand">POWERED BY GW KALU</p>
+  </footer>
+
+  <script>
+    const tg = window.Telegram.WebApp;
+    tg.ready();
+    tg.expand();
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const audioUrl = urlParams.get('url') || urlParams.get('audio');
+    const name = urlParams.get('name') || urlParams.get('title');
+    const posterUrl = urlParams.get('cover');
+    
+    const audio = document.getElementById('audio');
+    const playBtn = document.getElementById('playBtn');
+    const muteBtn = document.getElementById('muteBtn');
+    const progressBar = document.getElementById('progressBar');
+    const currentTimeEl = document.getElementById('currentTime');
+    const durationEl = document.getElementById('duration');
+    const card = document.getElementById('card');
+    const speedVal = document.getElementById('speedVal');
+    const timerVal = document.getElementById('timerVal');
+
+    let timerInterval = null;
+    let timerTimeout = null;
+
+    if (name) {
+      document.getElementById('fileName').innerText = decodeURIComponent(name);
+    }
+    if (posterUrl) {
+      document.getElementById('poster').src = decodeURIComponent(posterUrl);
+    }
+    if (audioUrl) {
+      document.getElementById('audioSrc').src = decodeURIComponent(audioUrl);
+      audio.load();
+    }
+
+    function setupMediaSession() {
+      if ('mediaSession' in navigator) {
+        navigator.mediaSession.metadata = new MediaMetadata({
+          title: decodeURIComponent(name || 'Audio File'),
+          artist: 'GW KALU Mini App',
+          artwork: [{ src: posterUrl ? decodeURIComponent(posterUrl) : 'https://cdn-icons-png.flaticon.com/512/3293/3293810.png', sizes: '512x512', type: 'image/png' }]
+        });
+
+        navigator.mediaSession.setActionHandler('play', () => audio.play());
+        navigator.mediaSession.setActionHandler('pause', () => audio.pause());
+        navigator.mediaSession.setActionHandler('seekbackward', () => skip(-10));
+        navigator.mediaSession.setActionHandler('seekforward', () => skip(10));
+      }
+    }
+
+    function togglePlay() {
+      if (audio.paused) {
+        audio.play();
+      } else {
+        audio.pause();
+      }
+    }
+
+    function toggleMute() {
+      audio.muted = !audio.muted;
+      muteBtn.innerText = audio.muted ? '🔇' : '🔊';
+    }
+
+    function formatTime(seconds) {
+      if (isNaN(seconds)) return "0:00";
+      const mins = Math.floor(seconds / 60);
+      const secs = Math.floor(seconds % 60);
+      return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+    }
+
+    function toggleTray(trayId) {
+      const speedTray = document.getElementById('speedTray');
+      const timerTray = document.getElementById('timerTray');
+
+      if (trayId === 'speedTray') {
+        speedTray.style.display = (speedTray.style.display === 'grid') ? 'none' : 'grid';
+        timerTray.style.display = 'none';
+      } else {
+        timerTray.style.display = (timerTray.style.display === 'grid') ? 'none' : 'grid';
+        speedTray.style.display = 'none';
+      }
+    }
+
+    function setSpeed(rate, el) {
+      audio.playbackRate = rate;
+      speedVal.innerText = rate + 'x';
+      
+      const parent = el.parentElement;
+      parent.querySelectorAll('.tray-opt').forEach(opt => opt.classList.remove('active'));
+      el.classList.add('active');
+      parent.style.display = 'none';
+    }
+
+    function setSleepTimer(mins, label, el) {
+      clearTimeout(timerTimeout);
+      clearInterval(timerInterval);
+
+      const parent = el.parentElement;
+      parent.querySelectorAll('.tray-opt').forEach(opt => opt.classList.remove('active'));
+      el.classList.add('active');
+      parent.style.display = 'none';
+
+      if (mins === 0) {
+        timerVal.innerText = "Off";
+        return;
+      }
+
+      let remainingSeconds = mins * 60;
+      
+      timerInterval = setInterval(() => {
+        remainingSeconds--;
+        const m = Math.floor(remainingSeconds / 60);
+        const s = remainingSeconds % 60;
+        timerVal.innerText = `${m}:${s < 10 ? '0' : ''}${s}`;
+
+        if (remainingSeconds <= 0) {
+          clearInterval(timerInterval);
+          timerVal.innerText = "Off";
+        }
+      }, 1000);
+
+      timerTimeout = setTimeout(() => {
+        audio.pause();
+        alert("Sleep timer finished. Playback paused.");
+      }, mins * 60 * 1000);
+    }
+
+    audio.addEventListener('play', () => {
+      playBtn.innerText = '❚❚';
+      card.classList.add('playing');
+      setupMediaSession();
+    });
+
+    audio.addEventListener('pause', () => {
+      playBtn.innerText = '▶';
+      card.classList.remove('playing');
+    });
+
+    audio.addEventListener('loadedmetadata', () => {
+      durationEl.innerText = formatTime(audio.duration);
+    });
+
+    audio.addEventListener('timeupdate', () => {
+      currentTimeEl.innerText = formatTime(audio.currentTime);
+      if (audio.duration) {
+        const percent = (audio.currentTime / audio.duration) * 100;
+        progressBar.value = percent;
+      }
+    });
+
+    progressBar.addEventListener('input', () => {
+      if (audio.duration) {
+        audio.currentTime = (progressBar.value / 100) * audio.duration;
+      }
+    });
+
+    function skip(seconds) {
+      if (!isNaN(audio.duration) && audio.duration > 0) {
+        audio.currentTime = Math.min(Math.max(audio.currentTime + seconds, 0), audio.duration);
+      }
+    }
+  </script>
+</body>
+</html>
