@@ -242,6 +242,23 @@ async def send_story_files_start(client, user_id, story, first_id, last_id, clea
         if target_start_ep is not None and target_end_ep is not None:
             if ep_num is None or not (target_start_ep <= ep_num <= target_end_ep):
                 continue
+        
+
+        # File title aur streaming URL prepare karna
+        file_title, direct_audio_link = get_file_stream_info(msg, clean_title)
+        encoded_name = urllib.parse.quote(file_title)
+        encoded_url = urllib.parse.quote(direct_audio_link)
+        
+        miniapp_link = f"{WATCH_URL}?name={encoded_name}&url={encoded_url}"
+        
+        player_keyboard = InlineKeyboardMarkup([
+            [
+                InlineKeyboardButton(
+                    text="▶️ Open Mini App ( Player)", 
+                    web_app=WebAppInfo(url=miniapp_link)
+                )
+            ]
+        ])
 
         while True:
             try:
@@ -249,6 +266,7 @@ async def send_story_files_start(client, user_id, story, first_id, last_id, clea
                     chat_id=user_id,
                     from_chat_id=CHANNEL_ID,
                     message_id=msg.id,
+                    reply_markup=player_keyboard,  # <--- Yaha har file ke niche Player Button add ho raha hai
                     protect_content=True
                 )
                 sent_messages_obj.append(sent_msg)
