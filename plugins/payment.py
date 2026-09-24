@@ -79,7 +79,7 @@ async def cancel_payment_callback(client, callback):
 # Toggle UPI ID Visibility
 @Client.on_callback_query(filters.regex("^show_upi_id$"))
 async def show_upi_id(client, callback):
-    await callback.answer(f"📌 UPI ID: {UPI_ID}", show_alert=True)
+    await callback.answer(f"📌 UPI ID:<code>{UPI_ID}</code>", show_alert=True)
 
 # ---------------- 1. VIEW STORY & QR GENERATION ----------------
 
@@ -159,12 +159,12 @@ async def start_auto_verify(client, callback):
     session = ACTIVE_PAYMENTS.get(user_id)
     
     if not session:
-        return await callback.answer("⏰ Payment Session Expired! Please try again.", show_alert=True)
+        return await callback.answer("⏰ Payment Expired! Please try again.", show_alert=True)
         
     # Check 10 Minute Timer
     if time.time() - session['timestamp'] > 600:
         ACTIVE_PAYMENTS.pop(user_id, None)
-        return await callback.answer("⌛ Time limit of 10 minutes exceeded! Session expired.", show_alert=True)
+        return await callback.answer("⌛ Time limit of 10 minutes exceeded! payment expired.", show_alert=True)
         
     # Ask for Transaction ID
     await callback.message.reply_text(
@@ -198,7 +198,7 @@ async def process_auto_txn_id(client, message):
     if txn_id in USED_TRANSACTIONS:
         return await message.reply_text("⚠️ <b>This Transaction ID has already been used!</b> Fraudulent attempts are logged.")
 
-    wait_msg = await message.reply_text("🔄 <b>ᴠᴇʀɪғʏɪɴɢ ᴘᴀʏᴍᴇɴᴛ ᴡɪᴛʜ ɢᴍᴀɪʟ...</b>\n<i>Please wait a few seconds.</i>")
+    wait_msg = await message.reply_text("🔄 <b>ᴠᴇʀɪғʏɪɴɢ ᴘᴀʏᴍᴇɴᴛ...</b>\n<i>Please wait a few seconds.</i>")
     
     # 3. Check via Gmail IMAP
     is_valid, msg = verify_fampay_email(txn_id, price)
