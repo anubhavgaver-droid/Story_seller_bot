@@ -6,6 +6,8 @@ import aiofiles
 from pyrogram import Client, idle, filters
 from config import API_ID, API_HASH, BOT_TOKEN, PORT, ADMIN_ID, BOT_USERNAME, LOG_CHANNEL
 from database.db import stories_col, get_user_purchases, get_story_by_title
+# 📥 Import Payment Webhook Handler from payment.py
+from payment import handle_payment_webhook
 
 # Plugins setup
 plugins = dict(root="plugins")
@@ -35,7 +37,6 @@ async def handle_miniapp(request):
             content = await f.read()
             return web.Response(text=content, content_type="text/html")
     return web.Response(text="<h3>index.html not found in web/ folder!</h3>", content_type="text/html", status=404)
-
 
 # ------------------ 3. API Endpoint: Fetch Stories (Demo Synced) ------------------
 async def handle_get_stories(request):
@@ -99,6 +100,9 @@ async def start_web_server():
     app_web.router.add_get("/", handle_miniapp)
     app_web.router.add_get("/api/stories", handle_get_stories)
     app_web.router.add_get("/api/user_purchases", handle_get_user_purchases)
+    
+    # ⚡ MacroDroid Webhook POST Endpoint
+    app_web.router.add_post("/webhook", handle_payment_webhook)
     
     if os.path.exists(WEB_DIR):
         app_web.router.add_static("/web/", path=WEB_DIR, name="web")
