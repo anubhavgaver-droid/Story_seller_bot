@@ -10,7 +10,6 @@ LOG_CHANNEL = int(os.environ.get("LOG_CHANNEL", "-1001234567890"))
 CHANNEL_ID = int(os.environ.get("CHANNEL_ID", "-1003970824423"))
 
 # Category / Platform-wise Posting Channels
-# (अगर Env में सेट नहीं होंगे तो Default -1003226074080 पर ही जाएंगे)
 POCKET_FM_CHANNEL = int(os.environ.get("POCKET_FM_CHANNEL", "-1003525105249"))
 PRATILIPI_FM_CHANNEL = int(os.environ.get("PRATILIPI_FM_CHANNEL", "-1003226074080"))
 
@@ -27,7 +26,10 @@ WEB_APP_URL = os.environ.get("WEB_APP_URL", "https://story-seller-bot-0jtb.onren
 # Auto-Post Tutorial Button Link
 TUTORIAL_VIDEO_URL = os.environ.get("TUTORIAL_VIDEO_URL", "https://t.me/howanubhav/23")
 
+# Gmail IMAP Configuration (Automatic Payment Verification)
+GMAIL_USER = os.environ.get("GMAIL_USER", "81jokeryt@gmail.com") # Apni Gmail ID
+GMAIL_PASS = os.environ.get("GMAIL_PASS", "abcdefghijklmnop") # 16-Digit App Password (Bina space ke)
+
 # Stickers Config
 DELIVERY_STICKER_ID = os.environ.get("DELIVERY_STICKER_ID", "CAACAgUAAxkBAAIekGqafK19rMDCkWo-XnCakyhwR7iEAAJaBAAC-qSxV4gJ0UQKykTsHgQ...")
-SEARCH_RANGE_STICKER_ID = os.environ.get("SEARCH_RANGE_STICKER_ID", "CAACAgUAAxkBAAIerGqb8sr1MmSI_TSCRs7sNw8djRcXAAJIFQACyBnYViD0CmfSGf75HgQ")
-
+SEARCH_RANGE_STICKER_ID = os.environ.get("SEARCH_RANGE_STICKER_ID", "")
