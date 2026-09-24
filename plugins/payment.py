@@ -131,7 +131,8 @@ async def generate_qr(client, callback):
     }
 
     upi_link = f"upi://pay?pa={UPI_ID}&pn=StorySeller&am={price}&cu=INR"
-    qr_url = f"https://api.qrserver.com/v1/create-qr-code/?size=300x300&data={urllib.parse.quote(upi_link)}"
+    # Optimized QR size (250x250) with quiet margin (margin=15) to fix "Format Not Found" scanning issues
+    qr_url = f"https://api.qrserver.com/v1/create-qr-code/?size=250x250&margin=15&data={urllib.parse.quote(upi_link)}"
     
     caption = (
         f"⚡ <b>ᴀᴜᴛᴏᴍᴀᴛɪᴄ ᴘᴀʏᴍᴇɴᴛ ᴄʜᴇᴄᴋᴏᴜᴛ</b>\n\n"
@@ -210,7 +211,7 @@ async def process_auto_txn_id(client, message):
         # Automatic Fullfilment
         if session['type'] == "WALLET":
             new_bal = await add_wallet_balance(user_id, price)
-            await message.reply_text(f"🎉 <b>ᴀᴜᴛᴏ-ᴠᴇʀɪғɪᴇᴅ 🇸ᴜᴄᴄᴇssғᴜʟʟʏ!</b>\n\n💰 Added ₹{price} to Wallet.\n👛 New Balance: ₹{new_bal}")
+            await message.reply_text(f"🎉 <b>ᴀᴜᴛᴏ-ᴠᴇʀɪғɪᴇᴅ sᴜᴄᴄᴇssғᴜʟʟʏ!</b>\n\n💰 Added ₹{price} to Wallet.\n👛 New Balance: ₹{new_bal}")
             
             # Send Log to Channel & Admin
             if LOG_CHANNEL and LOG_CHANNEL != 0:
@@ -283,7 +284,8 @@ async def process_wallet_amount(client, message):
     }
 
     upi_link = f"upi://pay?pa={UPI_ID}&pn=WalletTopup&am={price}&cu=INR"
-    qr_url = f"https://api.qrserver.com/v1/create-qr-code/?size=300x300&data={urllib.parse.quote(upi_link)}"
+    # Optimized Wallet QR size & margin
+    qr_url = f"https://api.qrserver.com/v1/create-qr-code/?size=250x250&margin=15&data={urllib.parse.quote(upi_link)}"
     
     caption = (
         f"👛 <b>ᴡᴀʟʟᴇᴛ ᴛᴏᴘ-ᴜᴘ:</b> ₹{price}\n"
