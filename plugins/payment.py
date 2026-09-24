@@ -1,14 +1,11 @@
 import urllib.parse
 import re
-import imaplib
-import email
 import time
 import asyncio
-from datetime import datetime
 from aiohttp import web
 from pyrogram import Client, filters, enums
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-from config import UPI_ID, ADMIN_ID, BOT_USERNAME, LOG_CHANNEL, GMAIL_USER, GMAIL_PASS
+from config import UPI_ID, ADMIN_ID, BOT_USERNAME, LOG_CHANNEL
 from database.db import get_story_by_title, add_user_purchase, add_wallet_balance
 
 # Global Dictionaries & DB for UTR Lock
@@ -46,6 +43,11 @@ async def handle_payment_webhook(request):
         if secret_key != WEBHOOK_SECRET:
             return web.json_response({"status": "unauthorized"}, status=401)
 
+        # 🛑 Outgoing/Failed Notification Filtering
+        lower_text = notification_text.lower()
+        if "debited" in lower_text or "paid to" in lower_text or "failed" in lower_text:
+            return web.json_response({"status": "ignored", "reason": "Outgoing or failed transaction"})
+
         # Regex for 12-digit UTR / Txn ID and Amount (₹100 or Rs.100 or 100 INR)
         utr_match = re.search(r'\b\d{12}\b', notification_text)
         amount_match = re.search(r'(?:₹|Rs\.?|INR)\s*([0-9]+(?:\.[0-9]+)?)', notification_text, re.IGNORECASE)
@@ -66,54 +68,13 @@ async def handle_payment_webhook(request):
     except Exception as e:
         return web.json_response({"status": "error", "message": str(e)}, status=500)
 
-# Helper Function: Verify Payment (Checks MacroDroid Memory first, then Gmail IMAP)
+# Helper Function: Verify Payment via MacroDroid Memory
 def verify_payment_data(txn_id):
-    # 1. Check MacroDroid Webhook Memory (Instant Verification)
     if txn_id in TRACKED_PAYMENTS:
         data = TRACKED_PAYMENTS[txn_id]
-        return True, "Verified via Instant Webhook", data["amount"]
-
-    # 2. Check Gmail IMAP Backup
-    if not GMAIL_USER or not GMAIL_PASS:
-        return False, "Gmail credentials not configured.", 0.0
-        
-    try:
-        mail = imaplib.IMAP4_SSL("imap.gmail.com")
-        mail.login(GMAIL_USER, GMAIL_PASS)
-        mail.select("inbox")
-        
-        status, messages = mail.search(None, f'TEXT "{txn_id}"')
-        if status != "OK" or not messages[0]:
-            mail.logout()
-            return False, "Transaction ID not found in our system yet.", 0.0
-            
-        email_ids = messages[0].split()
-        for e_id in reversed(email_ids):
-            _, msg_data = mail.fetch(e_id, "(RFC822)")
-            for response_part in msg_data:
-                if isinstance(response_part, tuple):
-                    msg = email.message_from_bytes(response_part[1])
-                    body = ""
-                    if msg.is_multipart():
-                        for part in msg.walk():
-                            if part.get_content_type() == "text/plain":
-                                body += part.get_payload(decode=True).decode("utf-8", errors="ignore")
-                    else:
-                        body = msg.get_payload(decode=True).decode("utf-8", errors="ignore")
-                    
-                    if txn_id in body:
-                        amount_matches = re.findall(r"(?:₹|Rs\.?)\s*([\d\.]+)", body)
-                        if amount_matches:
-                            try:
-                                actual_paid = float(amount_matches[0])
-                                mail.logout()
-                                return True, "Transaction Found in Gmail", actual_paid
-                            except ValueError:
-                                pass
-        mail.logout()
-        return False, "Transaction ID found, but unable to parse amount.", 0.0
-    except Exception as e:
-        return False, f"Email Check Error: {str(e)}", 0.0
+        return True, "Verified via MacroDroid Webhook", data["amount"]
+    
+    return False, "Transaction ID not found in system.", 0.0
 
 # ---------------- CANCEL & UPI HANDLERS ----------------
 
@@ -305,16 +266,16 @@ async def process_auto_txn_id(client, message):
 
     wait_msg = await message.reply_text("🔄 <b>ᴠᴇʀɪғʏɪɴɢ ᴘᴀʏᴍᴇɴᴛ...</b>\n<i>Checking transaction details...</i>")
     
-    # First attempt to verify
+    # First attempt to verify via MacroDroid memory
     is_valid, msg, actual_paid = verify_payment_data(txn_id)
     
-    # ⏳ IF NOT FOUND IN FIRST ATTEMPT: START 5-SECOND COUNTDOWN & RETRY
+    # ⏳ IF NOT FOUND IN FIRST ATTEMPT: START 5-SECOND COUNTDOWN & RETRY (In case Webhook was delayed)
     if not is_valid:
         for remaining in range(5, 0, -1):
             try:
                 await wait_msg.edit_text(
                     f"⚠️ <b>ᴛʀᴀɴsᴀᴄᴛɪᴏɴ ɴᴏᴛ ғᴏᴜɴᴅ ʏᴇᴛ!</b>\n"
-                    f"<i>Waiting for bank confirmation...</i>\n\n"
+                    f"<i>Waiting for payment webhook notification...</i>\n\n"
                     f"🔄 <b>ᴀᴜᴛᴏ-ʀᴇᴛʀʏɪɴɢ ɪɴ:</b> <code>{remaining}s</code>"
                 )
             except Exception:
@@ -358,7 +319,7 @@ async def process_auto_txn_id(client, message):
                     f"📖 <b>sᴛᴏʀʏ ᴘʀɪᴄᴇ:</b> ₹{expected_price}\n"
                     f"💵 <b>ᴘᴀɪᴅ ᴀᴍᴏᴜɴᴛ:</b> ₹{actual_paid}\n\n"
                     f"💡 <i>As per terms, your ₹{actual_paid} has been credited to your <b>Wallet</b>.</i>\n\n"
-                    f"👛 <b>ᴄᴜʀʀᴇɴT ᴡᴀʟʟᴇᴛ ʙᴀʟᴀɴᴄᴇ:</b> ₹{new_bal}\n"
+                    f"👛 <b>ᴄᴜʀʀᴇɴᴛ ᴡᴀʟʟᴇᴛ ʙᴀʟᴀɴᴄᴇ:</b> ₹{new_bal}\n"
                     f"📌 <i>Top-up remaining amount to unlock files.</i>"
                 )
                 if LOG_CHANNEL and LOG_CHANNEL != 0:
