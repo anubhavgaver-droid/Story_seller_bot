@@ -207,7 +207,7 @@ async def generate_qr_after_terms(client, callback):
     )
     
     btn = InlineKeyboardMarkup([
-        [InlineKeyboardButton("⚡ ᴇɴᴛᴇʀ ᴜᴛʀ / ᴛxɴ ɪᴅ (Auto)", style=enums.ButtonStyle.SUCCESS, callback_data=f"ask_utr_{user_id}")],
+        [InlineKeyboardButton("⚡ ᴠᴇʀɪғʏ ᴘᴀʏᴍᴇɴᴛ (Auto)", style=enums.ButtonStyle.SUCCESS, callback_data=f"ask_utr_{user_id}")],
         [InlineKeyboardButton("👁️ sʜᴏᴡ ᴜᴘɪ ɪᴅ", callback_data="show_upi_id"), InlineKeyboardButton("📩 ᴍᴀɴᴜᴀʟ / ᴀᴅᴍɪɴ", callback_data=f"sent_{clean_title}_{price}")],
         [InlineKeyboardButton("❌ ᴄᴀɴᴄᴇʟ", style=enums.ButtonStyle.DANGER, callback_data="cancel_payment_process")]
     ])
@@ -271,7 +271,7 @@ async def process_auto_txn_id(client, message):
             try:
                 await wait_msg.edit_text(
                     f"⚠️ <b>ᴛʀᴀɴsᴀᴄᴛɪᴏɴ ɴᴏᴛ ғᴏᴜɴᴅ ʏᴇᴛ!</b>\n"
-                    f"<i>Waiting for bank confirmation email...</i>\n\n"
+                    f"<i>Waiting for bank confirmation our system...</i>\n\n"
                     f"🔄 <b>ᴀᴜᴛᴏ-ʀᴇᴛʀʏɪɴɢ ɪɴ:</b> <code>{remaining}s</code>"
                 )
             except Exception:
