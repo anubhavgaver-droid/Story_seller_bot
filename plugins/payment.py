@@ -14,6 +14,19 @@ ACTIVE_PAYMENTS = {}        # Stores active session timing and order data
 WALLET_TOPUP_WAITING = {}   # Stores wallet state
 USED_TRANSACTIONS = set()   # Duplicate UTR / Txn ID locking memory
 
+# 🖼️ UTR Step-by-Step Banner Image URL (अपनी इमेज का लिंक यहाँ डालें)
+GUIDE_IMAGE_URL = "https://i.ibb.co/example/payment-guide-banner.jpg" 
+
+# 📋 Terms & Conditions Text
+TERMS_TEXT = (
+    "📜 <b><u>TERMS & CONDITIONS / PAYMENT POLICY</u></b>\n\n"
+    "1️⃣ <b>Exact Matching:</b> पेमेंट पूरी और सही राशि की होनी चाहिए।\n"
+    "2️⃣ <b>Underpayment Policy:</b> यदि आप स्टोरी की कीमत से कम भुगतान करते हैं, तो आपकी फाइल अनलॉक नहीं होगी। पैसा सीधे आपके <b>Wallet</b> में क्रेडिट कर दिया जाएगा।\n"
+    "3️⃣ <b>Overpayment Policy:</b> स्टोरी की कीमत से ज़्यादा पे करने पर बोट तुरंत फाइल देगा और बचा हुआ पैसा वॉलेट में जोड़ देगा।\n"
+    "4️⃣ <b>No Refund:</b> डिजिटल कंटेंट होने के कारण बैंक खाते में रिफंड संभव नहीं है, राशि केवल बोट वॉलेट में उपयोग की जा सकती है।\n"
+    "5️⃣ <b>Fraud Attempts:</b> एक ही Transaction ID का बार-बार इस्तेमाल करने पर यूज़र को ऑटो-ब्लॉक कर दिया जाएगा।"
+)
+
 # Helper Function: Fetch & Verify FamPay/FamApp Email from Gmail
 def verify_fampay_email(txn_id):
     if not GMAIL_USER or not GMAIL_PASS:
@@ -27,7 +40,7 @@ def verify_fampay_email(txn_id):
         status, messages = mail.search(None, f'TEXT "{txn_id}"')
         if status != "OK" or not messages[0]:
             mail.logout()
-            return False, "Transaction ID not found yet.\n<b>TRY AFTER SOME TIME</b>", 0.0
+            return False, "Transaction ID not found in Gmail yet.\n<b>TRY AFTER SOME TIME</b>", 0.0
             
         email_ids = messages[0].split()
         for e_id in reversed(email_ids):
@@ -44,7 +57,6 @@ def verify_fampay_email(txn_id):
                         body = msg.get_payload(decode=True).decode("utf-8", errors="ignore")
                     
                     if txn_id in body:
-                        # Extract exact paid amount from email using Regex
                         amount_matches = re.findall(r"(?:₹|Rs\.?)\s*([\d\.]+)", body)
                         if amount_matches:
                             try:
@@ -58,7 +70,7 @@ def verify_fampay_email(txn_id):
     except Exception as e:
         return False, f"Email Check Error: {str(e)}", 0.0
 
-# ---------------- CANCEL & SHOW UPI HANDLERS ----------------
+# ---------------- CANCEL, UPI HANDLERS ----------------
 
 @Client.on_callback_query(filters.regex("^cancel_payment_process$"))
 async def cancel_payment_callback(client, callback):
@@ -134,7 +146,7 @@ async def generate_qr(client, callback):
         f"📖 <b>sᴛᴏʀʏ:</b> {story_title}\n"
         f"💰 <b>ᴀᴍᴏᴜɴᴛ:</b> ₹{price}\n"
         f"⏳ <b>ᴛɪᴍᴇ ʟɪᴍɪᴛ:</b> 10 Minutes\n\n"
-        f"📲 <i>Scan the QR Code below to make instant payment. Verification is fully automatic!</i>"
+        f"📲 <i>Scan QR & Complete Payment. Then Click Below to Verify!</i>"
     )
     
     btn = InlineKeyboardMarkup([
@@ -146,10 +158,10 @@ async def generate_qr(client, callback):
     await callback.message.reply_photo(photo=qr_url, caption=caption, reply_markup=btn)
     await callback.answer()
 
-# ---------------- 2. AUTO-VERIFICATION TRIGGER ----------------
+# ---------------- STEP 2 (NEW STEP): TERMS & GUIDE ACCEPTANCE ----------------
 
 @Client.on_callback_query(filters.regex("^auto_verify_"))
-async def start_auto_verify(client, callback):
+async def show_terms_and_guide(client, callback):
     user_id = callback.from_user.id
     session = ACTIVE_PAYMENTS.get(user_id)
     
@@ -158,17 +170,60 @@ async def start_auto_verify(client, callback):
         
     if time.time() - session['timestamp'] > 600:
         ACTIVE_PAYMENTS.pop(user_id, None)
-        return await callback.answer("⌛ Time limit of 10 minutes exceeded! payment expired.", show_alert=True)
-        
-    await callback.message.reply_text(
-        "📝 <b>ᴇɴᴛᴇʀ ʏᴏᴜʀ ғᴀᴍᴘᴀʏ / ᴜᴘɪ ᴛʀᴀɴsᴀᴄᴛɪᴏɴ ɪᴅ:</b>\n\n"
-        "Please paste your FamPay Transaction ID (e.g., <code>FMPIB665989150...</code>) to instantly verify payment:",
-        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ ᴄᴀɴᴄᴇʟ", callback_data="cancel_payment_process")]])
+        return await callback.answer("⌛ Time limit of 10 minutes exceeded! Payment expired.", show_alert=True)
+
+    terms_guide_caption = (
+        f"📌 <b><u>PAYMENT GUIDE & TERMS AND CONDITIONS</u></b>\n\n"
+        f"<b><u>4 STEPS TO GET FILE:</u></b>\n"
+        f"1️⃣ Pay via UPI/QR code.\n"
+        f"2️⃣ Open payment history and copy <b>12-Digit UTR / FamPay Txn ID</b>.\n"
+        f"3️⃣ Accept Terms below and paste Transaction ID in chat.\n"
+        f"4️⃣ Bot auto-verifies & unlocks file instantly!\n\n"
+        f"{TERMS_TEXT}\n\n"
+        f"👇 <i>Please click <b>'I Accept & Continue'</b> to proceed to UTR submission:</i>"
     )
-    session['awaiting_txnid'] = True
+    
+    btn = InlineKeyboardMarkup([
+        [InlineKeyboardButton("✅ I Accept & Continue", style=enums.ButtonStyle.SUCCESS, callback_data=f"accept_terms_{user_id}")],
+        [InlineKeyboardButton("❌ Cancel", style=enums.ButtonStyle.DANGER, callback_data="cancel_payment_process")]
+    ])
+    
+    try:
+        await callback.message.reply_photo(
+            photo=GUIDE_IMAGE_URL,
+            caption=terms_guide_caption,
+            reply_markup=btn
+        )
+    except Exception:
+        await callback.message.reply_text(terms_guide_caption, reply_markup=btn)
+
     await callback.answer()
 
-# Text Listener for Transaction ID
+# ---------------- STEP 3: INPUT UTR PROMPT ----------------
+
+@Client.on_callback_query(filters.regex("^accept_terms_"))
+async def start_auto_verify_input(client, callback):
+    user_id = callback.from_user.id
+    session = ACTIVE_PAYMENTS.get(user_id)
+    
+    if not session:
+        return await callback.answer("⏰ Payment Expired! Please try again.", show_alert=True)
+        
+    if time.time() - session['timestamp'] > 600:
+        ACTIVE_PAYMENTS.pop(user_id, None)
+        return await callback.answer("⌛ Time limit of 10 minutes exceeded! Payment expired.", show_alert=True)
+
+    session['awaiting_txnid'] = True
+    
+    await callback.message.reply_text(
+        "📝 <b>ᴇɴᴛᴇʀ ʏᴏᴜʀ ғᴀᴍᴘᴀʏ / ᴜᴘɪ ᴛʀᴀɴsᴀᴄᴛɪᴏɴ ɪᴅ:</b>\n\n"
+        "Please paste your FamPay / UPI Transaction ID (e.g., <code>FMPIB665989150...</code> or 12-digit UTR) below:",
+        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ ᴄᴀɴᴄᴇʟ", callback_data="cancel_payment_process")]])
+    )
+    await callback.answer("Terms Accepted!")
+
+# ---------------- TEXT LISTENER FOR TRANSACTION ID ----------------
+
 @Client.on_message(filters.private & filters.text & ~filters.command(["start", "cancel"]), group=1)
 async def process_auto_txn_id(client, message):
     user_id = message.from_user.id
@@ -184,7 +239,7 @@ async def process_auto_txn_id(client, message):
     
     if time.time() - session['timestamp'] > 600:
         ACTIVE_PAYMENTS.pop(user_id, None)
-        return await message.reply_text("❌ <b>payment Expired!</b> 10-minute timer completed. Please initiate purchase again.")
+        return await message.reply_text("❌ <b>Payment Expired!</b> 10-minute timer completed. Please initiate purchase again.")
 
     if txn_id in USED_TRANSACTIONS:
         return await message.reply_text("⚠️ <b>This Transaction ID has already been used!</b> Fraudulent attempts are logged.")
@@ -217,16 +272,16 @@ async def process_auto_txn_id(client, message):
             encoded_title = clean_title.replace(" ", "_")
             delivery_link = f"https://t.me/{BOT_USERNAME}?start=get_{encoded_title}"
             
-            # CASE A: Underpaid Amount (कम पेमेंट किया)
+            # CASE A: Underpaid Amount
             if actual_paid < expected_price:
                 new_bal = await add_wallet_balance(user_id, actual_paid)
                 await message.reply_text(
                     f"⚠️ <b>ɪɴsᴜғғɪᴄɪᴇɴᴛ ᴘᴀʏᴍᴇɴᴛ ʀᴇᴄᴇɪᴠᴇᴅ!</b>\n\n"
                     f"📖 <b>Story Price:</b> ₹{expected_price}\n"
                     f"💵 <b>Paid Amount:</b> ₹{actual_paid}\n\n"
-                    f"💡 <i>आपने स्टोरी की कीमत से कम भुगतान किया है। इसलिए आपकी ₹{actual_paid} की राशि आपके **वॉलेट** में जोड़ दी गई है।</i>\n\n"
+                    f"💡 <i>आपने स्टोरी की कीमत से कम भुगतान किया है। नियम अनुसार आपकी ₹{actual_paid} की राशि आपके **वॉलेट** में जोड़ दी गई है।</i>\n\n"
                     f"👛 <b>Current Wallet Balance:</b> ₹{new_bal}\n"
-                    f"📌 <i>स्टोरी अनलॉक करने के लिए बाकी राशि वॉलेट में टॉप-अप करें।</i>"
+                    f"📌 <i>फाइल अनलॉक करने के लिए बाकी राशि वॉलेट में टॉप-अप करें।</i>"
                 )
                 if LOG_CHANNEL and LOG_CHANNEL != 0:
                     await client.send_message(
@@ -234,7 +289,7 @@ async def process_auto_txn_id(client, message):
                         f"⚠️ <b>[UNDERPAID] WALLET CREDITED</b>\n👤 User: {message.from_user.first_name} (<code>{user_id}</code>)\n📖 Story: {clean_title}\n💰 Expected: ₹{expected_price} | Paid: ₹{actual_paid}"
                     )
 
-            # CASE B: Exact or Overpaid Amount (बराबर या ज़्यादा पेमेंट किया)
+            # CASE B: Exact or Overpaid Amount
             else:
                 extra_amount = actual_paid - expected_price
                 await add_user_purchase(user_id, clean_title, story_link=delivery_link)
@@ -265,6 +320,7 @@ async def process_auto_txn_id(client, message):
                 [InlineKeyboardButton("❌ Cancel", callback_data="cancel_payment_process")]
             ])
         )
+
 
 # ---------------- WALLET TOPUP FLOW ----------------
 
