@@ -1,6 +1,9 @@
 Kurigram
-tgcrypto
-pyrogram
+pyrogram 
+tgcrypto 
+easyocr 
+torch 
+torchvision
 motor
 aiohttp
 aiofiles
@@ -8,6 +11,3 @@ fastapi
 uvicorn
 jinja2
 python-multipart
-torch
-torchvision
-easyocr
