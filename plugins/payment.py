@@ -3,6 +3,7 @@ import re
 import imaplib
 import email
 import time
+import asyncio
 from datetime import datetime
 from pyrogram import Client, filters, enums
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
@@ -82,8 +83,16 @@ async def cancel_payment_callback(client, callback):
         await callback.message.delete()
     except Exception:
         pass
-    await callback.message.reply_text("❌ <b>ᴘᴀʏᴍᴇɴᴛ / ᴛᴏᴘ-ᴜᴘ ᴘʀᴏᴄᴇss ᴄᴀɴᴄᴇʟʟᴇᴅ.</b>")
+        
+    cancel_msg = await callback.message.reply_text("❌ <b>ᴘᴀʏᴍᴇɴᴛ / ᴛᴏᴘ-ᴜᴘ ᴘʀᴏᴄᴇss ᴄᴀɴᴄᴇʟʟᴇᴅ.</b>")
     await callback.answer("Process Cancelled!")
+    
+    # ⏳ 10 सेकंड बाद मैसेज अपने-आप डिलीट हो जाएगा
+    await asyncio.sleep(10)
+    try:
+        await cancel_msg.delete()
+    except Exception:
+        pass
 
 @Client.on_callback_query(filters.regex("^show_upi_id$"))
 async def show_upi_id(client, callback):
@@ -182,7 +191,6 @@ async def show_terms_and_guide(client, callback):
         [InlineKeyboardButton("❌ ᴄᴀɴᴄᴇʟ", style=enums.ButtonStyle.DANGER, callback_data="cancel_payment_process")]
     ])
     
-    # नोट: क्यूआर कोड वाला पिछला मैसेज डिलीट नहीं होगा, वह सुरक्षित रहेगा।
     try:
         await callback.message.reply_photo(
             photo=GUIDE_IMAGE_URL,
@@ -322,9 +330,6 @@ async def process_auto_txn_id(client, message):
                 [InlineKeyboardButton("❌ Cancel", callback_data="cancel_payment_process")]
             ])
         )
-
-
-
 
 # ---------------- WALLET TOPUP FLOW ----------------
 
