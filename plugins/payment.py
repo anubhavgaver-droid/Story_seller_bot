@@ -15,7 +15,7 @@ WALLET_TOPUP_WAITING = {}   # Stores wallet state
 USED_TRANSACTIONS = set()   # Duplicate UTR / Txn ID locking memory
 
 # 🖼️ UTR Step-by-Step Banner Image URL (अपनी गाइड इमेज का लिंक यहाँ डालें)
-GUIDE_IMAGE_URL = "https://i.ibb.co/example/payment-guide-banner.jpg" 
+GUIDE_IMAGE_URL = "https://i.ibb.co/VW778KdR/photo-2026-09-24-08-21-14-7689014092254023680.jpg" 
 
 # 📋 Compact Terms & Conditions Text (Small Caps & Proper English)
 TERMS_TEXT = (
