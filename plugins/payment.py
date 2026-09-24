@@ -5,6 +5,7 @@ import email
 import time
 import asyncio
 from datetime import datetime
+from aiohttp import web
 from pyrogram import Client, filters, enums
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from config import UPI_ID, ADMIN_ID, BOT_USERNAME, LOG_CHANNEL, GMAIL_USER, GMAIL_PASS
@@ -15,10 +16,16 @@ ACTIVE_PAYMENTS = {}        # Stores active session timing and order data
 WALLET_TOPUP_WAITING = {}   # Stores wallet state
 USED_TRANSACTIONS = set()   # Duplicate UTR / Txn ID locking memory
 
+# 📱 MACRODROID INSTANT PAYMENT TRACKER MEMORY
+# Format: {"UTR_NUMBER": {"amount": 100.0, "timestamp": 123456789}}
+TRACKED_PAYMENTS = {}
+
+WEBHOOK_SECRET = "MY_SUPER_SECRET_KEY_123"
+
 # 🖼️ UTR Step-by-Step Banner Image URL
 GUIDE_IMAGE_URL = "https://i.ibb.co/VW778KdR/photo-2026-09-24-08-21-14-7689014092254023680.jpg" 
 
-# 📋 Compact Terms & Conditions Text (Small Caps & Proper English)
+# 📋 Compact Terms & Conditions Text
 TERMS_TEXT = (
     "📜 <b><u>ᴛᴇʀᴍs & ᴄᴏɴᴅɪᴛɪᴏɴs</u></b>\n\n"
     "• <b>ᴇxᴀᴄᴛ ᴀᴍᴏᴜɴᴛ:</b> ᴘᴀʏᴍᴇɴᴛ ᴍᴜsᴛ ᴍᴀᴛᴄʜ ᴛʜᴇ exact sᴛᴏʀʏ ᴘʀɪᴄᴇ.\n"
@@ -28,8 +35,45 @@ TERMS_TEXT = (
     "• <b>ᴀɴᴛɪ-ғʀᴀᴜᴅ:</b> ʀᴇᴜsɪɴɢ ᴏʀ ғᴀᴋɪɴɢ ᴛxɴ ɪᴅs ᴡɪʟʟ ʀᴇsᴜʟᴛ ɪɴ ᴀɴ ɪɴsᴛᴀɴᴛ ʙᴀɴ."
 )
 
-# Helper Function: Fetch & Verify FamPay/FamApp Email from Gmail
-def verify_fampay_email(txn_id):
+# ---------------- ⚡ MACRODROID WEBHOOK HANDLER ----------------
+
+async def handle_payment_webhook(request):
+    try:
+        data = await request.json()
+        secret_key = data.get("secret")
+        notification_text = data.get("text", "")
+
+        if secret_key != WEBHOOK_SECRET:
+            return web.json_response({"status": "unauthorized"}, status=401)
+
+        # Regex for 12-digit UTR / Txn ID and Amount (₹100 or Rs.100 or 100 INR)
+        utr_match = re.search(r'\b\d{12}\b', notification_text)
+        amount_match = re.search(r'(?:₹|Rs\.?|INR)\s*([0-9]+(?:\.[0-9]+)?)', notification_text, re.IGNORECASE)
+
+        if utr_match and amount_match:
+            utr = utr_match.group(0)
+            amount = float(amount_match.group(1))
+
+            TRACKED_PAYMENTS[utr] = {
+                "amount": amount,
+                "timestamp": time.time()
+            }
+            print(f"⚡ [MACRODROID TRACKED] UTR: {utr} | Amount: ₹{amount}")
+            return web.json_response({"status": "success", "utr": utr, "amount": amount})
+
+        return web.json_response({"status": "ignored", "reason": "UTR or Amount not parsed"})
+
+    except Exception as e:
+        return web.json_response({"status": "error", "message": str(e)}, status=500)
+
+# Helper Function: Verify Payment (Checks MacroDroid Memory first, then Gmail IMAP)
+def verify_payment_data(txn_id):
+    # 1. Check MacroDroid Webhook Memory (Instant Verification)
+    if txn_id in TRACKED_PAYMENTS:
+        data = TRACKED_PAYMENTS[txn_id]
+        return True, "Verified via Instant Webhook", data["amount"]
+
+    # 2. Check Gmail IMAP Backup
     if not GMAIL_USER or not GMAIL_PASS:
         return False, "Gmail credentials not configured.", 0.0
         
@@ -63,7 +107,7 @@ def verify_fampay_email(txn_id):
                             try:
                                 actual_paid = float(amount_matches[0])
                                 mail.logout()
-                                return True, "Transaction Found", actual_paid
+                                return True, "Transaction Found in Gmail", actual_paid
                             except ValueError:
                                 pass
         mail.logout()
@@ -87,7 +131,6 @@ async def cancel_payment_callback(client, callback):
     cancel_msg = await callback.message.reply_text("❌ <b>ᴘᴀʏᴍᴇɴᴛ / ᴛᴏᴘ-ᴜᴘ ᴘʀᴏᴄᴇss ᴄᴀɴᴄᴇʟʟᴇᴅ.</b>")
     await callback.answer("Process Cancelled!")
     
-    # ⏳ 10 सेकंड बाद ऑटो-डिलीट
     await asyncio.sleep(10)
     try:
         await cancel_msg.delete()
@@ -263,7 +306,7 @@ async def process_auto_txn_id(client, message):
     wait_msg = await message.reply_text("🔄 <b>ᴠᴇʀɪғʏɪɴɢ ᴘᴀʏᴍᴇɴᴛ...</b>\n<i>Checking transaction details...</i>")
     
     # First attempt to verify
-    is_valid, msg, actual_paid = verify_fampay_email(txn_id)
+    is_valid, msg, actual_paid = verify_payment_data(txn_id)
     
     # ⏳ IF NOT FOUND IN FIRST ATTEMPT: START 5-SECOND COUNTDOWN & RETRY
     if not is_valid:
@@ -271,7 +314,7 @@ async def process_auto_txn_id(client, message):
             try:
                 await wait_msg.edit_text(
                     f"⚠️ <b>ᴛʀᴀɴsᴀᴄᴛɪᴏɴ ɴᴏᴛ ғᴏᴜɴᴅ ʏᴇᴛ!</b>\n"
-                    f"<i>Waiting for bank confirmation our system...</i>\n\n"
+                    f"<i>Waiting for bank confirmation...</i>\n\n"
                     f"🔄 <b>ᴀᴜᴛᴏ-ʀᴇᴛʀʏɪɴɢ ɪɴ:</b> <code>{remaining}s</code>"
                 )
             except Exception:
@@ -280,11 +323,12 @@ async def process_auto_txn_id(client, message):
 
         # Final Retry Attempt
         await wait_msg.edit_text("🔄 <b>ʀᴇ-ᴠᴇʀɪғʏɪɴɢ ᴘᴀʏᴍᴇɴᴛ (Final Check)...</b>")
-        is_valid, msg, actual_paid = verify_fampay_email(txn_id)
+        is_valid, msg, actual_paid = verify_payment_data(txn_id)
 
     # ---------------- VERIFICATION SUCCESSFUL ----------------
     if is_valid:
         USED_TRANSACTIONS.add(txn_id)
+        TRACKED_PAYMENTS.pop(txn_id, None)
         ACTIVE_PAYMENTS.pop(user_id, None)
         await wait_msg.delete()
         
@@ -314,7 +358,7 @@ async def process_auto_txn_id(client, message):
                     f"📖 <b>sᴛᴏʀʏ ᴘʀɪᴄᴇ:</b> ₹{expected_price}\n"
                     f"💵 <b>ᴘᴀɪᴅ ᴀᴍᴏᴜɴᴛ:</b> ₹{actual_paid}\n\n"
                     f"💡 <i>As per terms, your ₹{actual_paid} has been credited to your <b>Wallet</b>.</i>\n\n"
-                    f"👛 <b>ᴄᴜʀʀᴇɴᴛ ᴡᴀʟʟᴇᴛ ʙᴀʟᴀɴᴄᴇ:</b> ₹{new_bal}\n"
+                    f"👛 <b>ᴄᴜʀʀᴇɴT ᴡᴀʟʟᴇᴛ ʙᴀʟᴀɴᴄᴇ:</b> ₹{new_bal}\n"
                     f"📌 <i>Top-up remaining amount to unlock files.</i>"
                 )
                 if LOG_CHANNEL and LOG_CHANNEL != 0:
@@ -348,7 +392,7 @@ async def process_auto_txn_id(client, message):
 
     # ---------------- VERIFICATION FAILED (STOP PROCESS) ----------------
     else:
-        ACTIVE_PAYMENTS.pop(user_id, None)  # ऑटोमेटिक प्रोसेस यहीं रोक दी गई है
+        ACTIVE_PAYMENTS.pop(user_id, None)
         await wait_msg.edit_text(
             f"🛑 <b>ᴀᴜᴛᴏ-ᴠᴇʀɪғɪᴄᴀᴛɪᴏɴ sᴛᴏᴘᴘᴇᴅ!</b>\n\n"
             f"❌ <b>Reason:</b> Transaction ID not found in system.\n\n"
