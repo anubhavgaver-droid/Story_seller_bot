@@ -15,24 +15,22 @@ WALLET_TOPUP_WAITING = {}   # Stores wallet state
 USED_TRANSACTIONS = set()   # Duplicate UTR / Txn ID locking memory
 
 # Helper Function: Fetch & Verify FamPay/FamApp Email from Gmail
-def verify_fampay_email(txn_id, expected_amount):
+def verify_fampay_email(txn_id):
     if not GMAIL_USER or not GMAIL_PASS:
-        return False, "Gmail credentials not configured."
+        return False, "Gmail credentials not configured.", 0.0
         
     try:
-        # Connect to Gmail via IMAP
         mail = imaplib.IMAP4_SSL("imap.gmail.com")
         mail.login(GMAIL_USER, GMAIL_PASS)
         mail.select("inbox")
         
-        # Search for recent emails containing the Txn ID
         status, messages = mail.search(None, f'TEXT "{txn_id}"')
         if status != "OK" or not messages[0]:
             mail.logout()
-            return False, "Transaction ID not found yet.\n <b>TRY AFTER SOME TIME</b>"
+            return False, "Transaction ID not found yet.\n<b>TRY AFTER SOME TIME</b>", 0.0
             
         email_ids = messages[0].split()
-        for e_id in reversed(email_ids): # Check newest emails first
+        for e_id in reversed(email_ids):
             _, msg_data = mail.fetch(e_id, "(RFC822)")
             for response_part in msg_data:
                 if isinstance(response_part, tuple):
@@ -45,21 +43,20 @@ def verify_fampay_email(txn_id, expected_amount):
                     else:
                         body = msg.get_payload(decode=True).decode("utf-8", errors="ignore")
                     
-                    # Verify Transaction ID and Amount in Email Content
                     if txn_id in body:
-                        # Find amount using Regex (e.g. ₹168.92 or Rs 168)
+                        # Extract exact paid amount from email using Regex
                         amount_matches = re.findall(r"(?:₹|Rs\.?)\s*([\d\.]+)", body)
-                        for amt_str in amount_matches:
+                        if amount_matches:
                             try:
-                                if abs(float(amt_str) - float(expected_amount)) < 1.0: # Match amount
-                                    mail.logout()
-                                    return True, "Payment Verified Successfully!"
+                                actual_paid = float(amount_matches[0])
+                                mail.logout()
+                                return True, "Transaction Found", actual_paid
                             except ValueError:
-                                continue
+                                pass
         mail.logout()
-        return False, "Transaction ID found, but amount mismatched."
+        return False, "Transaction ID found, but unable to parse amount.", 0.0
     except Exception as e:
-        return False, f"Email Check Error: {str(e)}"
+        return False, f"Email Check Error: {str(e)}", 0.0
 
 # ---------------- CANCEL & SHOW UPI HANDLERS ----------------
 
@@ -76,7 +73,6 @@ async def cancel_payment_callback(client, callback):
     await callback.message.reply_text("❌ <b>ᴘᴀʏᴍᴇɴᴛ / ᴛᴏᴘ-ᴜᴘ ᴘʀᴏᴄᴇss ᴄᴀɴᴄᴇʟʟᴇᴅ.</b>")
     await callback.answer("Process Cancelled!")
 
-# Toggle UPI ID Visibility
 @Client.on_callback_query(filters.regex("^show_upi_id$"))
 async def show_upi_id(client, callback):
     await callback.answer(f"📌 UPI ID: {UPI_ID}", show_alert=True)
@@ -131,7 +127,6 @@ async def generate_qr(client, callback):
     }
 
     upi_link = f"upi://pay?pa={UPI_ID}&pn=StorySeller&am={price}&cu=INR"
-    # Optimized QR size (250x250) with quiet margin (margin=15) to fix "Format Not Found" scanning issues
     qr_url = f"https://api.qrserver.com/v1/create-qr-code/?size=250x250&margin=15&data={urllib.parse.quote(upi_link)}"
     
     caption = (
@@ -161,12 +156,10 @@ async def start_auto_verify(client, callback):
     if not session:
         return await callback.answer("⏰ Payment Expired! Please try again.", show_alert=True)
         
-    # Check 10 Minute Timer
     if time.time() - session['timestamp'] > 600:
         ACTIVE_PAYMENTS.pop(user_id, None)
         return await callback.answer("⌛ Time limit of 10 minutes exceeded! payment expired.", show_alert=True)
         
-    # Ask for Transaction ID
     await callback.message.reply_text(
         "📝 <b>ᴇɴᴛᴇʀ ʏᴏᴜʀ ғᴀᴍᴘᴀʏ / ᴜᴘɪ ᴛʀᴀɴsᴀᴄᴛɪᴏɴ ɪᴅ:</b>\n\n"
         "Please paste your FamPay Transaction ID (e.g., <code>FMPIB665989150...</code>) to instantly verify payment:",
@@ -186,66 +179,89 @@ async def process_auto_txn_id(client, message):
         return
 
     txn_id = message.text.strip()
-    price = session['price']
+    expected_price = session['price']
     title = session['title']
     
-    # 1. Check Timer
     if time.time() - session['timestamp'] > 600:
         ACTIVE_PAYMENTS.pop(user_id, None)
         return await message.reply_text("❌ <b>payment Expired!</b> 10-minute timer completed. Please initiate purchase again.")
 
-    # 2. Check Duplicate Lock
     if txn_id in USED_TRANSACTIONS:
         return await message.reply_text("⚠️ <b>This Transaction ID has already been used!</b> Fraudulent attempts are logged.")
 
     wait_msg = await message.reply_text("🔄 <b>ᴠᴇʀɪғʏɪɴɢ ᴘᴀʏᴍᴇɴᴛ...</b>\n<i>Please wait a few seconds.</i>")
     
-    # 3. Check via Gmail IMAP
-    is_valid, msg = verify_fampay_email(txn_id, price)
+    # Verify via Gmail IMAP
+    is_valid, msg, actual_paid = verify_fampay_email(txn_id)
     
     if is_valid:
-        USED_TRANSACTIONS.add(txn_id) # Lock Txn ID
+        USED_TRANSACTIONS.add(txn_id)
         ACTIVE_PAYMENTS.pop(user_id, None)
         await wait_msg.delete()
         
-        # Automatic Fullfilment
+        # ---------------- WALLET TOPUP CASE ----------------
         if session['type'] == "WALLET":
-            new_bal = await add_wallet_balance(user_id, price)
-            await message.reply_text(f"🎉 <b>ᴀᴜᴛᴏ-ᴠᴇʀɪғɪᴇᴅ sᴜᴄᴄᴇssғᴜʟʟʏ!</b>\n\n💰 Added ₹{price} to Wallet.\n👛 New Balance: ₹{new_bal}")
+            new_bal = await add_wallet_balance(user_id, actual_paid)
+            await message.reply_text(f"🎉 <b>ᴀᴜᴛᴏ-ᴠᴇʀɪғɪᴇᴅ sᴜᴄᴄᴇssғᴜʟʟʏ!</b>\n\n💰 Added ₹{actual_paid} to Wallet.\n👛 New Balance: ₹{new_bal}")
             
-            # Send Log to Channel & Admin
             if LOG_CHANNEL and LOG_CHANNEL != 0:
                 await client.send_message(
                     LOG_CHANNEL, 
-                    f"⚡ <b>[AUTO-PAYMENT SUCCESS] WALLET TOPUP</b>\n\n👤 <b>User:</b> {message.from_user.first_name} (<code>{user_id}</code>)\n💰 <b>Amount:</b> ₹{price}\n🔑 <b>Txn ID:</b> <code>{txn_id}</code>"
+                    f"⚡ <b>[AUTO-PAYMENT SUCCESS] WALLET TOPUP</b>\n\n👤 <b>User:</b> {message.from_user.first_name} (<code>{user_id}</code>)\n💰 <b>Amount:</b> ₹{actual_paid}\n🔑 <b>Txn ID:</b> <code>{txn_id}</code>"
                 )
+                
+        # ---------------- STORY PURCHASE CASE ----------------
         else:
             story = await get_story_by_title(title)
             clean_title = story['title'].strip().split("\n")[0]
             encoded_title = clean_title.replace(" ", "_")
             delivery_link = f"https://t.me/{BOT_USERNAME}?start=get_{encoded_title}"
             
-            await add_user_purchase(user_id, clean_title, story_link=delivery_link)
-            access_btn = InlineKeyboardMarkup([[InlineKeyboardButton("📂 ɢᴇᴛ ғɪʟᴇs (Unlocked)", style=enums.ButtonStyle.PRIMARY, url=delivery_link)]])
-            
-            await message.reply_text(
-                f"🎉 <b>ᴀᴜᴛᴏ-ᴠᴇʀɪғɪᴇᴅ sᴜᴄᴄᴇssғᴜʟʟʏ!</b>\n\n📖 <b>Story:</b> {clean_title}\n💰 <b>Paid:</b> ₹{price}\n\nClick below to access:",
-                reply_markup=access_btn,
-                protect_content=True
-            )
-            
-            # Log to Channel
-            if LOG_CHANNEL and LOG_CHANNEL != 0:
-                await client.send_message(
-                    LOG_CHANNEL, 
-                    f"⚡ <b>[AUTO-PAYMENT SUCCESS] STORY BOUGHT</b>\n\n👤 <b>User:</b> {message.from_user.first_name} (<code>{user_id}</code>)\n📖 <b>Story:</b> {clean_title}\n💰 <b>Amount:</b> ₹{price}\n🔑 <b>Txn ID:</b> <code>{txn_id}</code>"
+            # CASE A: Underpaid Amount (कम पेमेंट किया)
+            if actual_paid < expected_price:
+                new_bal = await add_wallet_balance(user_id, actual_paid)
+                await message.reply_text(
+                    f"⚠️ <b>ɪɴsᴜғғɪᴄɪᴇɴᴛ ᴘᴀʏᴍᴇɴᴛ ʀᴇᴄᴇɪᴠᴇᴅ!</b>\n\n"
+                    f"📖 <b>Story Price:</b> ₹{expected_price}\n"
+                    f"💵 <b>Paid Amount:</b> ₹{actual_paid}\n\n"
+                    f"💡 <i>आपने स्टोरी की कीमत से कम भुगतान किया है। इसलिए आपकी ₹{actual_paid} की राशि आपके **वॉलेट** में जोड़ दी गई है।</i>\n\n"
+                    f"👛 <b>Current Wallet Balance:</b> ₹{new_bal}\n"
+                    f"📌 <i>स्टोरी अनलॉक करने के लिए बाकी राशि वॉलेट में टॉप-अप करें।</i>"
                 )
+                if LOG_CHANNEL and LOG_CHANNEL != 0:
+                    await client.send_message(
+                        LOG_CHANNEL, 
+                        f"⚠️ <b>[UNDERPAID] WALLET CREDITED</b>\n👤 User: {message.from_user.first_name} (<code>{user_id}</code>)\n📖 Story: {clean_title}\n💰 Expected: ₹{expected_price} | Paid: ₹{actual_paid}"
+                    )
+
+            # CASE B: Exact or Overpaid Amount (बराबर या ज़्यादा पेमेंट किया)
+            else:
+                extra_amount = actual_paid - expected_price
+                await add_user_purchase(user_id, clean_title, story_link=delivery_link)
+                access_btn = InlineKeyboardMarkup([[InlineKeyboardButton("📂 ɢᴇᴛ ғɪʟᴇs (Unlocked)", style=enums.ButtonStyle.PRIMARY, url=delivery_link)]])
+                
+                overpaid_text = ""
+                if extra_amount > 0:
+                    new_bal = await add_wallet_balance(user_id, extra_amount)
+                    overpaid_text = f"\n\n🎁 <b>Extra Payment:</b> ₹{extra_amount} *has been added to your Wallet!* (Wallet Balance: ₹{new_bal})"
+                
+                await message.reply_text(
+                    f"🎉 <b>ᴀᴜᴛᴏ-ᴠᴇʀɪғɪᴇᴅ sᴜᴄᴄᴇssғᴜʟʟʏ!</b>\n\n📖 <b>Story:</b> {clean_title}\n💰 <b>Paid:</b> ₹{actual_paid}{overpaid_text}\n\nClick below to access your files:",
+                    reply_markup=access_btn,
+                    protect_content=True
+                )
+                
+                if LOG_CHANNEL and LOG_CHANNEL != 0:
+                    await client.send_message(
+                        LOG_CHANNEL, 
+                        f"⚡ <b>[AUTO-PAYMENT SUCCESS] STORY BOUGHT</b>\n\n👤 <b>User:</b> {message.from_user.first_name} (<code>{user_id}</code>)\n📖 <b>Story:</b> {clean_title}\n💰 <b>Amount Paid:</b> ₹{actual_paid}\n🔑 <b>Txn ID:</b> <code>{txn_id}</code>"
+                    )
     else:
         await wait_msg.edit_text(
             f"❌ <b>ᴀᴜᴛᴏ-ᴠᴇʀɪғɪᴄᴀᴛɪᴏɴ ғᴀɪʟᴇᴅ!</b>\nReason: {msg}\n\n"
             "If you have paid, please click <b>Contact Admin / Send Screenshot</b> below to verify manually.",
             reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("📩 Contact Admin / Manual", callback_data=f"sent_{title.replace(' ', '_')}_{price}")],
+                [InlineKeyboardButton("📩 Contact Admin / Manual", callback_data=f"sent_{title.replace(' ', '_')}_{expected_price}")],
                 [InlineKeyboardButton("❌ Cancel", callback_data="cancel_payment_process")]
             ])
         )
@@ -284,7 +300,6 @@ async def process_wallet_amount(client, message):
     }
 
     upi_link = f"upi://pay?pa={UPI_ID}&pn=WalletTopup&am={price}&cu=INR"
-    # Optimized Wallet QR size & margin
     qr_url = f"https://api.qrserver.com/v1/create-qr-code/?size=250x250&margin=15&data={urllib.parse.quote(upi_link)}"
     
     caption = (
@@ -365,8 +380,6 @@ async def approve_order(client, callback):
     user_id = int(data[1])
     price = float(data[-1])
     title = "_".join(data[2:-1]).replace("_", " ")
-    
-    photo_file_id = callback.message.photo.file_id if callback.message.photo else None
     
     if title == "WalletTopup":
         new_balance = await add_wallet_balance(user_id, price)
