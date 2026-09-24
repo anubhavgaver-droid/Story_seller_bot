@@ -3,16 +3,43 @@ import re
 import imaplib
 import email
 import time
+import os
 from datetime import datetime
 from pyrogram import Client, filters, enums
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from config import UPI_ID, ADMIN_ID, BOT_USERNAME, LOG_CHANNEL, GMAIL_USER, GMAIL_PASS
 from database.db import get_story_by_title, add_user_purchase, add_wallet_balance
 
+import easyocr
+
+# EasyOCR Engine Initialize
+ocr_reader = easyocr.Reader(['en'], gpu=False)
+
 # Global Dictionaries & DB for UTR Lock
 ACTIVE_PAYMENTS = {}        # Stores active session timing and order data
 WALLET_TOPUP_WAITING = {}   # Stores wallet state
 USED_TRANSACTIONS = set()   # Duplicate UTR / Txn ID locking memory
+
+# Helper Function: Extract UTR / Txn ID from Photo Screenshot
+def extract_txn_from_image(image_path):
+    try:
+        results = ocr_reader.readtext(image_path)
+        extracted_text = " ".join([text[1] for text in results])
+        
+        # 1. FamPay Transaction ID Pattern (FMPIB...)
+        fampay_match = re.search(r'FMPIB[A-Z0-9]+', extracted_text)
+        if fampay_match:
+            return fampay_match.group(0)
+            
+        # 2. Standard 12-digit UPI UTR Pattern
+        utr_match = re.search(r'\b\d{12}\b', extracted_text)
+        if utr_match:
+            return utr_match.group(0)
+            
+        return None
+    except Exception as e:
+        print(f"OCR Extraction Error: {e}")
+        return None
 
 # Helper Function: Fetch & Verify FamPay/FamApp Email from Gmail
 def verify_fampay_email(txn_id, expected_amount):
@@ -131,7 +158,6 @@ async def generate_qr(client, callback):
     }
 
     upi_link = f"upi://pay?pa={UPI_ID}&pn=StorySeller&am={price}&cu=INR"
-    # Optimized QR size (250x250) with quiet margin (margin=15) to fix "Format Not Found" scanning issues
     qr_url = f"https://api.qrserver.com/v1/create-qr-code/?size=250x250&margin=15&data={urllib.parse.quote(upi_link)}"
     
     caption = (
@@ -161,21 +187,52 @@ async def start_auto_verify(client, callback):
     if not session:
         return await callback.answer("⏰ Payment Expired! Please try again.", show_alert=True)
         
-    # Check 10 Minute Timer
     if time.time() - session['timestamp'] > 600:
         ACTIVE_PAYMENTS.pop(user_id, None)
         return await callback.answer("⌛ Time limit of 10 minutes exceeded! payment expired.", show_alert=True)
         
-    # Ask for Transaction ID
     await callback.message.reply_text(
-        "📝 <b>ᴇɴᴛᴇʀ ʏᴏᴜʀ ғᴀᴍᴘᴀʏ / ᴜᴘɪ ᴛʀᴀɴsᴀᴄᴛɪᴏɴ ɪᴅ:</b>\n\n"
-        "Please paste your FamPay Transaction ID (e.g., <code>FMPIB665989150...</code>) to instantly verify payment:",
+        "📝 <b>ᴇɴᴛᴇʀ ᴛʀᴀɴsᴀᴄᴛɪᴏɴ ɪᴅ / sᴇɴᴅ sᴄʀᴇᴇɴsʜᴏᴛ:</b>\n\n"
+        "Please paste your FamPay/UPI Transaction ID (e.g. <code>FMPIB665989150...</code>) OR **send payment Screenshot Photo**:",
         reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ ᴄᴀɴᴄᴇʟ", callback_data="cancel_payment_process")]])
     )
     session['awaiting_txnid'] = True
     await callback.answer()
 
-# Text Listener for Transaction ID
+# A. Automatic Verification via PHOTO SCREENSHOT
+@Client.on_message(filters.private & filters.photo, group=1)
+async def process_auto_photo(client, message):
+    user_id = message.from_user.id
+    session = ACTIVE_PAYMENTS.get(user_id)
+    
+    if not session or not session.get('awaiting_txnid') or session.get("manual"):
+        return
+
+    price = session['price']
+    title = session['title']
+    
+    if time.time() - session['timestamp'] > 600:
+        ACTIVE_PAYMENTS.pop(user_id, None)
+        return await message.reply_text("❌ <b>payment Expired!</b> 10-minute timer completed. Please initiate purchase again.")
+
+    wait_msg = await message.reply_text("🔍 <b>Reading Screenshot Photo & Verifying Payment...</b>\n<i>Please wait 5-8 seconds...</i>")
+    
+    photo_path = await message.download()
+    txn_id = extract_txn_from_image(photo_path)
+    
+    if os.path.exists(photo_path):
+        os.remove(photo_path)
+        
+    if not txn_id:
+        await wait_msg.delete()
+        return await message.reply_text(
+            "❌ <b>Transaction ID / UTR not found in Photo!</b>\n"
+            "Please type your Transaction ID as text or send a clear screenshot."
+        )
+
+    await execute_auto_fulfillment(client, message, wait_msg, user_id, txn_id, price, title, session)
+
+# B. Automatic Verification via TEXT UTR/ID
 @Client.on_message(filters.private & filters.text & ~filters.command(["start", "cancel"]), group=1)
 async def process_auto_txn_id(client, message):
     user_id = message.from_user.id
@@ -189,31 +246,31 @@ async def process_auto_txn_id(client, message):
     price = session['price']
     title = session['title']
     
-    # 1. Check Timer
     if time.time() - session['timestamp'] > 600:
         ACTIVE_PAYMENTS.pop(user_id, None)
         return await message.reply_text("❌ <b>payment Expired!</b> 10-minute timer completed. Please initiate purchase again.")
 
-    # 2. Check Duplicate Lock
-    if txn_id in USED_TRANSACTIONS:
-        return await message.reply_text("⚠️ <b>This Transaction ID has already been used!</b> Fraudulent attempts are logged.")
-
     wait_msg = await message.reply_text("🔄 <b>ᴠᴇʀɪғʏɪɴɢ ᴘᴀʏᴍᴇɴᴛ...</b>\n<i>Please wait a few seconds.</i>")
     
-    # 3. Check via Gmail IMAP
+    await execute_auto_fulfillment(client, message, wait_msg, user_id, txn_id, price, title, session)
+
+# Common Auto-Fulfillment Helper Engine
+async def execute_auto_fulfillment(client, message, wait_msg, user_id, txn_id, price, title, session):
+    if txn_id in USED_TRANSACTIONS:
+        await wait_msg.delete()
+        return await message.reply_text("⚠️ <b>This Transaction ID has already been used!</b> Fraudulent attempts are logged.")
+
     is_valid, msg = verify_fampay_email(txn_id, price)
     
     if is_valid:
-        USED_TRANSACTIONS.add(txn_id) # Lock Txn ID
+        USED_TRANSACTIONS.add(txn_id)
         ACTIVE_PAYMENTS.pop(user_id, None)
         await wait_msg.delete()
         
-        # Automatic Fullfilment
         if session['type'] == "WALLET":
             new_bal = await add_wallet_balance(user_id, price)
             await message.reply_text(f"🎉 <b>ᴀᴜᴛᴏ-ᴠᴇʀɪғɪᴇᴅ sᴜᴄᴄᴇssғᴜʟʟʏ!</b>\n\n💰 Added ₹{price} to Wallet.\n👛 New Balance: ₹{new_bal}")
             
-            # Send Log to Channel & Admin
             if LOG_CHANNEL and LOG_CHANNEL != 0:
                 await client.send_message(
                     LOG_CHANNEL, 
@@ -229,12 +286,11 @@ async def process_auto_txn_id(client, message):
             access_btn = InlineKeyboardMarkup([[InlineKeyboardButton("📂 ɢᴇᴛ ғɪʟᴇs (Unlocked)", style=enums.ButtonStyle.PRIMARY, url=delivery_link)]])
             
             await message.reply_text(
-                f"🎉 <b>ᴀᴜᴛᴏ-ᴠᴇʀɪғɪᴇᴅ sᴜᴄᴄᴇssғᴜʟʟʏ!</b>\n\n📖 <b>Story:</b> {clean_title}\n💰 <b>Paid:</b> ₹{price}\n\nClick below to access:",
+                f"🎉 <b>ᴀᴜᴛᴏ-ᴠᴇʀɪғɪᴇᴅ sᴜᴄᴄᴇssғᴜʟʟʏ!</b>\n\n📖 <b>Story:</b> {clean_title}\n💰 <b>Paid:</b> ₹{price}\n🔑 <b>Txn ID:</b> <code>{txn_id}</code>\n\nClick below to access:",
                 reply_markup=access_btn,
                 protect_content=True
             )
             
-            # Log to Channel
             if LOG_CHANNEL and LOG_CHANNEL != 0:
                 await client.send_message(
                     LOG_CHANNEL, 
@@ -242,7 +298,7 @@ async def process_auto_txn_id(client, message):
                 )
     else:
         await wait_msg.edit_text(
-            f"❌ <b>ᴀᴜᴛᴏ-ᴠᴇʀɪғɪᴄᴀᴛɪᴏɴ ғᴀɪʟᴇᴅ!</b>\nReason: try after some time\n\n"
+            f"❌ <b>ᴀᴜᴛᴏ-ᴠᴇʀɪғɪᴄᴀᴛɪᴏɴ ғᴀɪʟᴇᴅ!</b>\nReason: {msg}\n\n"
             "If you have paid, please click <b>Contact Admin / Send Screenshot</b> below to verify manually.",
             reply_markup=InlineKeyboardMarkup([
                 [InlineKeyboardButton("📩 Contact Admin / Manual", callback_data=f"sent_{title.replace(' ', '_')}_{price}")],
@@ -284,7 +340,6 @@ async def process_wallet_amount(client, message):
     }
 
     upi_link = f"upi://pay?pa={UPI_ID}&pn=WalletTopup&am={price}&cu=INR"
-    # Optimized Wallet QR size & margin
     qr_url = f"https://api.qrserver.com/v1/create-qr-code/?size=250x250&margin=15&data={urllib.parse.quote(upi_link)}"
     
     caption = (
