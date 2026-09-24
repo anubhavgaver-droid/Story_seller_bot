@@ -71,7 +71,7 @@ def verify_fampay_email(txn_id):
     except Exception as e:
         return False, f"Email Check Error: {str(e)}", 0.0
 
-# ---------------- CANCEL, UPI HANDLERS ----------------
+# ---------------- CANCEL & UPI HANDLERS ----------------
 
 @Client.on_callback_query(filters.regex("^cancel_payment_process$"))
 async def cancel_payment_callback(client, callback):
@@ -87,7 +87,7 @@ async def cancel_payment_callback(client, callback):
     cancel_msg = await callback.message.reply_text("❌ <b>ᴘᴀʏᴍᴇɴᴛ / ᴛᴏᴘ-ᴜᴘ ᴘʀᴏᴄᴇss ᴄᴀɴᴄᴇʟʟᴇᴅ.</b>")
     await callback.answer("Process Cancelled!")
     
-    # ⏳ 10 सेकंड बाद मैसेज अपने-आप डिलीट हो जाएगा
+    # ⏳ 10 सेकंड बाद ऑटो-डिलीट
     await asyncio.sleep(10)
     try:
         await cancel_msg.delete()
@@ -98,7 +98,7 @@ async def cancel_payment_callback(client, callback):
 async def show_upi_id(client, callback):
     await callback.answer(f"📌 UPI ID: {UPI_ID}", show_alert=True)
 
-# ---------------- 1. VIEW STORY & QR GENERATION ----------------
+# ---------------- 1. VIEW STORY ----------------
 
 @Client.on_callback_query(filters.regex("^view_"))
 async def view_story(client, callback):
@@ -130,8 +130,10 @@ async def view_story(client, callback):
         await callback.message.reply_text(caption_text, reply_markup=btn)
     await callback.answer()
 
+# ---------------- STEP 1: SHOW TERMS & CONDITIONS FIRST ----------------
+
 @Client.on_callback_query(filters.regex("^buy_"))
-async def generate_qr(client, callback):
+async def show_terms_first(client, callback):
     try:
         raw_data = callback.data[4:]
         clean_title, price = raw_data.rsplit("_", 1)
@@ -147,47 +149,15 @@ async def generate_qr(client, callback):
         "type": "STORY"
     }
 
-    upi_link = f"upi://pay?pa={UPI_ID}&pn=StorySeller&am={price}&cu=INR"
-    qr_url = f"https://api.qrserver.com/v1/create-qr-code/?size=250x250&margin=15&data={urllib.parse.quote(upi_link)}"
-    
-    caption = (
-        f"⚡ <b>ᴀᴜᴛᴏᴍᴀᴛɪᴄ ᴘᴀʏᴍᴇɴᴛ ᴄʜᴇᴄᴋᴏᴜᴛ</b>\n\n"
-        f"📖 <b>sᴛᴏʀʏ:</b> {story_title}\n"
-        f"💰 <b>ᴀᴍᴏᴜɴᴛ:</b> ₹{price}\n"
-        f"⏳ <b>ᴛɪᴍᴇ ʟɪᴍɪᴛ:</b> 10 Minutes\n\n"
-        f"📲 <i>Scan QR & Complete Payment. Then Click Below to Verify!</i>"
-    )
-    
-    btn = InlineKeyboardMarkup([
-        [InlineKeyboardButton("⚡ ᴠᴇʀɪғʏ ᴘᴀʏᴍᴇɴᴛ (Auto)", style=enums.ButtonStyle.SUCCESS, callback_data=f"auto_verify_{user_id}")],
-        [InlineKeyboardButton("👁️ sʜᴏᴡ ᴜᴘɪ ɪᴅ", callback_data="show_upi_id"), InlineKeyboardButton("📩 ᴍᴀɴᴜᴀʟ / ᴀᴅᴍɪɴ", callback_data=f"sent_{clean_title}_{price}")],
-        [InlineKeyboardButton("❌ ᴄᴀɴᴄᴇʟ", style=enums.ButtonStyle.DANGER, callback_data="cancel_payment_process")]
-    ])
-    
-    await callback.message.reply_photo(photo=qr_url, caption=caption, reply_markup=btn)
-    await callback.answer()
-
-# ---------------- STEP 2: SHOW IMAGE + TERMS ----------------
-
-@Client.on_callback_query(filters.regex("^auto_verify_"))
-async def show_terms_and_guide(client, callback):
-    user_id = callback.from_user.id
-    session = ACTIVE_PAYMENTS.get(user_id)
-    
-    if not session:
-        return await callback.answer("⏰ Payment Expired! Please try again.", show_alert=True)
-        
-    if time.time() - session['timestamp'] > 600:
-        ACTIVE_PAYMENTS.pop(user_id, None)
-        return await callback.answer("⌛ Time limit of 10 minutes exceeded! Payment expired.", show_alert=True)
-
     terms_caption = (
+        f"📖 <b>sᴛᴏʀʏ:</b> {story_title}\n"
+        f"💰 <b>ᴀᴍᴏᴜɴᴛ:</b> ₹{price}\n\n"
         f"{TERMS_TEXT}\n\n"
-        f"👇 <i>ᴘʟᴇᴀsᴇ ᴄʟɪᴄᴋ <b>'✅ ɪ ᴀᴄᴄᴇᴘᴛ & ᴄᴏɴᴛɪɴᴜᴇ'</b> ᴛᴏ submit ʏᴏᴜʀ ᴜᴛʀ:</i>"
+        f"👇 <i>ᴘʟᴇᴀsᴇ ᴄʟɪᴄᴋ <b>'✅ ɪ ᴀᴄᴄᴇᴘᴛ & ᴄᴏɴᴛɪɴᴜᴇ'</b> ᴛᴏ ɢᴇɴᴇʀᴀᴛᴇ QR Code:</i>"
     )
     
     btn = InlineKeyboardMarkup([
-        [InlineKeyboardButton("✅ ɪ ᴀᴄᴄᴇᴘᴛ & ᴄᴏɴᴛɪɴᴜᴇ", style=enums.ButtonStyle.SUCCESS, callback_data=f"accept_terms_{user_id}")],
+        [InlineKeyboardButton("✅ ɪ ᴀᴄᴄᴇᴘᴛ & ᴄᴏɴᴛɪɴᴜᴇ", style=enums.ButtonStyle.SUCCESS, callback_data=f"show_qr_{user_id}")],
         [InlineKeyboardButton("❌ ᴄᴀɴᴄᴇʟ", style=enums.ButtonStyle.DANGER, callback_data="cancel_payment_process")]
     ])
     
@@ -202,10 +172,54 @@ async def show_terms_and_guide(client, callback):
 
     await callback.answer()
 
-# ---------------- STEP 3: DELETE TERMS MESSAGE & ASK UTR ----------------
+# ---------------- STEP 2: GENERATE QR & PAYMENT BUTTONS ----------------
 
-@Client.on_callback_query(filters.regex("^accept_terms_"))
-async def start_auto_verify_input(client, callback):
+@Client.on_callback_query(filters.regex("^show_qr_"))
+async def generate_qr_after_terms(client, callback):
+    user_id = callback.from_user.id
+    session = ACTIVE_PAYMENTS.get(user_id)
+    
+    if not session:
+        return await callback.answer("⏰ Payment Expired! Please try again.", show_alert=True)
+        
+    if time.time() - session['timestamp'] > 600:
+        ACTIVE_PAYMENTS.pop(user_id, None)
+        return await callback.answer("⌛ Time limit of 10 minutes exceeded! Payment expired.", show_alert=True)
+
+    # पुराने Terms मैसेज को डिलीट करें
+    try:
+        await callback.message.delete()
+    except Exception:
+        pass
+
+    title = session['title']
+    price = session['price']
+    clean_title = title.replace(" ", "_")
+
+    upi_link = f"upi://pay?pa={UPI_ID}&pn=StorySeller&am={price}&cu=INR"
+    qr_url = f"https://api.qrserver.com/v1/create-qr-code/?size=250x250&margin=15&data={urllib.parse.quote(upi_link)}"
+    
+    caption = (
+        f"⚡ <b>ᴀᴜᴛᴏᴍᴀᴛɪᴄ ᴘᴀʏᴍᴇɴᴛ ᴄʜᴇᴄᴋᴏᴜᴛ</b>\n\n"
+        f"📖 <b>sᴛᴏʀʏ:</b> {title}\n"
+        f"💰 <b>ᴀᴍᴏᴜɴᴛ:</b> ₹{price}\n"
+        f"⏳ <b>ᴛɪᴍᴇ ʟɪᴍɪᴛ:</b> 10 Minutes\n\n"
+        f"📲 <i>Scan QR & Complete Payment. Then Click Below to Submit UTR!</i>"
+    )
+    
+    btn = InlineKeyboardMarkup([
+        [InlineKeyboardButton("⚡ ᴠᴇʀɪғʏ ᴘᴀʏᴍᴇɴᴛ (Auto)", style=enums.ButtonStyle.SUCCESS, callback_data=f"ask_utr_{user_id}")],
+        [InlineKeyboardButton("👁️ sʜᴏᴡ ᴜᴘɪ ɪᴅ", callback_data="show_upi_id"), InlineKeyboardButton("📩 ᴍᴀɴᴜᴀʟ / ᴀᴅᴍɪɴ", callback_data=f"sent_{clean_title}_{price}")],
+        [InlineKeyboardButton("❌ ᴄᴀɴᴄᴇʟ", style=enums.ButtonStyle.DANGER, callback_data="cancel_payment_process")]
+    ])
+    
+    await callback.message.reply_photo(photo=qr_url, caption=caption, reply_markup=btn)
+    await callback.answer()
+
+# ---------------- STEP 3: ASK FOR UTR ----------------
+
+@Client.on_callback_query(filters.regex("^ask_utr_"))
+async def ask_utr_input(client, callback):
     user_id = callback.from_user.id
     session = ACTIVE_PAYMENTS.get(user_id)
     
@@ -218,19 +232,12 @@ async def start_auto_verify_input(client, callback):
 
     session['awaiting_txnid'] = True
     
-    # 🗑️ Terms & Conditions वाला मैसेज डिलीट करें ताकि चैट भरी-भरी न लगे
-    try:
-        await callback.message.delete()
-    except Exception:
-        pass
-    
-    # 📩 नया मैसेज भेजें जो UTR माँगेगा
     await callback.message.reply_text(
         "📝 <b>ᴇɴᴛᴇʀ ʏᴏᴜʀ ғᴀᴍᴘᴀʏ / ᴜᴘɪ ᴛʀᴀɴsᴀᴄᴛɪᴏɴ ɪᴅ:</b>\n\n"
         "ᴘʟᴇᴀsᴇ ᴘᴀsᴛᴇ ʏᴏᴜʀ 12-ᴅɪɢɪᴛ ᴜᴛʀ / ᴛxɴ ɪᴅ (ᴇ.ɢ., <code>FMPIB665989150...</code>) ʙᴇʟᴏᴡ:",
         reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ ᴄᴀɴᴄᴇʟ", callback_data="cancel_payment_process")]])
     )
-    await callback.answer("Terms Accepted!")
+    await callback.answer()
 
 # ---------------- TEXT LISTENER FOR TRANSACTION ID ----------------
 
@@ -364,20 +371,16 @@ async def process_wallet_amount(client, message):
         "type": "WALLET"
     }
 
-    upi_link = f"upi://pay?pa={UPI_ID}&pn=WalletTopup&am={price}&cu=INR"
-    qr_url = f"https://api.qrserver.com/v1/create-qr-code/?size=250x250&margin=15&data={urllib.parse.quote(upi_link)}"
-    
-    caption = (
-        f"👛 <b>ᴡᴀʟʟᴇᴛ ᴛᴏᴘ-ᴜᴘ:</b> ₹{price}\n"
-        f"⏳ <b>ᴛɪᴍᴇ ʟɪᴍɪᴛ:</b> 10 Minutes\n\n"
-        f"👇 Scan & click Verify Payment."
+    terms_caption = (
+        f"👛 <b>ᴡᴀʟʟᴇᴛ ᴛᴏᴘ-ᴜᴘ:</b> ₹{price}\n\n"
+        f"{TERMS_TEXT}\n\n"
+        f"👇 <i>ᴘʟᴇᴀsᴇ ᴄʟɪᴄᴋ <b>'✅ ɪ ᴀᴄᴄᴇᴘᴛ & ᴄᴏɴᴛɪɴᴜᴇ'</b> ᴛᴏ ɢᴇɴᴇʀᴀᴛᴇ QR Code:</i>"
     )
     btn = InlineKeyboardMarkup([
-        [InlineKeyboardButton("⚡ ᴠᴇʀɪғʏ ᴘᴀʏᴍᴇɴᴛ (Auto)", style=enums.ButtonStyle.SUCCESS, callback_data=f"auto_verify_{user_id}")],
-        [InlineKeyboardButton("👁️ sʜᴏᴡ ᴜᴘɪ ɪᴅ", callback_data="show_upi_id"), InlineKeyboardButton("📩 ᴍᴀɴᴜᴀʟ / ᴀᴅᴍɪɴ", callback_data=f"sent_WalletTopup_{price}")],
+        [InlineKeyboardButton("✅ ɪ ᴀᴄᴄᴇᴘᴛ & ᴄᴏɴᴛɪɴᴜᴇ", style=enums.ButtonStyle.SUCCESS, callback_data=f"show_qr_{user_id}")],
         [InlineKeyboardButton("❌ ᴄᴀɴᴄᴇʟ", style=enums.ButtonStyle.DANGER, callback_data="cancel_payment_process")]
     ])
-    await message.reply_photo(photo=qr_url, caption=caption, reply_markup=btn)
+    await message.reply_photo(photo=GUIDE_IMAGE_URL, caption=terms_caption, reply_markup=btn)
 
 # ---------------- MANUAL SCREENSHOT & ADMIN APPROVAL ----------------
 
