@@ -242,7 +242,7 @@ async def process_auto_txn_id(client, message):
                 )
     else:
         await wait_msg.edit_text(
-            f"❌ <b>ᴀᴜᴛᴏ-ᴠᴇʀɪғɪᴄᴀᴛɪᴏɴ ғᴀɪʟᴇᴅ!</b>\nReason: {msg}\n\n"
+            f"❌ <b>ᴀᴜᴛᴏ-ᴠᴇʀɪғɪᴄᴀᴛɪᴏɴ ғᴀɪʟᴇᴅ!</b>\nReason: try after some time\n\n"
             "If you have paid, please click <b>Contact Admin / Send Screenshot</b> below to verify manually.",
             reply_markup=InlineKeyboardMarkup([
                 [InlineKeyboardButton("📩 Contact Admin / Manual", callback_data=f"sent_{title.replace(' ', '_')}_{price}")],
