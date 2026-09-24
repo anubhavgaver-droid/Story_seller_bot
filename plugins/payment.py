@@ -79,7 +79,7 @@ async def cancel_payment_callback(client, callback):
 # Toggle UPI ID Visibility
 @Client.on_callback_query(filters.regex("^show_upi_id$"))
 async def show_upi_id(client, callback):
-    await callback.answer(f"📌 UPI ID:<code>{UPI_ID}</code>", show_alert=True)
+    await callback.answer(f"📌 UPI ID: {UPI_ID}", show_alert=True)
 
 # ---------------- 1. VIEW STORY & QR GENERATION ----------------
 
@@ -192,7 +192,7 @@ async def process_auto_txn_id(client, message):
     # 1. Check Timer
     if time.time() - session['timestamp'] > 600:
         ACTIVE_PAYMENTS.pop(user_id, None)
-        return await message.reply_text("❌ <b>Session Expired!</b> 10-minute timer completed. Please initiate purchase again.")
+        return await message.reply_text("❌ <b>payment Expired!</b> 10-minute timer completed. Please initiate purchase again.")
 
     # 2. Check Duplicate Lock
     if txn_id in USED_TRANSACTIONS:
