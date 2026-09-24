@@ -16,7 +16,7 @@ PRATILIPI_FM_CHANNEL = int(os.environ.get("PRATILIPI_FM_CHANNEL", "-100322607408
 # Default / Fallback Channel
 CHANNEL = int(os.environ.get("CHANNEL", "-1003226074080"))
 
-UPI_ID = os.environ.get("UPI_ID", "anubhavnn@fam")
+UPI_ID = os.environ.get("UPI_ID", "anubhavcm@axl")
 PORT = int(os.environ.get("PORT", "8080"))
 BOT_USERNAME = os.environ.get("BOT_USERNAME", "YourStorySellerBot")
 MONGO_URL = os.environ.get("MONGO_URL", "mongodb://localhost:27017")
