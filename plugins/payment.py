@@ -14,7 +14,7 @@ ACTIVE_PAYMENTS = {}        # Stores active session timing and order data
 WALLET_TOPUP_WAITING = {}   # Stores wallet state
 USED_TRANSACTIONS = set()   # Duplicate UTR / Txn ID locking memory
 
-# 🖼️ UTR Step-by-Step Banner Image URL (अपनी गाइड इमेज का लिंक यहाँ डालें)
+# 🖼️ UTR Step-by-Step Banner Image URL
 GUIDE_IMAGE_URL = "https://i.ibb.co/VW778KdR/photo-2026-09-24-08-21-14-7689014092254023680.jpg" 
 
 # 📋 Compact Terms & Conditions Text (Small Caps & Proper English)
@@ -182,6 +182,7 @@ async def show_terms_and_guide(client, callback):
         [InlineKeyboardButton("❌ ᴄᴀɴᴄᴇʟ", style=enums.ButtonStyle.DANGER, callback_data="cancel_payment_process")]
     ])
     
+    # नोट: क्यूआर कोड वाला पिछला मैसेज डिलीट नहीं होगा, वह सुरक्षित रहेगा।
     try:
         await callback.message.reply_photo(
             photo=GUIDE_IMAGE_URL,
@@ -193,7 +194,7 @@ async def show_terms_and_guide(client, callback):
 
     await callback.answer()
 
-# ---------------- STEP 3: INPUT UTR PROMPT ----------------
+# ---------------- STEP 3: DELETE TERMS MESSAGE & ASK UTR ----------------
 
 @Client.on_callback_query(filters.regex("^accept_terms_"))
 async def start_auto_verify_input(client, callback):
@@ -209,6 +210,13 @@ async def start_auto_verify_input(client, callback):
 
     session['awaiting_txnid'] = True
     
+    # 🗑️ Terms & Conditions वाला मैसेज डिलीट करें ताकि चैट भरी-भरी न लगे
+    try:
+        await callback.message.delete()
+    except Exception:
+        pass
+    
+    # 📩 नया मैसेज भेजें जो UTR माँगेगा
     await callback.message.reply_text(
         "📝 <b>ᴇɴᴛᴇʀ ʏᴏᴜʀ ғᴀᴍᴘᴀʏ / ᴜᴘɪ ᴛʀᴀɴsᴀᴄᴛɪᴏɴ ɪᴅ:</b>\n\n"
         "ᴘʟᴇᴀsᴇ ᴘᴀsᴛᴇ ʏᴏᴜʀ 12-ᴅɪɢɪᴛ ᴜᴛʀ / ᴛxɴ ɪᴅ (ᴇ.ɢ., <code>FMPIB665989150...</code>) ʙᴇʟᴏᴡ:",
@@ -314,6 +322,7 @@ async def process_auto_txn_id(client, message):
                 [InlineKeyboardButton("❌ Cancel", callback_data="cancel_payment_process")]
             ])
         )
+
 
 
 
