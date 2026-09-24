@@ -7,7 +7,7 @@ from pyrogram import Client, idle, filters
 from config import API_ID, API_HASH, BOT_TOKEN, PORT, ADMIN_ID, BOT_USERNAME, LOG_CHANNEL
 from database.db import stories_col, get_user_purchases, get_story_by_title
 # 📥 Import Payment Webhook Handler from payment.py
-from payment import handle_payment_webhook
+from plugins.payment import handle_payment_webhook
 
 # Plugins setup
 plugins = dict(root="plugins")
