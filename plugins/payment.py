@@ -41,7 +41,7 @@ def verify_fampay_email(txn_id):
         status, messages = mail.search(None, f'TEXT "{txn_id}"')
         if status != "OK" or not messages[0]:
             mail.logout()
-            return False, "Transaction ID not found in our Bot yet.\n<b>TRY AFTER SOME TIME</b>", 0.0
+            return False, "Transaction ID not found in our system yet.", 0.0
             
         email_ids = messages[0].split()
         for e_id in reversed(email_ids):
@@ -186,7 +186,6 @@ async def generate_qr_after_terms(client, callback):
         ACTIVE_PAYMENTS.pop(user_id, None)
         return await callback.answer("⌛ Time limit of 10 minutes exceeded! Payment expired.", show_alert=True)
 
-    # पुराने Terms मैसेज को डिलीट करें
     try:
         await callback.message.delete()
     except Exception:
@@ -208,7 +207,7 @@ async def generate_qr_after_terms(client, callback):
     )
     
     btn = InlineKeyboardMarkup([
-        [InlineKeyboardButton("⚡ ᴠᴇʀɪғʏ ᴘᴀʏᴍᴇɴᴛ (Auto)", style=enums.ButtonStyle.SUCCESS, callback_data=f"ask_utr_{user_id}")],
+        [InlineKeyboardButton("⚡ ᴇɴᴛᴇʀ ᴜᴛʀ / ᴛxɴ ɪᴅ (Auto)", style=enums.ButtonStyle.SUCCESS, callback_data=f"ask_utr_{user_id}")],
         [InlineKeyboardButton("👁️ sʜᴏᴡ ᴜᴘɪ ɪᴅ", callback_data="show_upi_id"), InlineKeyboardButton("📩 ᴍᴀɴᴜᴀʟ / ᴀᴅᴍɪɴ", callback_data=f"sent_{clean_title}_{price}")],
         [InlineKeyboardButton("❌ ᴄᴀɴᴄᴇʟ", style=enums.ButtonStyle.DANGER, callback_data="cancel_payment_process")]
     ])
@@ -239,7 +238,7 @@ async def ask_utr_input(client, callback):
     )
     await callback.answer()
 
-# ---------------- TEXT LISTENER FOR TRANSACTION ID ----------------
+# ---------------- TEXT LISTENER WITH AUTO-RETRY TIMER FOR UTR ----------------
 
 @Client.on_message(filters.private & filters.text & ~filters.command(["start", "cancel"]), group=1)
 async def process_auto_txn_id(client, message):
@@ -261,17 +260,35 @@ async def process_auto_txn_id(client, message):
     if txn_id in USED_TRANSACTIONS:
         return await message.reply_text("⚠️ <b>ᴛʜɪs ᴛʀᴀɴsᴀᴄᴛɪᴏɴ ɪᴅ ʜᴀs ᴀʟʀᴇᴀᴅʏ ʙᴇᴇɴ ᴜsᴇᴅ!</b>")
 
-    wait_msg = await message.reply_text("🔄 <b>ᴠᴇʀɪғɪɴɢ ᴘᴀʏᴍᴇɴᴛ...</b>\n<i>ᴘʟᴇᴀsᴇ ᴡᴀɪᴛ ᴀ ғᴇᴡ sᴇᴄᴏɴᴅs.</i>")
+    wait_msg = await message.reply_text("🔄 <b>ᴠᴇʀɪғʏɪɴɢ ᴘᴀʏᴍᴇɴᴛ...</b>\n<i>Checking transaction details...</i>")
     
-    # Verify via Gmail IMAP
+    # First attempt to verify
     is_valid, msg, actual_paid = verify_fampay_email(txn_id)
     
+    # ⏳ IF NOT FOUND IN FIRST ATTEMPT: START 5-SECOND COUNTDOWN & RETRY
+    if not is_valid:
+        for remaining in range(5, 0, -1):
+            try:
+                await wait_msg.edit_text(
+                    f"⚠️ <b>ᴛʀᴀɴsᴀᴄᴛɪᴏɴ ɴᴏᴛ ғᴏᴜɴᴅ ʏᴇᴛ!</b>\n"
+                    f"<i>Waiting for bank confirmation email...</i>\n\n"
+                    f"🔄 <b>ᴀᴜᴛᴏ-ʀᴇᴛʀʏɪɴɢ ɪɴ:</b> <code>{remaining}s</code>"
+                )
+            except Exception:
+                pass
+            await asyncio.sleep(1)
+
+        # Final Retry Attempt
+        await wait_msg.edit_text("🔄 <b>ʀᴇ-ᴠᴇʀɪғʏɪɴɢ ᴘᴀʏᴍᴇɴᴛ (Final Check)...</b>")
+        is_valid, msg, actual_paid = verify_fampay_email(txn_id)
+
+    # ---------------- VERIFICATION SUCCESSFUL ----------------
     if is_valid:
         USED_TRANSACTIONS.add(txn_id)
         ACTIVE_PAYMENTS.pop(user_id, None)
         await wait_msg.delete()
         
-        # ---------------- WALLET TOPUP CASE ----------------
+        # WALLET TOPUP CASE
         if session['type'] == "WALLET":
             new_bal = await add_wallet_balance(user_id, actual_paid)
             await message.reply_text(f"🎉 <b>ᴀᴜᴛᴏ-ᴠᴇʀɪғɪᴇᴅ sᴜᴄᴄᴇssғᴜʟʟʏ!</b>\n\n💰 ᴀᴅᴅᴇᴅ ₹{actual_paid} ᴛᴏ ᴡᴀʟʟᴇᴛ.\n👛 ɴᴇᴡ ʙᴀʟᴀɴᴄᴇ: ₹{new_bal}")
@@ -282,7 +299,7 @@ async def process_auto_txn_id(client, message):
                     f"⚡ <b>[AUTO-PAYMENT SUCCESS] WALLET TOPUP</b>\n\n👤 <b>User:</b> {message.from_user.first_name} (<code>{user_id}</code>)\n💰 <b>Amount:</b> ₹{actual_paid}\n🔑 <b>Txn ID:</b> <code>{txn_id}</code>"
                 )
                 
-        # ---------------- STORY PURCHASE CASE ----------------
+        # STORY PURCHASE CASE
         else:
             story = await get_story_by_title(title)
             clean_title = story['title'].strip().split("\n")[0]
@@ -328,13 +345,17 @@ async def process_auto_txn_id(client, message):
                         LOG_CHANNEL, 
                         f"⚡ <b>[AUTO-PAYMENT SUCCESS] STORY BOUGHT</b>\n\n👤 <b>User:</b> {message.from_user.first_name} (<code>{user_id}</code>)\n📖 <b>Story:</b> {clean_title}\n💰 <b>Amount Paid:</b> ₹{actual_paid}\n🔑 <b>Txn ID:</b> <code>{txn_id}</code>"
                     )
+
+    # ---------------- VERIFICATION FAILED (STOP PROCESS) ----------------
     else:
+        ACTIVE_PAYMENTS.pop(user_id, None)  # ऑटोमेटिक प्रोसेस यहीं रोक दी गई है
         await wait_msg.edit_text(
-            f"❌ <b>ᴀᴜᴛᴏ-ᴠᴇʀɪғɪᴄᴀᴛɪᴏɴ ғᴀɪʟᴇᴅ!</b>\nReason: {msg}\n\n"
-            "If you have paid, please click <b>Contact Admin / Send Screenshot</b> below to verify manually.",
+            f"🛑 <b>ᴀᴜᴛᴏ-ᴠᴇʀɪғɪᴄᴀᴛɪᴏɴ sᴛᴏᴘᴘᴇᴅ!</b>\n\n"
+            f"❌ <b>Reason:</b> Transaction ID not found in system.\n\n"
+            f"💡 <i>If you have actually completed the payment, please click below to send a screenshot for manual verification by Admin.</i>",
             reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("📩 Contact Admin / Manual", callback_data=f"sent_{title.replace(' ', '_')}_{expected_price}")],
-                [InlineKeyboardButton("❌ Cancel", callback_data="cancel_payment_process")]
+                [InlineKeyboardButton("📩 Contact Admin / Manual Verification", callback_data=f"sent_{title.replace(' ', '_')}_{expected_price}")],
+                [InlineKeyboardButton("❌ Close", callback_data="cancel_payment_process")]
             ])
         )
 
