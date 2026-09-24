@@ -40,38 +40,48 @@ async def handle_payment_webhook(request):
         secret_key = data.get("secret")
         notification_text = data.get("text", "")
 
+        print(f"📥 [RAW WEBHOOK RECEIVED]: {notification_text}")  # Terminal/Render log for debugging
+
         if secret_key != WEBHOOK_SECRET:
             return web.json_response({"status": "unauthorized"}, status=401)
 
         # 🛑 Outgoing/Failed Notification Filtering
         lower_text = notification_text.lower()
-        if "debited" in lower_text or "paid to" in lower_text or "failed" in lower_text:
+        if "debited" in lower_text or "paid to" in lower_text or "failed" in lower_text or "sent to" in lower_text:
             return web.json_response({"status": "ignored", "reason": "Outgoing or failed transaction"})
 
-        # Regex for 12-digit UTR / Txn ID and Amount (₹100 or Rs.100 or 100 INR)
-        utr_match = re.search(r'\b\d{12}\b', notification_text)
+        # 🔍 1. Flexible UTR/Txn ID Extractor (12 digits OR FamPay FMPI... / Alphanumeric IDs)
+        utr_match = re.search(r'\b(FMPI[A-Za-z0-9]+|[A-Za-z0-9]{10,22}|\d{12})\b', notification_text, re.IGNORECASE)
+        
+        # 🔍 2. Flexible Amount Extractor (₹100, Rs. 100, 100 INR, or plain numbers)
         amount_match = re.search(r'(?:₹|Rs\.?|INR)\s*([0-9]+(?:\.[0-9]+)?)', notification_text, re.IGNORECASE)
+        if not amount_match:
+            # Fallback: Extract standalone numeric amount from notification
+            amount_match = re.search(r'\b([0-9]+(?:\.[0-9]+)?)\b', notification_text)
 
         if utr_match and amount_match:
-            utr = utr_match.group(0)
+            utr = utr_match.group(0).strip().upper()
             amount = float(amount_match.group(1))
 
             TRACKED_PAYMENTS[utr] = {
                 "amount": amount,
                 "timestamp": time.time()
             }
-            print(f"⚡ [MACRODROID TRACKED] UTR: {utr} | Amount: ₹{amount}")
+            print(f"⚡ [MACRODROID TRACKED SUCCESS] UTR: {utr} | Amount: ₹{amount}")
             return web.json_response({"status": "success", "utr": utr, "amount": amount})
 
-        return web.json_response({"status": "ignored", "reason": "UTR or Amount not parsed"})
+        print("❌ [PARSING FAILED]: UTR or Amount could not be extracted.")
+        return web.json_response({"status": "ignored", "reason": "UTR or Amount not parsed", "raw": notification_text})
 
     except Exception as e:
+        print(f"🚨 [WEBHOOK ERROR]: {e}")
         return web.json_response({"status": "error", "message": str(e)}, status=500)
 
 # Helper Function: Verify Payment via MacroDroid Memory
 def verify_payment_data(txn_id):
-    if txn_id in TRACKED_PAYMENTS:
-        data = TRACKED_PAYMENTS[txn_id]
+    clean_txn_id = txn_id.strip().upper()
+    if clean_txn_id in TRACKED_PAYMENTS:
+        data = TRACKED_PAYMENTS[clean_txn_id]
         return True, "Verified via MacroDroid Webhook", data["amount"]
     
     return False, "Transaction ID not found in system.", 0.0
@@ -253,7 +263,7 @@ async def process_auto_txn_id(client, message):
         message.continue_propagation()
         return
 
-    txn_id = message.text.strip()
+    txn_id = message.text.strip().upper()
     expected_price = session['price']
     title = session['title']
     
