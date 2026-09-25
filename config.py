@@ -16,7 +16,7 @@ PRATILIPI_FM_CHANNEL = int(os.environ.get("PRATILIPI_FM_CHANNEL", "-100322607408
 # Default / Fallback Channel
 CHANNEL = int(os.environ.get("CHANNEL", "-1003226074080"))
 
-UPI_ID = os.environ.get("UPI_ID", "anubhavcm@axl")
+UPI_ID = os.environ.get("UPI_ID", "anubhavnn@fam")
 PORT = int(os.environ.get("PORT", "8080"))
 BOT_USERNAME = os.environ.get("BOT_USERNAME", "YourStorySellerBot")
 MONGO_URL = os.environ.get("MONGO_URL", "mongodb://localhost:27017")
@@ -27,8 +27,8 @@ WEB_APP_URL = os.environ.get("WEB_APP_URL", "https://story-seller-bot-0jtb.onren
 TUTORIAL_VIDEO_URL = os.environ.get("TUTORIAL_VIDEO_URL", "https://t.me/howanubhav/23")
 
 # Gmail IMAP Configuration (Automatic Payment Verification)
-GMAIL_USER = os.environ.get("GMAIL_USER", "81jokeryt@gmail.com") # Apni Gmail ID
-GMAIL_PASS = os.environ.get("GMAIL_PASS", "abcdefghijklmnop") # 16-Digit App Password (Bina space ke)
+GMAIL_USER = os.environ.get("GMAIL_USER", "") # Apni Gmail ID
+GMAIL_PASS = os.environ.get("GMAIL_PASS", "") # 16-Digit App Password (Bina space ke)
 
 # Stickers Config
 DELIVERY_STICKER_ID = os.environ.get("DELIVERY_STICKER_ID", "CAACAgUAAxkBAAIekGqafK19rMDCkWo-XnCakyhwR7iEAAJaBAAC-qSxV4gJ0UQKykTsHgQ...")
