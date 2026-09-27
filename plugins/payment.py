@@ -16,16 +16,16 @@ ACTIVE_PAYMENTS = {}        # Stores active session timing and order data
 WALLET_TOPUP_WAITING = {}   # Stores wallet state
 
 # 🖼️ Banner Image URL
-GUIDE_IMAGE_URL = "https://i.ibb.co/VW778KdR/photo-2026-09-24-08-21-14-7689014092254023680.jpg" 
+GUIDE_IMAGE_URL = "https://i.ibb.co/hxSgff6h/photo-2026-09-27-13-06-01-7690200646190697472.jpg" 
 
-# 📋 Compact Terms & Conditions Text
+# 📋 Compact Terms & Conditions Text in Small Caps
 TERMS_TEXT = (
     "📜 <b><u>ᴛᴇʀᴍs & ᴄᴏɴᴅɪᴛɪᴏɴs</u></b>\n\n"
-    "• <b>ᴇxᴀᴄᴛ ᴀᴍᴏᴜɴᴛ:</b> Payment must match the exact story price.\n"
-    "• <b>ᴜɴᴅᴇʀᴘᴀʏᴍᴇɴᴛ:</b> Underpaid amounts will be credited to your <b>Wallet</b>; file will remain locked.\n"
-    "• <b>ᴏᴠᴇʀᴘᴀʏᴍᴇɴᴛ:</b> Extra amounts will be automatically credited to your <b>Wallet</b>.\n"
-    "• <b>ɴᴏ ʀᴇғᴜɴᴅs:</b> All sales are final. No direct bank refunds.\n"
-    "• <b>ᴀɴᴛɪ-ғʀᴀᴜᴅ:</b> Reusing or faking payment transaction IDs will result in an instant ban."
+    "• <b>ᴇxᴀᴄᴛ ᴀᴍᴏᴜɴᴛ:</b> ᴘᴀʏᴍᴇɴᴛ ᴍᴜsᴛ ᴍᴀᴛᴄʜ ᴛʜᴇ ᴇxᴀᴄᴛ sᴛᴏʀʏ ᴘʀɪᴄᴇ.\n"
+    "• <b>ᴜɴᴅᴇʀᴘᴀʏᴍᴇɴᴛ:</b> ᴜɴᴅᴇʀᴘᴀɪᴅ ᴀᴍᴏᴜɴᴛs ᴡɪʟʟ ʙᴇ ᴄʀᴇᴅɪᴛᴇᴅ ᴛᴏ ʏᴏᴜʀ <b>ᴡᴀʟʟᴇᴛ</b>; ғɪʟᴇ ᴡɪʟʟ ʀᴇᴍᴀɪɴ ʟᴏᴄᴋᴇᴅ.\n"
+    "• <b>ᴏᴠᴇʀᴘᴀʏᴍᴇɴᴛ:</b> ᴇxᴛʀᴀ ᴀᴍᴏᴜɴᴛs ᴡɪʟʟ ʙᴇ ᴀᴜᴛᴏᴍᴀᴛɪᴄᴀʟʟʏ ᴄʀᴇᴅɪᴛᴇᴅ ᴛᴏ ʏᴏᴜʀ <b>ᴡᴀʟʟᴇᴛ</b>.\n"
+    "• <b>ɴᴏ ʀᴇғᴜɴᴅs:</b> ᴀʟʟ sᴀʟᴇs ᴀʀᴇ ғɪɴᴀʟ. ɴᴏ ᴅɪʀᴇᴄᴛ ʙᴀɴᴋ ʀᴇғᴜɴᴅs.\n"
+    "• <b>ᴀɴᴛɪ-ғʀᴀᴜᴅ:</b> ʀᴇᴜsɪɴɢ ᴏʀ ғᴀᴋɪɴɢ ᴘᴀʏᴍᴇɴᴛ ᴛʀᴀɴsᴀᴄᴛɪᴏɴ ɪᴅs ᴡɪʟʟ ʀᴇsᴜʟᴛ ɪɴ ᴀɴ ɪɴsᴛᴀɴᴛ ʙᴀɴ."
 )
 
 # ---------------- 📩 BOT VERIFICATION SYSTEM (GMAIL BACKEND) ----------------
@@ -108,7 +108,7 @@ async def cancel_payment_callback(client, callback):
     except Exception:
         pass
         
-    cancel_msg = await callback.message.reply_text("❌ <b>Payment process cancelled.</b>")
+    cancel_msg = await callback.message.reply_text("❌ <b>ᴘᴀʏᴍᴇɴᴛ ᴘʀᴏᴄᴇss ᴄᴀɴᴄᴇʟʟᴇᴅ.</b>")
     await callback.answer("Cancelled!")
     
     await asyncio.sleep(8)
@@ -128,19 +128,19 @@ async def view_story(client, callback):
     title = callback.data.split("view_")[1].replace("_", " ")
     story = await get_story_by_title(title)
     if not story:
-        return await callback.answer("❌ Story not found!", show_alert=True)
+        return await callback.answer("❌ sᴛᴏʀʏ ɴᴏᴛ ғᴏᴜɴᴅ!", show_alert=True)
         
     clean_title = story['title'].strip().split("\n")[0]
     encoded_title = clean_title.replace(" ", "_")
     btn = InlineKeyboardMarkup([[InlineKeyboardButton("💳 ʙᴜʏ ɴᴏᴡ", style=enums.ButtonStyle.PRIMARY, callback_data=f"buy_{encoded_title}_{story['price']}")]])
     
     caption_text = (
-        f"♨️ <b>Story :</b> {clean_title}\n"
-        f"🔰 <b>Status :</b> {story.get('status', 'Completed')}\n"
-        f"🖥️ <b>Platform :</b> {story.get('category', 'Pocket FM')}\n"
-        f"🧩 <b>Genre :</b> {story.get('genre', 'Drama')}\n"
-        f"🎬 <b>Episodes :</b> {story.get('episodes', 'N/A')}\n\n"
-        f"░▒▓█ PRICE - ₹{story['price']} █▓▒░"
+        f"♨️ <b>sᴛᴏʀʏ :</b> {clean_title}\n"
+        f"🔰 <b>sᴛᴀᴛᴜs :</b> {story.get('status', 'Completed')}\n"
+        f"🖥️ <b>ᴘʟᴀᴛғᴏʀᴍ :</b> {story.get('category', 'Pocket FM')}\n"
+        f"🧩 <b>ɢᴇɴʀᴇ :</b> {story.get('genre', 'Drama')}\n"
+        f"🎬 <b>ᴇᴘɪsᴏᴅᴇs :</b> {story.get('episodes', 'N/A')}\n\n"
+        f"░▒▓█ ᴘʀɪᴄᴇ - ₹{story['price']} █▓▒░"
     )
     
     try:
@@ -162,18 +162,18 @@ async def show_terms_first(client, callback):
         clean_title, price = raw_data.rsplit("_", 1)
         story_title = clean_title.replace("_", " ")
     except Exception:
-        return await callback.answer("❌ Error parsing payment data!", show_alert=True)
+        return await callback.answer("❌ ᴇʀʀᴏʀ ᴘᴀʀsɪɴɢ ᴘᴀʏᴍᴇɴᴛ ᴅᴀᴛᴀ!", show_alert=True)
     
     terms_caption = (
         f"📖 <b>sᴛᴏʀʏ:</b> {story_title}\n"
         f"💰 <b>ᴀᴍᴏᴜɴᴛ:</b> ₹{price}\n\n"
         f"{TERMS_TEXT}\n\n"
-        f"👇 <i>Please click <b>'✅ Accept & Continue'</b> to generate QR Code:</i>"
+        f"👇 <i>ᴘʟᴇᴀsᴇ ᴄʟɪᴄᴋ <b>'✅ ᴀᴄᴄᴇᴘᴛ & ᴄᴏɴᴛɪɴᴜᴇ'</b> ᴛᴏ ɢᴇɴᴇʀᴀᴛᴇ ǫʀ ᴄᴏᴅᴇ:</i>"
     )
     
     btn = InlineKeyboardMarkup([
-        [InlineKeyboardButton("✅ Accept & Continue", style=enums.ButtonStyle.SUCCESS, callback_data=f"show_qr_{clean_title}_{price}")],
-        [InlineKeyboardButton("❌ Cancel", style=enums.ButtonStyle.DANGER, callback_data="cancel_payment_process")]
+        [InlineKeyboardButton("✅ ᴀᴄᴄᴇᴘᴛ & ᴄᴏɴᴛɪɴᴜᴇ", style=enums.ButtonStyle.SUCCESS, callback_data=f"show_qr_{clean_title}_{price}")],
+        [InlineKeyboardButton("❌ ᴄᴀɴᴄᴇʟ", style=enums.ButtonStyle.DANGER, callback_data="cancel_payment_process")]
     ])
     
     try:
@@ -199,7 +199,7 @@ async def generate_qr_after_terms(client, callback):
         title = clean_title.replace("_", " ")
         price = float(price_str)
     except Exception:
-        return await callback.answer("❌ Error reading session data!", show_alert=True)
+        return await callback.answer("❌ ᴇʀʀᴏʀ ʀᴇᴀᴅɪɴɢ sᴇssɪᴏɴ ᴅᴀᴛᴀ!", show_alert=True)
 
     # Save Session Timestamp
     ACTIVE_PAYMENTS[user_id] = {
@@ -221,14 +221,14 @@ async def generate_qr_after_terms(client, callback):
         f"⚡ <b>ᴀᴜᴛᴏᴍᴀᴛɪᴄ ᴘᴀʏᴍᴇɴᴛ ᴄʜᴇᴄᴋᴏᴜᴛ</b>\n\n"
         f"📖 <b>sᴛᴏʀʏ:</b> {title}\n"
         f"💰 <b>ᴀᴍᴏᴜɴᴛ:</b> ₹{price}\n"
-        f"⏳ <b>sᴇssɪᴏɴ ᴠᴀʟɪᴅɪᴛʏ:</b> 10 Minutes\n\n"
-        f"📲 <i>Scan QR & complete payment via any UPI app.\nThen click <b>'⚡ Verify Payment'</b> below!</i>"
+        f"⏳ <b>sᴇssɪᴏɴ ᴠᴀʟɪᴅɪᴛʏ:</b> 10 ᴍɪɴᴜᴛᴇs\n\n"
+        f"📲 <i>sᴄᴀɴ ǫʀ & ᴄᴏᴍᴘʟᴇᴛᴇ ᴘᴀʏᴍᴇɴᴛ ᴠɪᴀ ᴀɴʏ ᴜᴘɪ ᴀᴘᴘ.\nᴛʜᴇɴ ᴄʟɪᴄᴋ <b>'⚡ ᴠᴇʀɪғʏ ᴘᴀʏᴍᴇɴᴛ'</b> ʙᴇʟᴏᴡ!</i>"
     )
     
     btn = InlineKeyboardMarkup([
-        [InlineKeyboardButton("⚡ Verify Payment", style=enums.ButtonStyle.SUCCESS, callback_data=f"start_auto_check_{user_id}")],
-        [InlineKeyboardButton("👁️ Show UPI ID", callback_data="show_upi_id"), InlineKeyboardButton("📩 Manual Approval", callback_data=f"sent_{clean_title}_{price}")],
-        [InlineKeyboardButton("❌ Cancel", style=enums.ButtonStyle.DANGER, callback_data="cancel_payment_process")]
+        [InlineKeyboardButton("⚡ ᴠᴇʀɪғʏ ᴘᴀʏᴍᴇɴᴛ", style=enums.ButtonStyle.SUCCESS, callback_data=f"start_auto_check_{user_id}")],
+        [InlineKeyboardButton("👁️ sʜᴏᴡ ᴜᴘɪ ɪᴅ", callback_data="show_upi_id"), InlineKeyboardButton("📩 ᴍᴀɴᴜᴀʟ ᴀᴘᴘʀᴏᴠᴀʟ", callback_data=f"sent_{clean_title}_{price}")],
+        [InlineKeyboardButton("❌ ᴄᴀɴᴄᴇʟ", style=enums.ButtonStyle.DANGER, callback_data="cancel_payment_process")]
     ])
     
     await callback.message.reply_photo(photo=qr_url, caption=caption, reply_markup=btn)
@@ -242,7 +242,7 @@ async def execute_30s_countdown_check(client, callback):
     session = ACTIVE_PAYMENTS.get(user_id)
     
     if not session:
-        return await callback.answer("⏰ Payment Session Expired! Please generate a new QR.", show_alert=True)
+        return await callback.answer("⏰ ᴘᴀʏᴍᴇɴᴛ sᴇssɪᴏɴ ᴇxᴘɪʀᴇᴅ! ᴘʟᴇᴀsᴇ ɢᴇɴᴇʀᴀᴛᴇ ᴀ ɴᴇᴡ ǫʀ.", show_alert=True)
         
     session_start = session['timestamp']
     expected_price = session['price']
@@ -251,14 +251,14 @@ async def execute_30s_countdown_check(client, callback):
     # 10 Minute Limit
     if time.time() - session_start > 600:
         ACTIVE_PAYMENTS.pop(user_id, None)
-        return await callback.answer("⌛ Time limit of 10 minutes exceeded! Session expired.", show_alert=True)
+        return await callback.answer("⌛ ᴛɪᴍᴇ ʟɪᴍɪᴛ ᴏғ 10 ᴍɪɴᴜᴛᴇs ᴇxᴄᴇᴇᴅᴇᴅ! sᴇssɪᴏɴ ᴇxᴘɪʀᴇᴅ.", show_alert=True)
 
     await callback.answer("🔎 Payment verification started...")
 
     status_msg = await callback.message.reply_text(
         f"⚡ <b>ᴏᴜʀ ʙᴏᴛ sʏsᴛᴇᴍ ɪs ᴠᴇʀɪғʏɪɴɢ ʏᴏᴜʀ ᴘᴀʏᴍᴇɴᴛ...</b>\n\n"
-        f"🔍 <i>Checking system logs for ₹{expected_price}...</i>\n"
-        f"⏳ <b>Time remaining:</b> <code>30s</code>"
+        f"🔍 <i>ᴄʜᴇᴄᴋɪɴɢ sʏsᴛᴇᴍ ʟᴏɢs ғᴏʀ ₹{expected_price}...</i>\n"
+        f"⏳ <b>ᴛɪᴍᴇ ʀᴇᴍᴀɪɴɪɴɢ:</b> <code>30s</code>"
     )
 
     is_verified = False
@@ -275,12 +275,11 @@ async def execute_30s_countdown_check(client, callback):
 
         # Update countdown UI every second
         try:
-            # Stylish Progress Indicator
             dots = "." * ((30 - seconds_left) % 4 + 1)
             await status_msg.edit_text(
                 f"⚡ <b>ᴏᴜʀ ʙᴏᴛ sʏsᴛᴇᴍ ɪs ᴠᴇʀɪғʏɪɴɢ ʏᴏᴜʀ ᴘᴀʏᴍᴇɴᴛ{dots}</b>\n\n"
-                f"🔍 <b>Status:</b> Checking system transactions for ₹{expected_price}\n"
-                f"⏱️ <b>Time remaining:</b> <code>{seconds_left:02d}s</code>"
+                f"🔍 <b>sᴛᴀᴛᴜs:</b> ᴄʜᴇᴄᴋɪɴɢ sʏsᴛᴇᴍ ᴛʀᴀɴsᴀᴄᴛɪᴏɴs ғᴏʀ ₹{expected_price}\n"
+                f"⏱️ <b>ᴛɪᴍᴇ ʀᴇᴍᴀɪɴɪɴɢ:</b> <code>{seconds_left:02d}s</code>"
             )
         except Exception:
             pass
@@ -297,8 +296,8 @@ async def execute_30s_countdown_check(client, callback):
             new_bal = await add_wallet_balance(user_id, actual_paid)
             await callback.message.reply_text(
                 f"🎉 <b>ᴘᴀʏᴍᴇɴᴛ ᴠᴇʀɪғɪᴇᴅ sᴜᴄᴄᴇssғᴜʟʟʏ!</b>\n\n"
-                f"💰 <b>Added to Wallet:</b> ₹{actual_paid}\n"
-                f"👛 <b>Updated Balance:</b> ₹{new_bal}"
+                f"💰 <b>ᴀᴅᴅᴇᴅ ᴛᴏ ᴡᴀʟʟᴇᴛ:</b> ₹{actual_paid}\n"
+                f"👛 <b>ᴜᴘᴅᴀᴛᴇᴅ ʙᴀʟᴀɴᴄᴇ:</b> ₹{new_bal}"
             )
             if LOG_CHANNEL and LOG_CHANNEL != 0:
                 await client.send_message(
@@ -315,18 +314,18 @@ async def execute_30s_countdown_check(client, callback):
             
             extra_amount = actual_paid - expected_price
             await add_user_purchase(user_id, clean_title, story_link=delivery_link)
-            access_btn = InlineKeyboardMarkup([[InlineKeyboardButton("📂 Get Files (Unlocked)", style=enums.ButtonStyle.PRIMARY, url=delivery_link)]])
+            access_btn = InlineKeyboardMarkup([[InlineKeyboardButton("📂 ɢᴇᴛ ғɪʟᴇs (ᴜɴʟᴏᴄᴋᴇᴅ)", style=enums.ButtonStyle.PRIMARY, url=delivery_link)]])
             
             overpaid_text = ""
             if extra_amount > 0:
                 new_bal = await add_wallet_balance(user_id, extra_amount)
-                overpaid_text = f"\n\n🎁 <b>Extra Payment:</b> ₹{extra_amount} added to your Wallet balance! (New Balance: ₹{new_bal})"
+                overpaid_text = f"\n\n🎁 <b>ᴇxᴛʀᴀ ᴘᴀʏᴍᴇɴᴛ:</b> ₹{extra_amount} ᴀᴅᴅᴇᴅ ᴛᴏ ʏᴏᴜʀ ᴡᴀʟʟᴇᴛ ʙᴀʟᴀɴᴄᴇ! (ɴᴇᴡ ʙᴀʟᴀɴᴄᴇ: ₹{new_bal})"
             
             await callback.message.reply_text(
                 f"🎉 <b>ᴘᴀʏᴍᴇɴᴛ ᴠᴇʀɪғɪᴇᴅ sᴜᴄᴄᴇssғᴜʟʟʏ!</b>\n\n"
-                f"📖 <b>Story:</b> {clean_title}\n"
-                f"💰 <b>Amount Paid:</b> ₹{actual_paid}{overpaid_text}\n\n"
-                f"Click below to access your files:",
+                f"📖 <b>sᴛᴏʀʏ:</b> {clean_title}\n"
+                f"💰 <b>ᴀᴍᴏᴜɴᴛ ᴘᴀɪᴅ:</b> ₹{actual_paid}{overpaid_text}\n\n"
+                f"ᴄʟɪᴄᴋ ʙᴇʟᴏᴡ ᴛᴏ ᴀᴄᴄᴇss ʏᴏᴜʀ ғɪʟᴇs:",
                 reply_markup=access_btn,
                 protect_content=True
             )
@@ -340,17 +339,17 @@ async def execute_30s_countdown_check(client, callback):
     # ---------------- RESULT: NOT FOUND AFTER 30 SECONDS ----------------
     else:
         btn = InlineKeyboardMarkup([
-            [InlineKeyboardButton("🔄 Re-check Payment", style=enums.ButtonStyle.SUCCESS, callback_data=f"start_auto_check_{user_id}")],
-            [InlineKeyboardButton("📩 Request Admin Verification", callback_data=f"sent_{title.replace(' ', '_')}_{expected_price}")],
-            [InlineKeyboardButton("❌ Cancel", style=enums.ButtonStyle.DANGER, callback_data="cancel_payment_process")]
+            [InlineKeyboardButton("🔄 ʀᴇ-ᴄʜᴇᴄᴋ ᴘᴀʏᴍᴇɴᴛ", style=enums.ButtonStyle.SUCCESS, callback_data=f"start_auto_check_{user_id}")],
+            [InlineKeyboardButton("📩 ʀᴇǫᴜᴇsᴛ ᴀᴅᴍɪɴ ᴠᴇʀɪғɪᴄᴀᴛɪᴏɴ", callback_data=f"sent_{title.replace(' ', '_')}_{expected_price}")],
+            [InlineKeyboardButton("❌ ᴄᴀɴᴄᴇʟ", style=enums.ButtonStyle.DANGER, callback_data="cancel_payment_process")]
         ])
         
         await status_msg.edit_text(
             f"❌ <b>ᴘᴀʏᴍᴇɴᴛ ɴᴏᴛ ᴅᴇᴛᴇᴄᴛᴇᴅ ʏᴇᴛ</b>\n\n"
-            f"Our bot system could not find a payment of <b>₹{expected_price}</b> within the last 30 seconds.\n\n"
-            f"• <i>Banking servers sometimes take 1-2 minutes to push payment notifications.</i>\n"
-            f"• <i>If you have already paid, click <b>'🔄 Re-check Payment'</b> below.</i>\n"
-            f"• <i>Or click <b>'📩 Request Admin Verification'</b> to submit a screenshot manually.</i>",
+            f"ᴏᴜʀ ʙᴏᴛ sʏsᴛᴇᴍ ᴄᴏᴜʟᴅ ɴᴏᴛ ғɪɴᴅ ᴀ ᴘᴀʏᴍᴇɴᴛ ᴏғ <b>₹{expected_price}</b> ᴡɪᴛʜɪɴ ᴛʜᴇ ʟᴀsᴛ 30 sᴇᴄᴏɴᴅs.\n\n"
+            f"• <i>ʙᴀɴᴋɪɴɢ sᴇʀᴠᴇʀs sᴏᴍᴇᴛɪᴍᴇs ᴛᴀᴋᴇ 1-2 ᴍɪɴᴜᴛᴇs ᴛᴏ ᴘᴜsʜ ᴘᴀʏᴍᴇɴᴛ ɴᴏᴛɪғɪᴄᴀᴛɪᴏɴs.</i>\n"
+            f"• <i>ɪғ ʏᴏᴜ ʜᴀᴠᴇ ᴀʟʀᴇᴀᴅʏ ᴘᴀɪᴅ, ᴄʟɪᴄᴋ <b>'🔄 ʀᴇ-ᴄʜᴇᴄᴋ ᴘᴀʏᴍᴇɴᴛ'</b> ʙᴇʟᴏᴡ.</i>\n"
+            f"• <i>ᴏʀ ᴄʟɪᴄᴋ <b>'📩 ʀᴇǫᴜᴇsᴛ ᴀᴅᴍɪɴ ᴠᴇʀɪғɪᴄᴀᴛɪᴏɴ'</b> ᴛᴏ sᴜʙᴍɪᴛ ᴀ sᴄʀᴇᴇɴsʜᴏᴛ ᴍᴀɴᴜᴀʟʟʏ.</i>",
             reply_markup=btn
         )
 
@@ -361,8 +360,8 @@ async def start_wallet_topup(client, callback):
     user_id = callback.from_user.id
     WALLET_TOPUP_WAITING[user_id] = True
     await callback.message.reply_text(
-        "💵 <b>Enter Top-up Amount:</b>\nPlease type amount (in ₹):",
-        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ Cancel", callback_data="cancel_payment_process")]])
+        "💵 <b>ᴇɴᴛᴇʀ ᴛᴏᴘ-ᴜᴘ ᴀᴍᴏᴜɴᴛ:</b>\nᴘʟᴇᴀsᴇ ᴛʏᴘᴇ ᴀᴍᴏᴜɴᴛ (ɪɴ ₹):",
+        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ ᴄᴀɴᴄᴇʟ", callback_data="cancel_payment_process")]])
     )
     await callback.answer()
 
@@ -375,7 +374,7 @@ async def process_wallet_amount(client, message):
 
     amount_text = message.text.strip()
     if not amount_text.isdigit() or float(amount_text) <= 0:
-        return await message.reply_text("❌ <b>Invalid Amount! Please enter a valid number.</b>")
+        return await message.reply_text("❌ <b>ɪɴᴠᴀʟɪᴅ ᴀᴍᴏᴜɴᴛ! ᴘʟᴇᴀsᴇ ᴇɴᴛᴇʀ ᴀ ᴠᴀʟɪᴅ ɴᴜᴍʙᴇʀ.</b>")
     
     price = float(amount_text)
     del WALLET_TOPUP_WAITING[user_id]
@@ -383,11 +382,11 @@ async def process_wallet_amount(client, message):
     terms_caption = (
         f"👛 <b>ᴡᴀʟʟᴇᴛ ᴛᴏᴘ-ᴜᴘ:</b> ₹{price}\n\n"
         f"{TERMS_TEXT}\n\n"
-        f"👇 <i>Please click <b>'✅ Accept & Continue'</b> to generate QR Code:</i>"
+        f"👇 <i>ᴘʟᴇᴀsᴇ ᴄʟɪᴄᴋ <b>'✅ ᴀᴄᴄᴇᴘᴛ & ᴄᴏɴᴛɪɴᴜᴇ'</b> ᴛᴏ ɢᴇɴᴇʀᴀᴛᴇ ǫʀ ᴄᴏᴅᴇ:</i>"
     )
     btn = InlineKeyboardMarkup([
-        [InlineKeyboardButton("✅ Accept & Continue", style=enums.ButtonStyle.SUCCESS, callback_data=f"show_qr_WalletTopup_{price}")],
-        [InlineKeyboardButton("❌ Cancel", style=enums.ButtonStyle.DANGER, callback_data="cancel_payment_process")]
+        [InlineKeyboardButton("✅ ᴀᴄᴄᴇᴘᴛ & ᴄᴏɴᴛɪɴᴜᴇ", style=enums.ButtonStyle.SUCCESS, callback_data=f"show_qr_WalletTopup_{price}")],
+        [InlineKeyboardButton("❌ ᴄᴀɴᴄᴇʟ", style=enums.ButtonStyle.DANGER, callback_data="cancel_payment_process")]
     ])
     await message.reply_photo(photo=GUIDE_IMAGE_URL, caption=terms_caption, reply_markup=btn)
 
@@ -400,14 +399,14 @@ async def ask_screenshot(client, callback):
         clean_title, price = raw_data.rsplit("_", 1)
         story_title = clean_title.replace("_", " ")
     except Exception:
-        return await callback.answer("❌ Error parsing data!", show_alert=True)
+        return await callback.answer("❌ ᴇʀʀᴏʀ ᴘᴀʀsɪɴɢ ᴅᴀᴛᴀ!", show_alert=True)
         
     user_id = callback.from_user.id
     ACTIVE_PAYMENTS[user_id] = {"title": story_title, "price": price, "manual": True}
     
     await callback.message.reply_text(
-        "📸 <b>Send Payment Screenshot:</b>\n\nPlease send your payment screenshot photo in this chat.",
-        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ Cancel", callback_data="cancel_payment_process")]])
+        "📸 <b>sᴇɴᴅ ᴘᴀʏᴍᴇɴᴛ sᴄʀᴇᴇɴsʜᴏᴛ:</b>\n\nᴘʟᴇᴀsᴇ sᴇɴᴅ ʏᴏᴜʀ ᴘᴀʏᴍᴇɴᴛ sᴄʀᴇᴇɴsʜᴏᴛ ᴘʜᴏᴛᴏ ɪɴ ᴛʜɪs ᴄʜᴀᴛ.",
+        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ ᴄᴀɴᴄᴇʟ", callback_data="cancel_payment_process")]])
     )
     await callback.answer()
 
@@ -426,7 +425,7 @@ async def receive_screenshot(client, message):
     req_type = "👛 WALLET TOP-UP" if is_wallet else f"📖 STORY: {title}"
     
     admin_text = (
-        f"🚨 <b>MANUAL PAYMENT VERIFICATION REQUEST</b>\n\n"
+        f"🚨 <b>ᴍᴀɴᴜᴀʟ ᴘᴀʏᴍᴇɴᴛ ᴠᴇʀɪғɪᴄᴀᴛɪᴏɴ ʀᴇǫᴜᴇsᴛ</b>\n\n"
         f"👤 <b>User:</b> {user.first_name} (@{user.username if user.username else 'N/A'})\n"
         f"🆔 <b>User ID:</b> <code>{user.id}</code>\n"
         f"📌 <b>Type:</b> {req_type}\n"
@@ -435,7 +434,7 @@ async def receive_screenshot(client, message):
     
     clean_title = title.replace(" ", "_")
     btn = InlineKeyboardMarkup([
-        [InlineKeyboardButton("✅ Approve", callback_data=f"app_{user.id}_{clean_title}_{price}"), InlineKeyboardButton("❌ Reject", callback_data=f"rej_{user.id}_{clean_title}")]
+        [InlineKeyboardButton("✅ ᴀᴘᴘʀᴏᴠᴇ", callback_data=f"app_{user.id}_{clean_title}_{price}"), InlineKeyboardButton("❌ ʀᴇᴊᴇᴄᴛ", callback_data=f"rej_{user.id}_{clean_title}")]
     ])
     
     await client.send_photo(chat_id=ADMIN_ID, photo=message.photo.file_id, caption=admin_text, reply_markup=btn)
@@ -447,7 +446,7 @@ async def receive_screenshot(client, message):
         except Exception as e:
             print(f"Log Error: {e}")
             
-    await message.reply_text("✅ <b>Screenshot received!</b> Admin will review and approve shortly.")
+    await message.reply_text("✅ <b>sᴄʀᴇᴇɴsʜᴏᴛ ʀᴇᴄᴇɪᴠᴇᴅ!</b> ᴀᴅᴍɪɴ ᴡɪʟʟ ʀᴇᴠɪᴇᴡ ᴀɴᴅ ᴀᴘᴘʀᴏᴠᴇ sʜᴏʀᴛʟʏ.")
     ACTIVE_PAYMENTS.pop(user_id, None)
 
 # Admin Approval / Rejection Handlers
@@ -461,7 +460,7 @@ async def approve_order(client, callback):
     if title == "WalletTopup":
         new_balance = await add_wallet_balance(user_id, price)
         try:
-            await client.send_message(chat_id=user_id, text=f"🎉 <b>Wallet top-up approved!</b>\n💰 Added: ₹{price}\n👛 Balance: ₹{new_balance}")
+            await client.send_message(chat_id=user_id, text=f"🎉 <b>ᴡᴀʟʟᴇᴛ ᴛᴏᴘ-ᴜᴘ ᴀᴘᴘʀᴏᴠᴇᴅ!</b>\n💰 Added: ₹{price}\n👛 Balance: ₹{new_balance}")
             await callback.message.edit_caption(caption=f"{callback.message.caption.html}\n\n✅ <b>APPROVED BY ADMIN</b>")
             if LOG_CHANNEL and LOG_CHANNEL != 0:
                 await client.send_message(LOG_CHANNEL, f"✅ <b>[MANUAL APPROVED] WALLET</b>\n👤 User: <code>{user_id}</code>\n💰 Amount: ₹{price}")
@@ -478,12 +477,12 @@ async def approve_order(client, callback):
     delivery_link = f"https://t.me/{BOT_USERNAME}?start=get_{encoded_title}"
 
     await add_user_purchase(user_id, clean_title, story_link=delivery_link)
-    access_btn = InlineKeyboardMarkup([[InlineKeyboardButton("📂 Get Files (Unlocked)", style=enums.ButtonStyle.PRIMARY, url=delivery_link)]])
+    access_btn = InlineKeyboardMarkup([[InlineKeyboardButton("📂 ɢᴇᴛ ғɪʟᴇs (ᴜɴʟᴏᴄᴋᴇᴅ)", style=enums.ButtonStyle.PRIMARY, url=delivery_link)]])
     
     try:
         await client.send_message(
             chat_id=user_id,
-            text=f"🎉 <b>Your payment has been approved!</b>\n📖 Story: {clean_title}",
+            text=f"🎉 <b>ʏᴏᴜʀ ᴘᴀʏᴍᴇɴᴛ ʜᴀs ʙᴇᴇɴ ᴀᴘᴘʀᴏᴠᴇᴅ!</b>\n📖 Story: {clean_title}",
             reply_markup=access_btn,
             protect_content=True
         )
@@ -501,7 +500,7 @@ async def reject_order(client, callback):
     title = "_".join(data[2:]).replace("_", " ")
     
     try:
-        await client.send_message(chat_id=user_id, text=f"❌ <b>Your payment has been rejected!</b>\nItem: {title}")
+        await client.send_message(chat_id=user_id, text=f"❌ <b>ʏᴏᴜʀ ᴘᴀʏᴍᴇɴᴛ ʜᴀs ʙᴇᴇɴ ʀᴇᴊᴇᴄᴛᴇᴅ!</b>\nItem: {title}")
         await callback.message.edit_caption(caption=f"{callback.message.caption.html}\n\n❌ <b>REJECTED BY ADMIN</b>")
         if LOG_CHANNEL and LOG_CHANNEL != 0:
             await client.send_message(LOG_CHANNEL, f"❌ <b>[REJECTED]</b>\n👤 User: <code>{user_id}</code>\n📌 Item: {title}")
