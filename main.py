@@ -45,28 +45,58 @@ async def handle_miniapp(request):
 async def handle_macrodroid_webhook(request):
     try:
         data = await request.json()
-        notif_text = data.get("notification_text", "")
+        notif_text = data.get("notification_text", "") or data.get("text", "")
         
-        # FamPay Notification madhun Order ID Extract Karne (e.g. FAMPAY2026092514001350BE74B1)
-        match = re.search(r'(FAMPAY[A-Z0-9]+)', notif_text)
-        if match:
-            order_id = match.group(1)
-            
-            # Database madhe status PAID save karne
+        if not notif_text:
+            return web.json_response({"error": "Empty notification text"}, status=400)
+
+        print(f"📩 Webhook Received Payload: {notif_text}")
+
+        # 1. Check if direct Order ID is passed in notification text
+        order_match = re.search(r'(AC\d+|ORDER\d+|FAMPAY[A-Z0-9]+)', notif_text, re.IGNORECASE)
+        order_id = order_match.group(1) if order_match else None
+
+        # 2. Extract Amount from text (e.g. ₹2.0, INR 2.0, or sent 2.0)
+        amount = 0.0
+        amount_match = re.search(r'(?:₹|INR|\b)\s*(\d+(?:\.\d+)?)', notif_text)
+        if amount_match:
+            amount = float(amount_match.group(1))
+
+        # Case A: If Order ID found
+        if order_id:
             await verified_orders_col.update_one(
                 {"order_id": order_id},
                 {"$set": {
                     "order_id": order_id,
+                    "amount": amount,
                     "status": "PAID",
                     "raw_text": notif_text,
                     "timestamp": datetime.now(timezone.utc)
                 }},
                 upsert=True
             )
-            print(f"✅ Webhook Payment Received & Saved: {order_id}")
+            print(f"✅ Webhook Payment Verified via Order ID: {order_id}")
             return web.json_response({"status": "success", "order_id": order_id})
-            
-        return web.json_response({"status": "ignored", "reason": "No Order ID found"}, status=400)
+
+        # Case B: FamPay Fallback (When no Order ID in notification, but Amount is found)
+        if amount > 0:
+            temp_order_id = f"FAMPAY_{int(datetime.now().timestamp())}"
+            await verified_orders_col.update_one(
+                {"amount": amount, "status": "PAID"},
+                {"$set": {
+                    "order_id": temp_order_id,
+                    "amount": amount,
+                    "status": "PAID",
+                    "raw_text": notif_text,
+                    "timestamp": datetime.now(timezone.utc)
+                }},
+                upsert=True
+            )
+            print(f"✅ Webhook Amount Captured & Marked Paid: ₹{amount}")
+            return web.json_response({"status": "success", "amount": amount})
+
+        return web.json_response({"status": "ignored", "reason": "No Amount or Order ID found"}, status=400)
+
     except Exception as e:
         print(f"❌ Webhook Error: {e}")
         return web.json_response({"error": str(e)}, status=500)
