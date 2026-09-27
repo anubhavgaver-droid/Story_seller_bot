@@ -9,8 +9,9 @@ from config import MONGO_URL, LOG_CHANNEL
 client = AsyncIOMotorClient(MONGO_URL)
 db = client["story_seller_db"]
 stories_col = db["stories"]
-users_col = db["users"]        # Collection for User Registration, Wallet & Language
-purchases_col = db["purchases"]  # Collection for Purchased Stories
+users_col = db["users"]              # Collection for User Registration, Wallet & Language
+purchases_col = db["purchases"]        # Collection for Purchased Stories
+verified_orders_col = db["verified_orders"]  # Collection for Webhook Auto-Payments
 
 # -------------------- LOG HELPER FUNCTION --------------------
 async def send_log(client_bot, text: str):
@@ -391,5 +392,35 @@ async def get_story_by_title(title: str):
     pattern = re.compile(f"^{re.escape(clean_title)}$", re.IGNORECASE)
     return await stories_col.find_one({"title": pattern})
 
+# -------------------- AUTO-PAYMENT & WEBHOOK DB FUNCTIONS --------------------
+async def save_verified_order(order_id: str, amount: float, txn_id: str = "", raw_text: str = ""):
+    """
+    MacroDroid Webhook se mili verified payment ko DB me save karta hai.
+    """
+    await verified_orders_col.update_one(
+        {"order_id": order_id},
+        {
+            "$set": {
+                "order_id": order_id,
+                "amount": float(amount),
+                "txn_id": txn_id,
+                "raw_text": raw_text,
+                "status": "PAID",
+                "timestamp": time.time()
+            }
+        },
+        upsert=True
+    )
 
-#db.py
+async def is_order_verified(order_id: str) -> bool:
+    """
+    Check karta hai ki Order ID payment status 'PAID' ho chuka hai ya nahi.
+    """
+    record = await verified_orders_col.find_one({"order_id": order_id, "status": "PAID"})
+    return bool(record)
+
+async def get_verified_order_details(order_id: str):
+    """
+    Order ID ki saari details (Amount, Txn ID, Time) fetch karne ke liye.
+    """
+    return await verified_orders_col.find_one({"order_id": order_id})
