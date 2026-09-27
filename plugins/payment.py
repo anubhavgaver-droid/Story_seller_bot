@@ -12,7 +12,7 @@ from config import UPI_ID, ADMIN_ID, BOT_USERNAME, LOG_CHANNEL, GMAIL_USER, GMAI
 from database.db import get_story_by_title, add_user_purchase, add_wallet_balance
 
 # Global Dictionaries for Tracking
-ACTIVE_PAYMENTS = {}        # Stores active session timing and order data: {user_id: {"title": ..., "price": ..., "timestamp": ...}}
+ACTIVE_PAYMENTS = {}        # Stores active session timing and order data
 WALLET_TOPUP_WAITING = {}   # Stores wallet state
 
 # 🖼️ Banner Image URL
@@ -21,39 +21,37 @@ GUIDE_IMAGE_URL = "https://i.ibb.co/VW778KdR/photo-2026-09-24-08-21-14-768901409
 # 📋 Compact Terms & Conditions Text
 TERMS_TEXT = (
     "📜 <b><u>ᴛᴇʀᴍs & ᴄᴏɴᴅɪᴛɪᴏɴs</u></b>\n\n"
-    "• <b>ᴇxᴀᴄᴛ ᴀᴍᴏᴜɴᴛ:</b> ᴘᴀʏᴍᴇɴᴛ ᴍᴜsᴛ ᴍᴀᴛᴄʜ ᴛʜᴇ exact sᴛᴏʀʏ ᴘʀɪᴄᴇ.\n"
-    "• <b>ᴜɴᴅᴇʀᴘᴀʏᴍᴇɴᴛ:</b> ɪғ ʏᴏᴜ ᴘᴀʏ ʟᴇss, ᴛʜᴇ ᴀᴍᴏᴜɴᴛ ᴡɪʟʟ ʙᴇ ᴀᴅᴅᴇᴅ ᴛᴏ ʏᴏᴜʀ <b>ᴡᴀʟʟᴇᴛ</b>, ᴀɴᴅ ғɪʟᴇ ᴡɪʟʟ ɴᴏᴛ ʙᴇ ᴜɴʟᴏᴄᴋᴇᴅ.\n"
-    "• <b>ᴏᴠᴇʀᴘᴀʏᴍᴇɴᴛ:</b> ᴀɴʏ ᴇxᴛʀᴀ ᴀᴍᴏᴜɴᴛ ᴘᴀɪᴅ ᴡɪʟʟ ʙᴇ ᴄʀᴇᴅɪᴛᴇᴅ ᴛᴏ ʏᴏᴜʀ <b>ᴡᴀʟʟᴇᴛ</b>.\n"
-    "• <b>ɴᴏ ʀᴇғᴜɴᴅs:</b> ᴀʟʟ sales ᴀʀᴇ ғɪɴᴀʟ. ɴᴏ ᴅɪʀᴇᴄᴛ ʙᴀɴᴋ ʀᴇғᴜɴᴅs.\n"
-    "• <b>ᴀɴᴛɪ-ғʀᴀᴜᴅ:</b> ʀᴇᴜsɪɴɢ ᴏʀ ғᴀᴋɪɴɢ ᴛxɴ ɪᴅs ᴡɪʟʟ ʀᴇsᴜʟᴛ ɪɴ ᴀɴ ɪɴsᴛᴀɴᴛ ʙᴀɴ."
+    "• <b>ᴇxᴀᴄᴛ ᴀᴍᴏᴜɴᴛ:</b> Payment must match the exact story price.\n"
+    "• <b>ᴜɴᴅᴇʀᴘᴀʏᴍᴇɴᴛ:</b> Underpaid amounts will be credited to your <b>Wallet</b>; file will remain locked.\n"
+    "• <b>ᴏᴠᴇʀᴘᴀʏᴍᴇɴᴛ:</b> Extra amounts will be automatically credited to your <b>Wallet</b>.\n"
+    "• <b>ɴᴏ ʀᴇғᴜɴᴅs:</b> All sales are final. No direct bank refunds.\n"
+    "• <b>ᴀɴᴛɪ-ғʀᴀᴜᴅ:</b> Reusing or faking payment transaction IDs will result in an instant ban."
 )
 
-# ---------------- 📩 GMAIL TIME + PRICE MATCHING FUNCTION ----------------
+# ---------------- 📩 BOT VERIFICATION SYSTEM (GMAIL BACKEND) ----------------
 
-def verify_payment_from_gmail(session_timestamp: float, expected_price: float):
+def check_bot_payment_system(session_timestamp: float, expected_price: float):
     """
-    Checks Gmail inbox for emails received AFTER session_timestamp and up to 10 mins.
-    Matches exact price from the credit email.
+    Checks backend mail server for credit notifications received AFTER session_timestamp.
     """
     if not GMAIL_USER or not GMAIL_PASS:
-        return False, "Gmail credentials not configured.", 0.0
+        return False, "Bot verification system not configured.", 0.0
         
     try:
         mail = imaplib.IMAP4_SSL("imap.gmail.com")
         mail.login(GMAIL_USER, GMAIL_PASS)
         mail.select("inbox")
         
-        # Convert timestamps to datetime for accurate comparison
         session_start_dt = datetime.fromtimestamp(session_timestamp)
         session_expiry_dt = session_start_dt + timedelta(minutes=10)
 
         status, messages = mail.search(None, 'ALL')
         if status != "OK" or not messages[0]:
             mail.logout()
-            return False, "No emails found.", 0.0
+            return False, "No server logs found.", 0.0
             
         email_ids = messages[0].split()
-        recent_ids = email_ids[-20:]  # Scan last 20 emails for fast processing
+        recent_ids = email_ids[-20:]  # Scan recent system logs
 
         for e_id in reversed(recent_ids):
             _, msg_data = mail.fetch(e_id, "(RFC822)")
@@ -61,13 +59,12 @@ def verify_payment_from_gmail(session_timestamp: float, expected_price: float):
                 if isinstance(response_part, tuple):
                     msg = email.message_from_bytes(response_part[1])
                     
-                    # Parse Email Timestamp
                     try:
                         email_date = parsedate_to_datetime(msg['Date']).replace(tzinfo=None)
                     except Exception:
                         continue
                     
-                    # 🕒 Check if email arrived AFTER QR generation time and BEFORE 10 mins expiration
+                    # Check timestamp window
                     if session_start_dt <= email_date <= session_expiry_dt:
                         subject = str(msg.get('Subject', '')).lower()
                         body = ""
@@ -83,22 +80,20 @@ def verify_payment_from_gmail(session_timestamp: float, expected_price: float):
                         # Keywords for Bank / UPI Credit
                         credit_keywords = ["credited", "received", "payment received", "upi", "successful", "famapp", "fampay"]
                         if any(kw in full_content for kw in credit_keywords):
-                            # Extract amounts from text
                             amount_matches = re.findall(r"(?:₹|rs\.?|inr)\s*([\d\.]+)", full_content)
                             for amt_str in amount_matches:
                                 try:
                                     actual_paid = float(amt_str)
-                                    # 💰 Price Match Verification
                                     if actual_paid >= expected_price:
                                         mail.logout()
-                                        return True, "Payment Matched Successfully", actual_paid
+                                        return True, "Payment verified by bot system", actual_paid
                                 except ValueError:
                                     pass
 
         mail.logout()
-        return False, "No matching payment email found within session time.", 0.0
+        return False, "Payment notification not detected yet.", 0.0
     except Exception as e:
-        return False, f"Email Check Error: {str(e)}", 0.0
+        return False, f"System Error: {str(e)}", 0.0
 
 # ---------------- CANCEL & UPI HANDLERS ----------------
 
@@ -113,10 +108,10 @@ async def cancel_payment_callback(client, callback):
     except Exception:
         pass
         
-    cancel_msg = await callback.message.reply_text("❌ <b>ᴘᴀʏᴍᴇɴᴛ / ᴛᴏᴘ-ᴜᴘ ᴘʀᴏᴄᴇss ᴄᴀɴᴄᴇʟʟᴇᴅ.</b>")
-    await callback.answer("Process Cancelled!")
+    cancel_msg = await callback.message.reply_text("❌ <b>Payment process cancelled.</b>")
+    await callback.answer("Cancelled!")
     
-    await asyncio.sleep(10)
+    await asyncio.sleep(8)
     try:
         await cancel_msg.delete()
     except Exception:
@@ -133,7 +128,7 @@ async def view_story(client, callback):
     title = callback.data.split("view_")[1].replace("_", " ")
     story = await get_story_by_title(title)
     if not story:
-        return await callback.answer("❌ sᴛᴏʀʏ ɴᴏᴛ ғᴏᴜɴᴅ!", show_alert=True)
+        return await callback.answer("❌ Story not found!", show_alert=True)
         
     clean_title = story['title'].strip().split("\n")[0]
     encoded_title = clean_title.replace(" ", "_")
@@ -158,7 +153,7 @@ async def view_story(client, callback):
         await callback.message.reply_text(caption_text, reply_markup=btn)
     await callback.answer()
 
-# ---------------- STEP 1: SHOW TERMS & CONDITIONS FIRST ----------------
+# ---------------- STEP 1: TERMS & CONDITIONS ----------------
 
 @Client.on_callback_query(filters.regex("^buy_"))
 async def show_terms_first(client, callback):
@@ -167,20 +162,18 @@ async def show_terms_first(client, callback):
         clean_title, price = raw_data.rsplit("_", 1)
         story_title = clean_title.replace("_", " ")
     except Exception:
-        return await callback.answer("❌ ᴇʀʀᴏʀ ᴘᴀʀsɪɴɢ ᴘᴀʏᴍᴇɴᴛ ᴅᴀᴛᴀ!", show_alert=True)
+        return await callback.answer("❌ Error parsing payment data!", show_alert=True)
     
-    user_id = callback.from_user.id
-
     terms_caption = (
         f"📖 <b>sᴛᴏʀʏ:</b> {story_title}\n"
         f"💰 <b>ᴀᴍᴏᴜɴᴛ:</b> ₹{price}\n\n"
         f"{TERMS_TEXT}\n\n"
-        f"👇 <i>ᴘʟᴇᴀsᴇ ᴄʟɪᴄᴋ <b>'✅ ɪ ᴀᴄᴄᴇᴘᴛ & ᴄᴏɴᴛɪɴᴜᴇ'</b> ᴛᴏ ɢᴇɴᴇʀᴀᴛᴇ QR Code:</i>"
+        f"👇 <i>Please click <b>'✅ Accept & Continue'</b> to generate QR Code:</i>"
     )
     
     btn = InlineKeyboardMarkup([
-        [InlineKeyboardButton("✅ ɪ ᴀᴄᴄᴇᴘᴛ & ᴄᴏɴᴛɪɴᴜᴇ", style=enums.ButtonStyle.SUCCESS, callback_data=f"show_qr_{clean_title}_{price}")],
-        [InlineKeyboardButton("❌ ᴄᴀɴᴄᴇʟ", style=enums.ButtonStyle.DANGER, callback_data="cancel_payment_process")]
+        [InlineKeyboardButton("✅ Accept & Continue", style=enums.ButtonStyle.SUCCESS, callback_data=f"show_qr_{clean_title}_{price}")],
+        [InlineKeyboardButton("❌ Cancel", style=enums.ButtonStyle.DANGER, callback_data="cancel_payment_process")]
     ])
     
     try:
@@ -194,7 +187,7 @@ async def show_terms_first(client, callback):
 
     await callback.answer()
 
-# ---------------- STEP 2: GENERATE QR & SAVE TIMESTAMP ----------------
+# ---------------- STEP 2: GENERATE QR CODE ----------------
 
 @Client.on_callback_query(filters.regex("^show_qr_"))
 async def generate_qr_after_terms(client, callback):
@@ -208,7 +201,7 @@ async def generate_qr_after_terms(client, callback):
     except Exception:
         return await callback.answer("❌ Error reading session data!", show_alert=True)
 
-    # 🕒 Create Session Timestamp (QR Creation Time)
+    # Save Session Timestamp
     ACTIVE_PAYMENTS[user_id] = {
         "title": title,
         "price": price,
@@ -228,23 +221,23 @@ async def generate_qr_after_terms(client, callback):
         f"⚡ <b>ᴀᴜᴛᴏᴍᴀᴛɪᴄ ᴘᴀʏᴍᴇɴᴛ ᴄʜᴇᴄᴋᴏᴜᴛ</b>\n\n"
         f"📖 <b>sᴛᴏʀʏ:</b> {title}\n"
         f"💰 <b>ᴀᴍᴏᴜɴᴛ:</b> ₹{price}\n"
-        f"⏳ <b>ᴛɪᴍᴇ ʟɪᴍɪᴛ:</b> 10 Minutes\n\n"
-        f"📲 <i>Scan QR & Complete Payment. Then click <b>'⚡ ᴠᴇʀɪғʏ ᴘᴀʏᴍᴇɴᴛ'</b> below!</i>"
+        f"⏳ <b>sᴇssɪᴏɴ ᴠᴀʟɪᴅɪᴛʏ:</b> 10 Minutes\n\n"
+        f"📲 <i>Scan QR & complete payment via any UPI app.\nThen click <b>'⚡ Verify Payment'</b> below!</i>"
     )
     
     btn = InlineKeyboardMarkup([
-        [InlineKeyboardButton("⚡ ᴠᴇʀɪғʏ ᴘᴀʏᴍᴇɴᴛ (Auto)", style=enums.ButtonStyle.SUCCESS, callback_data=f"start_auto_check_{user_id}")],
-        [InlineKeyboardButton("👁️ sʜᴏᴡ ᴜᴘɪ ɪᴅ", callback_data="show_upi_id"), InlineKeyboardButton("📩 ᴍᴀɴᴜᴀʟ / ᴀᴅᴍɪɴ", callback_data=f"sent_{clean_title}_{price}")],
-        [InlineKeyboardButton("❌ ᴄᴀɴᴄᴇʟ", style=enums.ButtonStyle.DANGER, callback_data="cancel_payment_process")]
+        [InlineKeyboardButton("⚡ Verify Payment", style=enums.ButtonStyle.SUCCESS, callback_data=f"start_auto_check_{user_id}")],
+        [InlineKeyboardButton("👁️ Show UPI ID", callback_data="show_upi_id"), InlineKeyboardButton("📩 Manual Approval", callback_data=f"sent_{clean_title}_{price}")],
+        [InlineKeyboardButton("❌ Cancel", style=enums.ButtonStyle.DANGER, callback_data="cancel_payment_process")]
     ])
     
     await callback.message.reply_photo(photo=qr_url, caption=caption, reply_markup=btn)
     await callback.answer()
 
-# ---------------- STEP 3: 12-RETRY LOOP AUTOMATIC VERIFICATION ----------------
+# ---------------- STEP 3: STYLISH 30-SECOND COUNTDOWN VERIFICATION ----------------
 
 @Client.on_callback_query(filters.regex("^start_auto_check_"))
-async def execute_12_loop_check(client, callback):
+async def execute_30s_countdown_check(client, callback):
     user_id = callback.from_user.id
     session = ACTIVE_PAYMENTS.get(user_id)
     
@@ -255,57 +248,65 @@ async def execute_12_loop_check(client, callback):
     expected_price = session['price']
     title = session['title']
     
-    # ⏳ 10 Minute Validity Check
+    # 10 Minute Limit
     if time.time() - session_start > 600:
         ACTIVE_PAYMENTS.pop(user_id, None)
         return await callback.answer("⌛ Time limit of 10 minutes exceeded! Session expired.", show_alert=True)
 
-    await callback.answer("🔎 Verification started...", show_alert=False)
+    await callback.answer("🔎 Payment verification started...")
 
     status_msg = await callback.message.reply_text(
-        "⌛ <b>ᴠᴇʀɪғʏɪɴɢ ᴘᴀʏᴍᴇɴᴛ...</b>\n"
-        "<i>Scanning Gmail notifications (Check 1/12)...</i>"
+        f"⚡ <b>ᴏᴜʀ ʙᴏᴛ sʏsᴛᴇᴍ ɪs ᴠᴇʀɪғʏɪɴɢ ʏᴏᴜʀ ᴘᴀʏᴍᴇɴᴛ...</b>\n\n"
+        f"🔍 <i>Checking system logs for ₹{expected_price}...</i>\n"
+        f"⏳ <b>Time remaining:</b> <code>30s</code>"
     )
 
     is_verified = False
     actual_paid = 0.0
 
-    # 🔄 12-RETRY LOOP (Checks every 5 seconds for up to 1 minute)
-    for attempt in range(1, 13):
+    # ⏱️ STYLISH COUNTDOWN LOOP (30 Seconds)
+    for seconds_left in range(30, 0, -1):
+        # Background System Check
+        is_valid, msg, paid = check_bot_payment_system(session_start, expected_price)
+        if is_valid:
+            is_verified = True
+            actual_paid = paid
+            break  # Stop countdown instantly on successful verification
+
+        # Update countdown UI every second
         try:
+            # Stylish Progress Indicator
+            dots = "." * ((30 - seconds_left) % 4 + 1)
             await status_msg.edit_text(
-                f"🔄 <b>ᴄʜᴇᴄᴋɪɴɢ ɢᴍᴀɪʟ sᴇʀᴠᴇʀ...</b>\n"
-                f"<i>Attempt {attempt}/12 — Searching for ₹{expected_price} credit email...</i>"
+                f"⚡ <b>ᴏᴜʀ ʙᴏᴛ sʏsᴛᴇᴍ ɪs ᴠᴇʀɪғʏɪɴɢ ʏᴏᴜʀ ᴘᴀʏᴍᴇɴᴛ{dots}</b>\n\n"
+                f"🔍 <b>Status:</b> Checking system transactions for ₹{expected_price}\n"
+                f"⏱️ <b>Time remaining:</b> <code>{seconds_left:02d}s</code>"
             )
         except Exception:
             pass
 
-        # Check Gmail
-        is_valid, msg, paid = verify_payment_from_gmail(session_start, expected_price)
-        if is_valid:
-            is_verified = True
-            actual_paid = paid
-            break  # Break loop on payment match
+        await asyncio.sleep(1)
 
-        await asyncio.sleep(5)
-
-    # ---------------- RESULT VERIFIED ----------------
+    # ---------------- RESULT: SUCCESS ----------------
     if is_verified:
         ACTIVE_PAYMENTS.pop(user_id, None)
         await status_msg.delete()
         
-        # WALLET CASE
+        # WALLET TOP-UP
         if session['type'] == "WALLET":
             new_bal = await add_wallet_balance(user_id, actual_paid)
-            await callback.message.reply_text(f"🎉 <b>ᴀᴜᴛᴏ-ᴠᴇʀɪғɪᴇᴅ sᴜᴄᴄᴇssғᴜʟʟʏ!</b>\n\n💰 ᴀᴅᴅᴇᴅ ₹{actual_paid} ᴛᴏ ᴡᴀʟʟᴇᴛ.\n👛 ɴᴇᴡ ʙᴀʟᴀɴᴄᴇ: ₹{new_bal}")
-            
+            await callback.message.reply_text(
+                f"🎉 <b>ᴘᴀʏᴍᴇɴᴛ ᴠᴇʀɪғɪᴇᴅ sᴜᴄᴄᴇssғᴜʟʟʏ!</b>\n\n"
+                f"💰 <b>Added to Wallet:</b> ₹{actual_paid}\n"
+                f"👛 <b>Updated Balance:</b> ₹{new_bal}"
+            )
             if LOG_CHANNEL and LOG_CHANNEL != 0:
                 await client.send_message(
                     LOG_CHANNEL, 
                     f"⚡ <b>[AUTO-PAYMENT SUCCESS] WALLET TOPUP</b>\n\n👤 <b>User:</b> {callback.from_user.first_name} (<code>{user_id}</code>)\n💰 <b>Amount:</b> ₹{actual_paid}"
                 )
                 
-        # STORY CASE
+        # STORY PURCHASE
         else:
             story = await get_story_by_title(title)
             clean_title = story['title'].strip().split("\n")[0]
@@ -314,15 +315,18 @@ async def execute_12_loop_check(client, callback):
             
             extra_amount = actual_paid - expected_price
             await add_user_purchase(user_id, clean_title, story_link=delivery_link)
-            access_btn = InlineKeyboardMarkup([[InlineKeyboardButton("📂 ɢᴇᴛ ғɪʟᴇs (Unlocked)", style=enums.ButtonStyle.PRIMARY, url=delivery_link)]])
+            access_btn = InlineKeyboardMarkup([[InlineKeyboardButton("📂 Get Files (Unlocked)", style=enums.ButtonStyle.PRIMARY, url=delivery_link)]])
             
             overpaid_text = ""
             if extra_amount > 0:
                 new_bal = await add_wallet_balance(user_id, extra_amount)
-                overpaid_text = f"\n\n🎁 <b>ᴇxᴛʀᴀ ᴘᴀʏᴍᴇɴᴛ:</b> ₹{extra_amount} *added to Wallet!* (Balance: ₹{new_bal})"
+                overpaid_text = f"\n\n🎁 <b>Extra Payment:</b> ₹{extra_amount} added to your Wallet balance! (New Balance: ₹{new_bal})"
             
             await callback.message.reply_text(
-                f"🎉 <b>ᴀᴜᴛᴏ-ᴠᴇʀɪғɪᴇᴅ sᴜᴄᴄᴇssғᴜʟʟʏ!</b>\n\n📖 <b>sᴛᴏʀʏ:</b> {clean_title}\n💰 <b>ᴘᴀɪᴅ:</b> ₹{actual_paid}{overpaid_text}\n\nClick below to access your files:",
+                f"🎉 <b>ᴘᴀʏᴍᴇɴᴛ ᴠᴇʀɪғɪᴇᴅ sᴜᴄᴄᴇssғᴜʟʟʏ!</b>\n\n"
+                f"📖 <b>Story:</b> {clean_title}\n"
+                f"💰 <b>Amount Paid:</b> ₹{actual_paid}{overpaid_text}\n\n"
+                f"Click below to access your files:",
                 reply_markup=access_btn,
                 protect_content=True
             )
@@ -333,19 +337,20 @@ async def execute_12_loop_check(client, callback):
                     f"⚡ <b>[AUTO-PAYMENT SUCCESS] STORY BOUGHT</b>\n\n👤 <b>User:</b> {callback.from_user.first_name} (<code>{user_id}</code>)\n📖 <b>Story:</b> {clean_title}\n💰 <b>Amount Paid:</b> ₹{actual_paid}"
                 )
 
-    # ---------------- RESULT NOT FOUND ----------------
+    # ---------------- RESULT: NOT FOUND AFTER 30 SECONDS ----------------
     else:
         btn = InlineKeyboardMarkup([
-            [InlineKeyboardButton("🔄 ʀᴇ-ᴄʜᴇᴄᴋ ᴘᴀʏᴍᴇɴᴛ", callback_data=f"start_auto_check_{user_id}")],
-            [InlineKeyboardButton("📩 ᴍᴀɴᴜᴀʟ / ᴀᴅᴍɪɴ", callback_data=f"sent_{title.replace(' ', '_')}_{expected_price}")],
-            [InlineKeyboardButton("❌ ᴄᴀɴᴄᴇʟ", callback_data="cancel_payment_process")]
+            [InlineKeyboardButton("🔄 Re-check Payment", style=enums.ButtonStyle.SUCCESS, callback_data=f"start_auto_check_{user_id}")],
+            [InlineKeyboardButton("📩 Request Admin Verification", callback_data=f"sent_{title.replace(' ', '_')}_{expected_price}")],
+            [InlineKeyboardButton("❌ Cancel", style=enums.ButtonStyle.DANGER, callback_data="cancel_payment_process")]
         ])
         
         await status_msg.edit_text(
-            f"❌ <b>ᴘᴀʏᴍᴇɴᴛ ɴᴏᴛ ғᴏᴜɴᴅ ʏᴇᴛ!</b>\n\n"
-            f"12 बार चेक करने के बाद भी ₹{expected_price} की पेमेंट का नोटिफिकेशन नहीं मिला।\n\n"
-            f"• यदि आपने अभी पेमेंट किया है, तो बैंक नोटिफिकेशन आने में कुछ सेकंड लग सकते हैं।\n"
-            f"• 10 मिनट खत्म होने से पहले नीचे <b>'🔄 ʀᴇ-ᴄʜᴇᴄᴋ ᴘᴀʏᴍᴇɴᴛ'</b> दबाएं।",
+            f"❌ <b>ᴘᴀʏᴍᴇɴᴛ ɴᴏᴛ ᴅᴇᴛᴇᴄᴛᴇᴅ ʏᴇᴛ</b>\n\n"
+            f"Our bot system could not find a payment of <b>₹{expected_price}</b> within the last 30 seconds.\n\n"
+            f"• <i>Banking servers sometimes take 1-2 minutes to push payment notifications.</i>\n"
+            f"• <i>If you have already paid, click <b>'🔄 Re-check Payment'</b> below.</i>\n"
+            f"• <i>Or click <b>'📩 Request Admin Verification'</b> to submit a screenshot manually.</i>",
             reply_markup=btn
         )
 
@@ -356,8 +361,8 @@ async def start_wallet_topup(client, callback):
     user_id = callback.from_user.id
     WALLET_TOPUP_WAITING[user_id] = True
     await callback.message.reply_text(
-        "💵 <b>ᴇɴᴛᴇʀ ᴛᴏᴘ-ᴜᴘ ᴀᴍᴏᴜɴᴛ:</b>\nPlease type amount (in ₹):",
-        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ ᴄᴀɴᴄᴇʟ", callback_data="cancel_payment_process")]])
+        "💵 <b>Enter Top-up Amount:</b>\nPlease type amount (in ₹):",
+        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ Cancel", callback_data="cancel_payment_process")]])
     )
     await callback.answer()
 
@@ -370,7 +375,7 @@ async def process_wallet_amount(client, message):
 
     amount_text = message.text.strip()
     if not amount_text.isdigit() or float(amount_text) <= 0:
-        return await message.reply_text("❌ <b>Invalid Amount!</b>")
+        return await message.reply_text("❌ <b>Invalid Amount! Please enter a valid number.</b>")
     
     price = float(amount_text)
     del WALLET_TOPUP_WAITING[user_id]
@@ -378,11 +383,11 @@ async def process_wallet_amount(client, message):
     terms_caption = (
         f"👛 <b>ᴡᴀʟʟᴇᴛ ᴛᴏᴘ-ᴜᴘ:</b> ₹{price}\n\n"
         f"{TERMS_TEXT}\n\n"
-        f"👇 <i>ᴘʟᴇᴀsᴇ ᴄʟɪᴄᴋ <b>'✅ ɪ ᴀᴄᴄᴇᴘᴛ & ᴄᴏɴᴛɪɴᴜᴇ'</b> ᴛᴏ ɢᴇɴᴇʀᴀᴛᴇ QR Code:</i>"
+        f"👇 <i>Please click <b>'✅ Accept & Continue'</b> to generate QR Code:</i>"
     )
     btn = InlineKeyboardMarkup([
-        [InlineKeyboardButton("✅ ɪ ᴀᴄᴄᴇᴘᴛ & ᴄᴏɴᴛɪɴᴜᴇ", style=enums.ButtonStyle.SUCCESS, callback_data=f"show_qr_WalletTopup_{price}")],
-        [InlineKeyboardButton("❌ ᴄᴀɴᴄᴇʟ", style=enums.ButtonStyle.DANGER, callback_data="cancel_payment_process")]
+        [InlineKeyboardButton("✅ Accept & Continue", style=enums.ButtonStyle.SUCCESS, callback_data=f"show_qr_WalletTopup_{price}")],
+        [InlineKeyboardButton("❌ Cancel", style=enums.ButtonStyle.DANGER, callback_data="cancel_payment_process")]
     ])
     await message.reply_photo(photo=GUIDE_IMAGE_URL, caption=terms_caption, reply_markup=btn)
 
@@ -401,8 +406,8 @@ async def ask_screenshot(client, callback):
     ACTIVE_PAYMENTS[user_id] = {"title": story_title, "price": price, "manual": True}
     
     await callback.message.reply_text(
-        "📸 <b>sᴇɴᴅ ᴘᴀʏᴍᴇɴᴛ sᴄʀᴇᴇɴsʜᴏᴛ:</b>\n\nPlease send your payment screenshot photo in this chat.",
-        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ ᴄᴀɴᴄᴇʟ", callback_data="cancel_payment_process")]])
+        "📸 <b>Send Payment Screenshot:</b>\n\nPlease send your payment screenshot photo in this chat.",
+        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ Cancel", callback_data="cancel_payment_process")]])
     )
     await callback.answer()
 
@@ -421,7 +426,7 @@ async def receive_screenshot(client, message):
     req_type = "👛 WALLET TOP-UP" if is_wallet else f"📖 STORY: {title}"
     
     admin_text = (
-        f"🚨 <b>ᴍᴀɴᴜᴀʟ ᴘᴀʏᴍᴇɴᴛ ᴠᴇʀɪғɪᴄᴀᴛɪᴏɴ ʀᴇǫᴜᴇsᴛ!</b>\n\n"
+        f"🚨 <b>MANUAL PAYMENT VERIFICATION REQUEST</b>\n\n"
         f"👤 <b>User:</b> {user.first_name} (@{user.username if user.username else 'N/A'})\n"
         f"🆔 <b>User ID:</b> <code>{user.id}</code>\n"
         f"📌 <b>Type:</b> {req_type}\n"
@@ -430,7 +435,7 @@ async def receive_screenshot(client, message):
     
     clean_title = title.replace(" ", "_")
     btn = InlineKeyboardMarkup([
-        [InlineKeyboardButton("✅ ᴀᴘᴘʀᴏᴠᴇ", callback_data=f"app_{user.id}_{clean_title}_{price}"), InlineKeyboardButton("❌ ʀᴇᴊᴇᴄᴛ", callback_data=f"rej_{user.id}_{clean_title}")]
+        [InlineKeyboardButton("✅ Approve", callback_data=f"app_{user.id}_{clean_title}_{price}"), InlineKeyboardButton("❌ Reject", callback_data=f"rej_{user.id}_{clean_title}")]
     ])
     
     await client.send_photo(chat_id=ADMIN_ID, photo=message.photo.file_id, caption=admin_text, reply_markup=btn)
@@ -456,7 +461,7 @@ async def approve_order(client, callback):
     if title == "WalletTopup":
         new_balance = await add_wallet_balance(user_id, price)
         try:
-            await client.send_message(chat_id=user_id, text=f"🎉 <b>ᴡᴀʟʟᴇᴛ ᴛᴏᴘ-ᴜᴘ ᴀᴘᴘʀᴏᴠᴇᴅ!</b>\n💰 Added: ₹{price}\n👛 Balance: ₹{new_balance}")
+            await client.send_message(chat_id=user_id, text=f"🎉 <b>Wallet top-up approved!</b>\n💰 Added: ₹{price}\n👛 Balance: ₹{new_balance}")
             await callback.message.edit_caption(caption=f"{callback.message.caption.html}\n\n✅ <b>APPROVED BY ADMIN</b>")
             if LOG_CHANNEL and LOG_CHANNEL != 0:
                 await client.send_message(LOG_CHANNEL, f"✅ <b>[MANUAL APPROVED] WALLET</b>\n👤 User: <code>{user_id}</code>\n💰 Amount: ₹{price}")
@@ -473,12 +478,12 @@ async def approve_order(client, callback):
     delivery_link = f"https://t.me/{BOT_USERNAME}?start=get_{encoded_title}"
 
     await add_user_purchase(user_id, clean_title, story_link=delivery_link)
-    access_btn = InlineKeyboardMarkup([[InlineKeyboardButton("📂 ɢᴇᴛ ғɪʟᴇs (Unlocked)", style=enums.ButtonStyle.PRIMARY, url=delivery_link)]])
+    access_btn = InlineKeyboardMarkup([[InlineKeyboardButton("📂 Get Files (Unlocked)", style=enums.ButtonStyle.PRIMARY, url=delivery_link)]])
     
     try:
         await client.send_message(
             chat_id=user_id,
-            text=f"🎉 <b>ʏᴏᴜʀ ᴘᴀʏᴍᴇɴᴛ ʜᴀs ʙᴇᴇɴ ᴀᴘᴘʀᴏᴠᴇᴅ!</b>\n📖 Story: {clean_title}",
+            text=f"🎉 <b>Your payment has been approved!</b>\n📖 Story: {clean_title}",
             reply_markup=access_btn,
             protect_content=True
         )
@@ -496,7 +501,7 @@ async def reject_order(client, callback):
     title = "_".join(data[2:]).replace("_", " ")
     
     try:
-        await client.send_message(chat_id=user_id, text=f"❌ <b>ʏᴏᴜʀ ᴘᴀʏᴍᴇɴᴛ ʜᴀs ʙᴇᴇɴ ʀᴇᴊᴇᴄᴛᴇᴅ!</b>\nItem: {title}")
+        await client.send_message(chat_id=user_id, text=f"❌ <b>Your payment has been rejected!</b>\nItem: {title}")
         await callback.message.edit_caption(caption=f"{callback.message.caption.html}\n\n❌ <b>REJECTED BY ADMIN</b>")
         if LOG_CHANNEL and LOG_CHANNEL != 0:
             await client.send_message(LOG_CHANNEL, f"❌ <b>[REJECTED]</b>\n👤 User: <code>{user_id}</code>\n📌 Item: {title}")
