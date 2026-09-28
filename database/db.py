@@ -393,34 +393,15 @@ async def get_story_by_title(title: str):
     return await stories_col.find_one({"title": pattern})
 
 # -------------------- AUTO-PAYMENT & WEBHOOK DB FUNCTIONS --------------------
-async def save_verified_order(order_id: str, amount: float, txn_id: str = "", raw_text: str = ""):
-    """
-    MacroDroid Webhook se mili verified payment ko DB me save karta hai.
-    """
-    await verified_orders_col.update_one(
-        {"order_id": order_id},
-        {
-            "$set": {
-                "order_id": order_id,
-                "amount": float(amount),
-                "txn_id": txn_id,
-                "raw_text": raw_text,
-                "status": "PAID",
-                "timestamp": time.time()
-            }
-        },
-        upsert=True
-    )
-
 async def is_order_verified(order_id: str) -> bool:
     """
-    Check karta hai ki Order ID payment status 'PAID' ho chuka hai ya nahi.
+    Check करता है कि Order ID payment status 'PAID' हो चुका है या नहीं।
     """
     record = await verified_orders_col.find_one({"order_id": order_id, "status": "PAID"})
     return bool(record)
 
 async def get_verified_order_details(order_id: str):
     """
-    Order ID ki saari details (Amount, Txn ID, Time) fetch karne ke liye.
+    Order ID की सारी details (Amount, Txn ID, Time) fetch करने के लिए।
     """
     return await verified_orders_col.find_one({"order_id": order_id})
