@@ -1,11 +1,10 @@
 import asyncio
 import os
-import re
 from datetime import datetime, timezone, timedelta
 from aiohttp import web
 import aiofiles
-from pyrogram import Client, idle, filters
-from config import API_ID, API_HASH, BOT_TOKEN, PORT, ADMIN_ID, BOT_USERNAME, LOG_CHANNEL
+from pyrogram import Client, idle
+from config import API_ID, API_HASH, BOT_TOKEN, PORT, BOT_USERNAME, LOG_CHANNEL
 from database.db import stories_col, get_user_purchases, get_story_by_title, verified_orders_col
 
 
@@ -18,6 +17,9 @@ WEB_DIR = os.path.join(BASE_DIR, "web")
 
 # Pyrogram Bot Client Instance Reference
 bot_instance = None
+
+# Secret key from Render Environment Variables
+WEBHOOK_SECRET = os.getenv("WEBHOOK_SECRET", "")
 
 # ------------------ Middleware: CORS Headers ------------------
 @web.middleware
@@ -41,64 +43,45 @@ async def handle_miniapp(request):
             return web.Response(text=content, content_type="text/html")
     return web.Response(text="<h3>index.html not found in web/ folder!</h3>", content_type="text/html", status=404)
 
-# ------------------ 3. MacroDroid Webhook Handler ------------------
-async def handle_macrodroid_webhook(request):
+# ------------------ 3. Webhook Handler for demotry.shop (/paytm) ------------------
+async def handle_paytm_webhook(request):
     try:
+        # Handle CORS OPTIONS request
+        if request.method == 'OPTIONS':
+            return web.Response(status=200)
+
+        # Parse JSON payload from Webhook
         data = await request.json()
-        notif_text = data.get("notification_text", "") or data.get("text", "")
+        print(f"📩 Paytm Webhook Received Payload: {data}")
+
+        # Extract Event and Order Details
+        event = data.get("event") or data.get("type") or data.get("status")
+        payload_data = data.get("data", data)
         
-        if not notif_text:
-            return web.json_response({"error": "Empty notification text"}, status=400)
+        order_id = payload_data.get("order_id") or payload_data.get("ORDERID") or payload_data.get("note")
+        amount = float(payload_data.get("amount") or payload_data.get("TXNAMOUNT") or 0.0)
 
-        print(f"📩 Webhook Received Payload: {notif_text}")
+        # Process payment success event
+        if event in ["payment.success", "SUCCESS", "TXN_SUCCESS"] or order_id:
+            if order_id:
+                await verified_orders_col.update_one(
+                    {"order_id": order_id},
+                    {"$set": {
+                        "order_id": order_id,
+                        "amount": amount,
+                        "status": "PAID",
+                        "raw_payload": data,
+                        "timestamp": datetime.now(timezone.utc)
+                    }},
+                    upsert=True
+                )
+                print(f"✅ Website Webhook Payment Verified for Order ID: {order_id}")
+                return web.json_response({"status": "success", "order_id": order_id}, status=200)
 
-        # 1. Check if direct Order ID is passed in notification text
-        order_match = re.search(r'(AC\d+|ORDER\d+|FAMPAY[A-Z0-9]+)', notif_text, re.IGNORECASE)
-        order_id = order_match.group(1) if order_match else None
-
-        # 2. Extract Amount from text (e.g. ₹2.0, INR 2.0, or sent 2.0)
-        amount = 0.0
-        amount_match = re.search(r'(?:₹|INR|\b)\s*(\d+(?:\.\d+)?)', notif_text)
-        if amount_match:
-            amount = float(amount_match.group(1))
-
-        # Case A: If Order ID found
-        if order_id:
-            await verified_orders_col.update_one(
-                {"order_id": order_id},
-                {"$set": {
-                    "order_id": order_id,
-                    "amount": amount,
-                    "status": "PAID",
-                    "raw_text": notif_text,
-                    "timestamp": datetime.now(timezone.utc)
-                }},
-                upsert=True
-            )
-            print(f"✅ Webhook Payment Verified via Order ID: {order_id}")
-            return web.json_response({"status": "success", "order_id": order_id})
-
-        # Case B: FamPay Fallback (When no Order ID in notification, but Amount is found)
-        if amount > 0:
-            temp_order_id = f"FAMPAY_{int(datetime.now().timestamp())}"
-            await verified_orders_col.update_one(
-                {"amount": amount, "status": "PAID"},
-                {"$set": {
-                    "order_id": temp_order_id,
-                    "amount": amount,
-                    "status": "PAID",
-                    "raw_text": notif_text,
-                    "timestamp": datetime.now(timezone.utc)
-                }},
-                upsert=True
-            )
-            print(f"✅ Webhook Amount Captured & Marked Paid: ₹{amount}")
-            return web.json_response({"status": "success", "amount": amount})
-
-        return web.json_response({"status": "ignored", "reason": "No Amount or Order ID found"}, status=400)
+        return web.json_response({"status": "ignored", "reason": "Event not payment.success or missing order_id"}, status=200)
 
     except Exception as e:
-        print(f"❌ Webhook Error: {e}")
+        print(f"❌ Website Webhook Error: {e}")
         return web.json_response({"error": str(e)}, status=500)
 
 # ------------------ 4. API Endpoint: Fetch Stories ------------------
@@ -159,7 +142,11 @@ async def start_web_server():
     
     app_web.router.add_get("/ping", handle_ping)
     app_web.router.add_get("/", handle_miniapp)
-    app_web.router.add_post("/webhook", handle_macrodroid_webhook)
+    
+    # 🎯 Only Website Webhook Route (/paytm)
+    app_web.router.add_post("/paytm", handle_paytm_webhook)
+    app_web.router.add_options("/paytm", handle_paytm_webhook)
+    
     app_web.router.add_get("/api/stories", handle_get_stories)
     app_web.router.add_get("/api/user_purchases", handle_get_user_purchases)
 
@@ -172,7 +159,7 @@ async def start_web_server():
     server_port = int(PORT) if PORT else 8080
     site = web.TCPSite(runner, "0.0.0.0", server_port)
     await site.start()
-    print(f"🌐 Advanced Web server active on port {server_port}")
+    print(f"🌐 Server active on port {server_port}")
 
 # ------------------ Main Execution ------------------
 async def main():
@@ -202,7 +189,7 @@ async def main():
                 f"🚀 <b>ʙᴏᴛ ʀᴇsᴛᴀʀᴛᴇᴅ sᴜᴄᴄᴇssғᴜʟʟʏ!</b>\n\n"
                 f"🤖 <b>Bot Name:</b> {bot_info.first_name}\n"
                 f"🔖 <b>Username:</b> @{bot_info.username}\n"
-                f"⚙️ <b>Version:</b> <code>v2.0</code>\n"
+                f"⚙️ <b>Version:</b> <code>v2.0 (Only Webhook Active)</code>\n"
                 f"📅 <b>Date:</b> <code>{date_str}</code>\n"
                 f"⏰ <b>Time:</b> <code>{time_str} (IST)</code>\n"
                 f"🟢 <b>Status:</b> Online & Ready!"
