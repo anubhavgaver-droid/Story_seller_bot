@@ -9,24 +9,21 @@ from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from config import UPI_ID, ADMIN_ID, BOT_USERNAME, LOG_CHANNEL
 from database.db import get_story_by_title, add_user_purchase, add_wallet_balance
 
-# Global Dictionaries for Active Sessions
-ACTIVE_PAYMENTS = {}        # Payment timer and session data
-WALLET_TOPUP_WAITING = {}   # Wallet state
+# Global Dictionaries
+ACTIVE_PAYMENTS = {}        
+WALLET_TOPUP_WAITING = {}   
 
-# 🖼️ Step-by-Step Banner Image URL
 GUIDE_IMAGE_URL = "https://i.ibb.co/VW778KdR/photo-2026-09-24-08-21-14-7689014092254023680.jpg" 
 
-# 🌐 आपकी वेबसाइट API एंडपॉइंट्स (Screenshots के अनुसार)
-CREATE_ORDER_URL = "https://demotry.shop/api/create-order"  #[span_3](start_span)[span_3](end_span)
-CHECK_STATUS_URL = "https://demotry.shop/api/check-status"  #
+# 🌐 आपकी वेबसाइट API एंडपॉइंट्स (Docs के अनुसार)
+CREATE_ORDER_URL = "https://demotry.shop/api/create-order"
+CHECK_STATUS_URL = "https://demotry.shop/api/check-status"
 
-# 🔑 API Credentials (Screenshots के अनुसार)
-# Note: अपनी पूरी Secret Key 'sk_live_1dc3...' वाली नीचे रिप्लेस कर लें
-API_SECRET_HEADER = ":-API-Secret"  #[span_4](start_span)[span_4](end_span)
-API_SECRET_VALUE = "sk_live_1dc3..."         #[span_5](start_span)[span_5](end_span) 
-API_KEY_VALUE = "" #
+# 🔑 API Credentials (आपके Documentation के अनुसार)
+API_KEY_VALUE = "pi_live_8d53fa735e40f3206a"
+# ⚠️ ध्यान दें: नीचे अपने Dashboard से पूरी Secret Key पेस्ट करें
+API_SECRET_VALUE = "sk_live_1dc3d5bcdd3459..." 
 
-# 📋 Compact Terms & Conditions Text
 TERMS_TEXT = (
     "📜 <b><u>ᴛᴇʀᴍs & ᴄᴏɴᴅɪᴛɪᴏɴs</u></b>\n\n"
     "• <b>ᴇxᴀᴄᴛ ᴀᴍᴏᴜɴᴛ:</b> ᴘᴀʏᴍᴇɴᴛ ᴍᴜsᴛ ᴍᴀᴛᴄʜ ᴛʜᴇ exact sᴛᴏʀʏ ᴘʀɪᴄᴇ.\n"
@@ -38,50 +35,59 @@ TERMS_TEXT = (
 # ---------------- 1. API HELPER FUNCTIONS ----------------
 
 async def create_website_order(user_id: int, user_name: str, amount: float):
-    """वेबसाइट /api/create-order API से पेमेंट URL और Order ID लेता है"""
-    order_id = f"ORD{user_id}_{int(time.time())}"
+    """आपकी वेबसाइट की Docs के अनुसार Order क्रिएट करता है"""
+    order_id = f"ORD_{user_id}_{int(time.time())}"
+    
     headers = {
-        API_SECRET_HEADER: API_SECRET_VALUE, #[span_6](start_span)[span_6](end_span)
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
+        "X-API-Key": API_KEY_VALUE,
+        "X-API-Secret": API_SECRET_VALUE
     }
+    
     payload = {
         "amount": f"{amount:.2f}",
         "order_id": order_id,
-        "customer_name": user_name,
-        "callback_url": f"https://t.me/{BOT_USERNAME}" #[span_7](start_span)[span_7](end_span)
+        "customer_name": user_name or "Telegram User",
+        "description": "Story Purchase",
+        "callback_url": f"https://t.me/{BOT_USERNAME}"
     }
     
     try:
         async with aiohttp.ClientSession() as session:
-            async with session.post(CREATE_ORDER_URL, json=payload, headers=headers, timeout=10) as resp:
-                if resp.status == 200:
-                    data = await resp.json()
-                    return data.get("payment_url"), order_id #[span_8](start_span)[span_8](end_span)
+            async with session.post(CREATE_ORDER_URL, json=payload, headers=headers, timeout=12) as resp:
+                data = await resp.json()
+                if resp.status in [200, 201] and data.get("status") == "success":
+                    # Docs Schema के हिसाब से data -> data -> payment_url
+                    pay_url = data.get("data", {}).get("payment_url")
+                    return pay_url, order_id
+                else:
+                    print(f"Create Order Failed: {data}")
     except Exception as e:
-        print(f"Error creating order: {e}")
+        print(f"Error in create_website_order: {e}")
     return None, order_id
 
 async def check_website_order_status(order_id: str):
-    """वेबसाइट /api/check-status API से ऑर्डर का लाइव स्टेटस चेक करता है"""
+    """आपकी वेबसाइट से स्टेटस चेक करता है"""
     headers = {
-        "X-API-Key": API_KEY_VALUE, #
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
+        "X-API-Key": API_KEY_VALUE,
+        "X-API-Secret": API_SECRET_VALUE
     }
     payload = {
-        "order_id": order_id #
+        "order_id": order_id
     }
     
     try:
         async with aiohttp.ClientSession() as session:
-            async with session.post(CHECK_STATUS_URL, json=payload, headers=headers, timeout=10) as resp:
+            async with session.post(CHECK_STATUS_URL, json=payload, headers=headers, timeout=12) as resp:
+                data = await resp.json()
                 if resp.status == 200:
-                    data = await resp.json()
-                    # {"status": "success", "amount": "100.00"}
-                    if data.get("status") in ["success", "SUCCESS", "PAID"]: #
-                        paid_amt = float(data.get("amount", 0)) #
-                        return True, paid_amt, "Payment Verified"
-                    return False, 0.0, "Payment not completed yet"
-                return False, 0.0, f"Server Error ({resp.status})"
+                    status = str(data.get("status", "")).lower()
+                    if status in ["success", "paid", "completed"]:
+                        paid_amt = float(data.get("data", {}).get("amount", 0) or data.get("amount", 0))
+                        return True, paid_amt, "Payment Verified Successfully"
+                    return False, 0.0, f"Status: {status.upper() if status else 'PENDING'}"
+                return False, 0.0, f"Server Error (HTTP {resp.status})"
     except Exception as e:
         return False, 0.0, f"Connection Error: {str(e)}"
 
@@ -185,7 +191,7 @@ async def show_terms_first(client, callback):
 
     await callback.answer()
 
-# ---------------- STEP 2: GENERATE QR FROM WEBSITE API ----------------
+# ---------------- STEP 2: GENERATE QR & PAYMENT LINK ----------------
 
 @Client.on_callback_query(filters.regex("^show_qr_"))
 async def generate_qr_after_terms(client, callback):
@@ -193,29 +199,24 @@ async def generate_qr_after_terms(client, callback):
     session = ACTIVE_PAYMENTS.get(user_id)
     
     if not session:
-        return await callback.answer("⏰ Payment Expired! Please try again.", show_alert=True)
-        
-    if time.time() - session['timestamp'] > 600:
-        ACTIVE_PAYMENTS.pop(user_id, None)
-        return await callback.answer("⌛ Time limit of 10 minutes exceeded! Payment expired.", show_alert=True)
+        return await callback.answer("⏰ Session Expired! Please click Buy again.", show_alert=True)
 
-    await callback.answer("🔄 Generating Payment Link...", show_alert=False)
+    await callback.answer("🔄 Generating Link from Website...", show_alert=False)
 
     title = session['title']
     price = session['price']
     clean_title = title.replace(" ", "_")
     customer_name = callback.from_user.first_name or "Customer"
 
-    # Website API Call to Create Order
+    # Website API Call
     payment_url, order_id = await create_website_order(user_id, customer_name, price)
-    session['order_id'] = order_id  # Save Order ID for status checking
+    session['order_id'] = order_id  
 
     try:
         await callback.message.delete()
     except Exception:
         pass
 
-    # Use Website Payment URL for QR Code
     target_link = payment_url if payment_url else f"upi://pay?pa={UPI_ID}&pn=StorySeller&am={price}&cu=INR"
     qr_url = f"https://api.qrserver.com/v1/create-qr-code/?size=250x250&margin=15&data={urllib.parse.quote(target_link)}"
     
@@ -225,7 +226,7 @@ async def generate_qr_after_terms(client, callback):
         f"💰 <b>ᴀᴍᴏᴜɴᴛ:</b> ₹{price}\n"
         f"🆔 <b>ᴏʀᴅᴇʀ ɪᴅ:</b> <code>{order_id}</code>\n"
         f"⏳ <b>ᴛɪᴍᴇ ʟɪᴍɪᴛ:</b> 10 Minutes\n\n"
-        f"📲 <i>1. Scan QR Code to pay via Paytm/UPI.\n2. After payment, click <b>'⚡ ᴠᴇʀɪғʏ ᴘᴀʏᴍᴇɴᴛ'</b> below!</i>"
+        f"📲 <i>1. Click 'Pay Via Web Page' or Scan QR Code.\n2. Complete Payment.\n3. Click <b>'⚡ ᴠᴇʀɪғʏ ᴘᴀʏᴍᴇɴᴛ'</b> below!</i>"
     )
     
     btn_list = [
@@ -240,7 +241,7 @@ async def generate_qr_after_terms(client, callback):
 
     await callback.message.reply_photo(photo=qr_url, caption=caption, reply_markup=InlineKeyboardMarkup(btn_list))
 
-# ---------------- STEP 3: DIRECT CLICK VERIFY ----------------
+# ---------------- STEP 3: VERIFY PAYMENT STATUS ----------------
 
 @Client.on_callback_query(filters.regex("^auto_check_payment_"))
 async def direct_verify_payment(client, callback):
@@ -248,39 +249,22 @@ async def direct_verify_payment(client, callback):
     session = ACTIVE_PAYMENTS.get(user_id)
     
     if not session:
-        return await callback.answer("⏰ Session Expired! Please click Buy Now again.", show_alert=True)
+        return await callback.answer("⏰ Session Expired! Please try again.", show_alert=True)
         
-    qr_created_time = session['timestamp']
     expected_price = session['price']
     title = session['title']
     order_id = session.get('order_id')
     
-    if time.time() - qr_created_time > 600:
-        ACTIVE_PAYMENTS.pop(user_id, None)
-        return await callback.answer("⌛ 10 Minutes Time Limit Exceeded! Payment Expired.", show_alert=True)
-
     await callback.answer("🔄 Checking status from Website...", show_alert=False)
     
-    # 1. Check status from Website API
     is_valid, actual_paid, msg = await check_website_order_status(order_id)
     
-    # ⏳ Auto-retry once after 5 seconds if not detected immediately
+    # 3 सेकंड बाद 1 बार री-ट्राई
     if not is_valid:
-        wait_msg = await callback.message.reply_text("🔄 <b>Checking payment status with Website Server...</b>")
-        for remaining in range(5, 0, -1):
-            try:
-                await wait_msg.edit_text(f"⏳ <b>Payment not detected yet! Re-checking in {remaining}s...</b>")
-            except Exception:
-                pass
-            await asyncio.sleep(1)
-            
+        await asyncio.sleep(3)
         is_valid, actual_paid, msg = await check_website_order_status(order_id)
-        try:
-            await wait_msg.delete()
-        except Exception:
-            pass
 
-    # ---------------- SUCCESSFUL PAYMENT ----------------
+    # ---------------- Success ----------------
     if is_valid:
         ACTIVE_PAYMENTS.pop(user_id, None)
         actual_paid = actual_paid if actual_paid > 0 else expected_price
@@ -290,54 +274,33 @@ async def direct_verify_payment(client, callback):
             new_bal = await add_wallet_balance(user_id, actual_paid)
             await callback.message.reply_text(f"🎉 <b>ᴀᴜᴛᴏ-ᴠᴇʀɪғɪᴇᴅ sᴜᴄᴄᴇssғᴜʟʟʏ!</b>\n\n💰 Added ₹{actual_paid} to Wallet.\n👛 New Balance: ₹{new_bal}")
             
-            if LOG_CHANNEL and LOG_CHANNEL != 0:
-                await client.send_message(
-                    LOG_CHANNEL, 
-                    f"⚡ <b>[DIRECT VERIFY SUCCESS] WALLET TOPUP</b>\n👤 <b>User:</b> {callback.from_user.first_name} (<code>{user_id}</code>)\n💰 <b>Amount:</b> ₹{actual_paid}"
-                )
-                
         # STORY PURCHASE
         else:
             story = await get_story_by_title(title)
-            clean_title = story['title'].strip().split("\n")[0]
+            clean_title = story['title'].strip().split("\n")[0] if story else title
             encoded_title = clean_title.replace(" ", "_")
             delivery_link = f"https://t.me/{BOT_USERNAME}?start=get_{encoded_title}"
             
-            if actual_paid < expected_price:
-                new_bal = await add_wallet_balance(user_id, actual_paid)
-                await callback.message.reply_text(
-                    f"⚠️ <b>ɪɴsᴜғғɪᴄɪᴇɴᴛ ᴘᴀʏᴍᴇɴᴛ ʀᴇᴄᴇɪᴠᴇᴅ!</b>\n\n"
-                    f"📖 <b>Story Price:</b> ₹{expected_price}\n"
-                    f"💵 <b>Paid Amount:</b> ₹{actual_paid}\n\n"
-                    f"💡 <i>₹{actual_paid} added to your <b>Wallet</b>. Top-up remaining to unlock.</i>"
+            await add_user_purchase(user_id, clean_title, story_link=delivery_link)
+            access_btn = InlineKeyboardMarkup([[InlineKeyboardButton("📂 ɢᴇᴛ ғɪʟᴇs (Unlocked)", style=enums.ButtonStyle.PRIMARY, url=delivery_link)]])
+            
+            await callback.message.reply_text(
+                f"🎉 <b>ᴀᴜᴛᴏ-ᴠᴇʀɪғɪᴇᴅ sᴜᴄᴄᴇssғᴜʟʟʏ!</b>\n\n📖 <b>Story:</b> {clean_title}\n💰 <b>Paid:</b> ₹{actual_paid}\n\nClick below to access your files:",
+                reply_markup=access_btn,
+                protect_content=True
+            )
+            
+            if LOG_CHANNEL and LOG_CHANNEL != 0:
+                await client.send_message(
+                    LOG_CHANNEL, 
+                    f"⚡ <b>[DIRECT VERIFY SUCCESS] STORY BOUGHT</b>\n👤 <b>User:</b> {callback.from_user.first_name} (<code>{user_id}</code>)\n📖 <b>Story:</b> {clean_title}\n💰 <b>Amount:</b> ₹{actual_paid}"
                 )
-            else:
-                extra_amount = actual_paid - expected_price
-                await add_user_purchase(user_id, clean_title, story_link=delivery_link)
-                access_btn = InlineKeyboardMarkup([[InlineKeyboardButton("📂 ɢᴇᴛ ғɪʟᴇs (Unlocked)", style=enums.ButtonStyle.PRIMARY, url=delivery_link)]])
-                
-                overpaid_text = ""
-                if extra_amount > 0:
-                    new_bal = await add_wallet_balance(user_id, extra_amount)
-                    overpaid_text = f"\n\n🎁 <b>Extra Payment:</b> ₹{extra_amount} added to Wallet!"
-                
-                await callback.message.reply_text(
-                    f"🎉 <b>ᴀᴜᴛᴏ-ᴠᴇʀɪғɪᴇᴅ sᴜᴄᴄᴇssғᴜʟʟʏ!</b>\n\n📖 <b>Story:</b> {clean_title}\n💰 <b>Paid:</b> ₹{actual_paid}{overpaid_text}\n\nClick below to access your files:",
-                    reply_markup=access_btn,
-                    protect_content=True
-                )
-                
-                if LOG_CHANNEL and LOG_CHANNEL != 0:
-                    await client.send_message(
-                        LOG_CHANNEL, 
-                        f"⚡ <b>[DIRECT VERIFY SUCCESS] STORY BOUGHT</b>\n👤 <b>User:</b> {callback.from_user.first_name} (<code>{user_id}</code>)\n📖 <b>Story:</b> {clean_title}\n💰 <b>Amount:</b> ₹{actual_paid}"
-                    )
 
-    # ---------------- PAYMENT NOT FOUND ----------------
+    # ---------------- Failure / Pending ----------------
     else:
-        await callback.answer(f"❌ Payment not detected yet!\nReason: {msg}", show_alert=True)
+        await callback.answer(f"❌ Payment Not Detected!\n{msg}\n\nअगर पेमेंट कट गई है तो 10 सेकंड बाद दोबारा दबाएं।", show_alert=True)
 
-# ---------------- WALLET TOPUP FLOW ----------------
+# ---------------- WALLET TOPUP ----------------
 
 @Client.on_callback_query(filters.regex("^add_wallet_funds$"))
 async def start_wallet_topup(client, callback):
@@ -381,7 +344,7 @@ async def process_wallet_amount(client, message):
     ])
     await message.reply_photo(photo=GUIDE_IMAGE_URL, caption=terms_caption, reply_markup=btn)
 
-# ---------------- MANUAL SCREENSHOT FLOW ----------------
+# ---------------- MANUAL SCREENSHOT ----------------
 
 @Client.on_callback_query(filters.regex("^sent_"))
 async def ask_screenshot(client, callback):
@@ -412,14 +375,11 @@ async def receive_screenshot(client, message):
     price = data['price']
     user = message.from_user
     
-    is_wallet = (title == "WalletTopup")
-    req_type = "👛 WALLET TOP-UP" if is_wallet else f"📖 STORY: {title}"
-    
     admin_text = (
         f"🚨 <b>ᴍᴀɴᴜᴀʟ ᴘᴀʏᴍᴇɴᴛ ᴠᴇʀɪғɪᴄᴀᴛɪᴏɴ ʀᴇǫᴜᴇsᴛ!</b>\n\n"
         f"👤 <b>User:</b> {user.first_name} (@{user.username if user.username else 'N/A'})\n"
         f"🆔 <b>User ID:</b> <code>{user.id}</code>\n"
-        f"📌 <b>Type:</b> {req_type}\n"
+        f"📌 <b>Item:</b> {title}\n"
         f"💰 <b>Amount:</b> ₹{price}"
     )
     
@@ -432,7 +392,7 @@ async def receive_screenshot(client, message):
     await message.reply_text("✅ <b>Screenshot received!</b> Admin will review and approve shortly.")
     ACTIVE_PAYMENTS.pop(user_id, None)
 
-# Admin Approval / Rejection
+# Admin Handlers
 @Client.on_callback_query(filters.regex("^app_") & filters.user(ADMIN_ID))
 async def approve_order(client, callback):
     data = callback.data.split("_")
@@ -442,35 +402,26 @@ async def approve_order(client, callback):
     
     if title == "WalletTopup":
         new_balance = await add_wallet_balance(user_id, price)
-        try:
-            await client.send_message(chat_id=user_id, text=f"🎉 <b>ᴡᴀʟʟᴇᴛ ᴛᴏᴘ-ᴜᴘ ᴀᴘᴘʀᴏᴠᴇᴅ!</b>\n💰 Added: ₹{price}\n👛 Balance: ₹{new_balance}")
-            await callback.message.edit_caption(caption=f"{callback.message.caption.html}\n\n✅ <b>APPROVED BY ADMIN</b>")
-            return await callback.answer("Wallet Approved!", show_alert=True)
-        except Exception as e:
-            return await callback.answer(f"Error: {e}", show_alert=True)
+        await client.send_message(chat_id=user_id, text=f"🎉 <b>ᴡᴀʟʟᴇᴛ ᴛᴏᴘ-ᴜᴘ ᴀᴘᴘʀᴏᴠᴇᴅ!</b>\n💰 Added: ₹{price}\n👛 Balance: ₹{new_balance}")
+        await callback.message.edit_caption(caption=f"{callback.message.caption.html}\n\n✅ <b>APPROVED BY ADMIN</b>")
+        return await callback.answer("Wallet Approved!", show_alert=True)
 
     story = await get_story_by_title(title)
-    if not story:
-        return await callback.answer("❌ Story not found!", show_alert=True)
-    
-    clean_title = story['title'].strip().split("\n")[0]
+    clean_title = story['title'].strip().split("\n")[0] if story else title
     encoded_title = clean_title.replace(" ", "_")
     delivery_link = f"https://t.me/{BOT_USERNAME}?start=get_{encoded_title}"
 
     await add_user_purchase(user_id, clean_title, story_link=delivery_link)
     access_btn = InlineKeyboardMarkup([[InlineKeyboardButton("📂 ɢᴇᴛ ғɪʟᴇs (Unlocked)", style=enums.ButtonStyle.PRIMARY, url=delivery_link)]])
     
-    try:
-        await client.send_message(
-            chat_id=user_id,
-            text=f"🎉 <b>ʏᴏᴜʀ ᴘᴀʏᴍᴇɴᴛ ʜᴀs ʙᴇᴇɴ ᴀᴘᴘʀᴏᴠᴇᴅ!</b>\n📖 Story: {clean_title}",
-            reply_markup=access_btn,
-            protect_content=True
-        )
-        await callback.message.edit_caption(caption=f"{callback.message.caption.html}\n\n✅ <b>APPROVED BY ADMIN</b>")
-        await callback.answer("Approved!", show_alert=True)
-    except Exception as e:
-        await callback.answer(f"Error: {e}", show_alert=True)
+    await client.send_message(
+        chat_id=user_id,
+        text=f"🎉 <b>ʏᴏᴜʀ ᴘᴀʏᴍᴇɴᴛ ʜᴀs ʙᴇᴇɴ ᴀᴘᴘʀᴏᴠᴇᴅ!</b>\n📖 Story: {clean_title}",
+        reply_markup=access_btn,
+        protect_content=True
+    )
+    await callback.message.edit_caption(caption=f"{callback.message.caption.html}\n\n✅ <b>APPROVED BY ADMIN</b>")
+    await callback.answer("Approved!", show_alert=True)
 
 @Client.on_callback_query(filters.regex("^rej_") & filters.user(ADMIN_ID))
 async def reject_order(client, callback):
@@ -478,9 +429,6 @@ async def reject_order(client, callback):
     user_id = int(data[1])
     title = "_".join(data[2:]).replace("_", " ")
     
-    try:
-        await client.send_message(chat_id=user_id, text=f"❌ <b>ʏᴏᴜʀ ᴘᴀʏᴍᴇɴᴛ ʜᴀs ʙᴇᴇɴ ʀᴇᴊᴇᴄᴛᴇᴅ!</b>\nItem: {title}")
-        await callback.message.edit_caption(caption=f"{callback.message.caption.html}\n\n❌ <b>REJECTED BY ADMIN</b>")
-        await callback.answer("Rejected!", show_alert=True)
-    except Exception as e:
-        await callback.answer(f"Error: {e}", show_alert=True)
+    await client.send_message(chat_id=user_id, text=f"❌ <b>ʏᴏᴜʀ ᴘᴀʏᴍᴇɴᴛ ʜᴀs ʙᴇᴇɴ ʀᴇᴊᴇᴄᴛᴇᴅ!</b>\nItem: {title}")
+    await callback.message.edit_caption(caption=f"{callback.message.caption.html}\n\n❌ <b>REJECTED BY ADMIN</b>")
+    await callback.answer("Rejected!", show_alert=True)
