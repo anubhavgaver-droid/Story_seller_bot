@@ -1,5 +1,4 @@
 import urllib.parse
-import re
 import time
 import asyncio
 import aiohttp
@@ -9,8 +8,8 @@ from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 # Config Imports
 from config import (
-    UPI_ID, ADMIN_ID, BOT_USERNAME, LOG_CHANNEL,
-    CREATE_ORDER_URL, CHECK_STATUS_URL, API_KEY_VALUE, API_SECRET_VALUE
+    ADMIN_ID, BOT_USERNAME, LOG_CHANNEL,
+    CREATE_ORDER_URL, CHECK_STATUS_URL, API_KEY_VALUE, API_SECRET_VALUE, UPI_ID
 )
 from database.db import get_story_by_title, add_user_purchase, add_wallet_balance
 
@@ -101,7 +100,7 @@ async def check_website_order_status(order_id: str):
     except Exception as e:
         return False, 0.0, f"Connection Error: {str(e)}"
 
-# ---------------- CANCEL & UPI HANDLERS ----------------
+# ---------------- CANCEL HANDLER ----------------
 
 @Client.on_callback_query(filters.regex("^cancel_payment_process$"))
 async def cancel_payment_callback(client, callback):
@@ -122,10 +121,6 @@ async def cancel_payment_callback(client, callback):
         await cancel_msg.delete()
     except Exception:
         pass
-
-@Client.on_callback_query(filters.regex("^show_upi_id$"))
-async def show_upi_id(client, callback):
-    await callback.answer(f"📌 UPI ID: {UPI_ID}", show_alert=True)
 
 # ---------------- VIEW STORY ----------------
 
@@ -182,7 +177,7 @@ async def show_terms_first(client, callback):
         f"📖 <b>sᴛᴏʀʏ:</b> {story_title}\n"
         f"💰 <b>ᴀᴍᴏᴜɴᴛ:</b> ₹{price}\n\n"
         f"{TERMS_TEXT}\n\n"
-        f"👇 <i>ᴘʟᴇᴀsᴇ ᴄʟɪᴄᴋ <b>'✅ ɪ ᴀᴄᴄᴇᴘᴛ & ᴄᴏɴᴛɪɴᴜᴇ'</b> ᴛᴏ ɢᴇɴᴇʀᴀᴛᴇ QR Code:</i>"
+        f"👇 <i>ᴘʟᴇᴀsᴇ ᴄʟɪᴄᴋ <b>'✅ ɪ ᴀᴄᴄᴇᴘᴛ & ᴄᴏɴᴛɪɴᴜᴇ'</b> ᴛᴏ ɢᴇɴᴇʀᴀᴛᴇ QR & ᴘᴀʏᴍᴇɴᴛ ʟɪɴᴋ:</i>"
     )
     
     btn = InlineKeyboardMarkup([
@@ -201,7 +196,7 @@ async def show_terms_first(client, callback):
 
     await callback.answer()
 
-# ---------------- STEP 2: GENERATE QR & PAYMENT LINK ----------------
+# ---------------- STEP 2: GENERATE DIRECT UPI QR & WEBSITE LINK ----------------
 
 @Client.on_callback_query(filters.regex("^show_qr_"))
 async def generate_qr_after_terms(client, callback):
@@ -211,7 +206,7 @@ async def generate_qr_after_terms(client, callback):
     if not session:
         return await callback.answer("⏰ Session Expired! Please click Buy again.", show_alert=True)
 
-    await callback.answer("🔄 Generating Link from Website...", show_alert=False)
+    await callback.answer("🔄 Generating QR & Payment Link...", show_alert=False)
 
     title = session['title']
     price = session['price']
@@ -226,29 +221,33 @@ async def generate_qr_after_terms(client, callback):
     except Exception:
         pass
 
-    target_link = payment_url if payment_url else f"upi://pay?pa={UPI_ID}&pn=StorySeller&am={price}&cu=INR"
-    qr_url = f"https://api.qrserver.com/v1/create-qr-code/?size=250x250&margin=15&data={urllib.parse.quote(target_link)}"
+    # Direct UPI Intent for Scanning (Bina Web Link Popup Ke Direct UPI App Kholega)
+    upi_intent = f"upi://pay?pa={UPI_ID}&pn=StorySeller&am={price}&cu=INR"
+    qr_url = f"https://api.qrserver.com/v1/create-qr-code/?size=250x250&margin=15&data={urllib.parse.quote(upi_intent)}"
+
+    btn_list = []
     
+    if payment_url:
+        btn_list.append([InlineKeyboardButton("🌐 ᴘᴀʏ ᴠɪᴀ ᴡᴇʙsɪᴛᴇ", url=payment_url)])
+        
     caption = (
         f"⚡ <b>ᴀᴜᴛᴏᴍᴀᴛɪᴄ ᴘᴀʏᴍᴇɴᴛ ᴄʜᴇᴄᴋᴏᴜᴛ</b>\n\n"
         f"📖 <b>sᴛᴏʀʏ:</b> {title}\n"
         f"💰 <b>ᴀᴍᴏᴜɴᴛ:</b> ₹{price}\n"
         f"🆔 <b>ᴏʀᴅᴇʀ ɪᴅ:</b> <code>{order_id}</code>\n"
         f"⏳ <b>ᴛɪᴍᴇ ʟɪᴍɪᴛ:</b> 10 Minutes\n\n"
-        f"📲 <i>1. Click 'Pay Via Web Page' or Scan QR Code.\n2. Complete Payment.\n3. Click <b>'⚡ ᴠᴇʀɪғʏ ᴘᴀʏᴍᴇɴᴛ'</b> below!</i>"
+        f"📲 <i>1. Scan QR Code via Paytm/GPay/PhonePe OR Click <b>'🌐 ᴘᴀʏ ᴠɪᴀ ᴡᴇʙsɪᴛᴇ'</b> below.\n"
+        f"2. After completing payment, click <b>'⚡ ᴠᴇʀɪғʏ ᴘᴀʏᴍᴇɴᴛ'</b> below!</i>"
     )
     
-    btn_list = [
-        [InlineKeyboardButton("⚡ ᴠᴇʀɪғʏ ᴘᴀʏᴍᴇɴᴛ", style=enums.ButtonStyle.SUCCESS, callback_data=f"auto_check_payment_{user_id}")]
-    ]
-    
-    if payment_url:
-        btn_list.append([InlineKeyboardButton("🔗 Pay Via Web Page / Paytm", url=payment_url)])
-        
-    btn_list.append([InlineKeyboardButton("👁️ sʜᴏᴡ ᴜᴘɪ ɪᴅ", callback_data="show_upi_id"), InlineKeyboardButton("📩 ᴍᴀɴᴜᴀʟ / ᴀᴅᴍɪɴ", callback_data=f"sent_{clean_title}_{price}")])
+    btn_list.append([InlineKeyboardButton("⚡ ᴠᴇʀɪғʏ ᴘᴀʏᴍᴇɴᴛ", style=enums.ButtonStyle.SUCCESS, callback_data=f"auto_check_payment_{user_id}")])
+    btn_list.append([InlineKeyboardButton("📩 ᴍᴀɴᴜᴀʟ / ᴀᴅᴍɪɴ", callback_data=f"sent_{clean_title}_{price}")])
     btn_list.append([InlineKeyboardButton("❌ ᴄᴀɴᴄᴇʟ", style=enums.ButtonStyle.DANGER, callback_data="cancel_payment_process")])
 
-    await callback.message.reply_photo(photo=qr_url, caption=caption, reply_markup=InlineKeyboardMarkup(btn_list))
+    try:
+        await callback.message.reply_photo(photo=qr_url, caption=caption, reply_markup=InlineKeyboardMarkup(btn_list))
+    except Exception:
+        await callback.message.reply_text(text=caption, reply_markup=InlineKeyboardMarkup(btn_list))
 
 # ---------------- STEP 3: VERIFY PAYMENT STATUS ----------------
 
@@ -264,7 +263,7 @@ async def direct_verify_payment(client, callback):
     title = session['title']
     order_id = session.get('order_id')
     
-    await callback.answer("🔄 Checking status from Website...", show_alert=False)
+    await callback.answer("🔄 Checking payment status...", show_alert=False)
     
     is_valid, actual_paid, msg = await check_website_order_status(order_id)
     
@@ -301,7 +300,7 @@ async def direct_verify_payment(client, callback):
                     f"⚡ <b>[DIRECT VERIFY SUCCESS] STORY BOUGHT</b>\n👤 <b>User:</b> {callback.from_user.first_name} (<code>{user_id}</code>)\n📖 <b>Story:</b> {clean_title}\n💰 <b>Amount:</b> ₹{actual_paid}"
                 )
     else:
-        await callback.answer(f"❌ Payment Not Detected!\n{msg}\n\nअगर पेमेंट कट गई है तो 10 सेकंड बाद दोबारा दबाएं।", show_alert=True)
+        await callback.answer(f"❌ Payment Not Detected!\n{msg}\n\nAgar payment complete ho gaya hai toh 10 sec baad firse check karein.", show_alert=True)
 
 # ---------------- WALLET TOPUP ----------------
 
@@ -310,7 +309,7 @@ async def start_wallet_topup(client, callback):
     user_id = callback.from_user.id
     WALLET_TOPUP_WAITING[user_id] = True
     await callback.message.reply_text(
-        "💵 <b>ᴇɴᴛᴇʀ ᴛᴏᴘ-ᴜᴘ ᴀᴍᴏᴜɴᴛ:</b>\nPlease type amount (in ₹):",
+        "💵 <b>ᴇɴᴛᴇR ᴛᴏᴘ-ᴜᴘ ᴀᴍᴏᴜɴᴛ:</b>\nPlease type amount (in ₹):",
         reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ ᴄᴀɴᴄᴇʟ", callback_data="cancel_payment_process")]])
     )
     await callback.answer()
@@ -339,7 +338,7 @@ async def process_wallet_amount(client, message):
     terms_caption = (
         f"👛 <b>ᴡᴀʟʟᴇᴛ ᴛᴏᴘ-ᴜᴘ:</b> ₹{price}\n\n"
         f"{TERMS_TEXT}\n\n"
-        f"👇 <i>ᴘʟᴇᴀsᴇ ᴄʟɪᴄᴋ <b>'✅ ɪ ᴀᴄᴄᴇᴘᴛ & ᴄᴏɴᴛɪɴᴜᴇ'</b> ᴛᴏ ɢᴇɴᴇʀᴀᴛᴇ QR Code:</i>"
+        f"👇 <i>ᴘʟᴇᴀsᴇ ᴄʟɪᴄᴋ <b>'✅ ɪ ᴀᴄᴄᴇᴘᴛ & ᴄᴏɴᴛɪɴᴜᴇ'</b> ᴛᴏ ɢᴇɴᴇʀᴀᴛᴇ QR & ᴘᴀʏᴍᴇɴᴛ ʟɪɴᴋ:</i>"
     )
     btn = InlineKeyboardMarkup([
         [InlineKeyboardButton("✅ ɪ ᴀᴄᴄᴇᴘᴛ & ᴄᴏɴᴛɪɴᴜᴇ", style=enums.ButtonStyle.SUCCESS, callback_data=f"show_qr_{user_id}")],
