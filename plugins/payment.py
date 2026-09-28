@@ -15,13 +15,13 @@ WALLET_TOPUP_WAITING = {}
 
 GUIDE_IMAGE_URL = "https://i.ibb.co/VW778KdR/photo-2026-09-24-08-21-14-7689014092254023680.jpg" 
 
-# 🌐 आपकी वेबसाइट API एंडपॉइंट्स (Docs के अनुसार)
+# 🌐 Website API Endpoints
 CREATE_ORDER_URL = "https://demotry.shop/api/create-order"
 CHECK_STATUS_URL = "https://demotry.shop/api/check-status"
 
-# 🔑 API Credentials (आपके Documentation के अनुसार)
+# 🔑 API Credentials
 API_KEY_VALUE = "pi_live_8d53fa735e40f3206a"
-# ⚠️ ध्यान दें: नीचे अपने Dashboard से पूरी Secret Key पेस्ट करें
+# ⚠️ Apne Dashboard se poori Secret Key yahan daalein
 API_SECRET_VALUE = "sk_live_1dc3d5bcdd3459..." 
 
 TERMS_TEXT = (
@@ -32,46 +32,56 @@ TERMS_TEXT = (
     "• <b>ɴᴏ ʀᴇғᴜɴᴅs:</b> ᴀʟʟ sales ᴀʀᴇ ғɪɴᴀʟ."
 )
 
-# ---------------- 1. API HELPER FUNCTIONS ----------------
+# ---------------- 1. FIXED API HELPER FUNCTIONS ----------------
 
 async def create_website_order(user_id: int, user_name: str, amount: float):
-    """आपकी वेबसाइट की Docs के अनुसार Order क्रिएट करता है"""
+    """Website API se Order ID aur Payment Link generate karta hai"""
     order_id = f"ORD_{user_id}_{int(time.time())}"
     
     headers = {
         "Content-Type": "application/json",
-        "X-API-Key": API_KEY_VALUE,
-        "X-API-Secret": API_SECRET_VALUE
+        "X-API-Key": API_KEY_VALUE.strip(),
+        "X-API-Secret": API_SECRET_VALUE.strip()
     }
     
     payload = {
-        "amount": f"{amount:.2f}",
+        "amount": float(amount),
         "order_id": order_id,
         "customer_name": user_name or "Telegram User",
-        "description": "Story Purchase",
+        "customer_mobile": "9999999999",
+        "redirect_url": f"https://t.me/{BOT_USERNAME}",
         "callback_url": f"https://t.me/{BOT_USERNAME}"
     }
     
     try:
         async with aiohttp.ClientSession() as session:
             async with session.post(CREATE_ORDER_URL, json=payload, headers=headers, timeout=12) as resp:
-                data = await resp.json()
-                if resp.status in [200, 201] and data.get("status") == "success":
-                    # Docs Schema के हिसाब से data -> data -> payment_url
-                    pay_url = data.get("data", {}).get("payment_url")
+                resp_text = await resp.text()
+                print(f"[CREATE ORDER LOG] Code: {resp.status}, Response: {resp_text}")
+                
+                if resp.status in [200, 201]:
+                    data = await resp.json()
+                    pay_url = None
+                    if isinstance(data.get("data"), dict):
+                        pay_url = data["data"].get("payment_url") or data["data"].get("url")
+                    if not pay_url:
+                        pay_url = data.get("payment_url") or data.get("url")
+                        
                     return pay_url, order_id
                 else:
-                    print(f"Create Order Failed: {data}")
+                    print(f"❌ Order Creation Failed: {resp_text}")
     except Exception as e:
-        print(f"Error in create_website_order: {e}")
+        print(f"❌ Error in create_website_order: {e}")
+        
     return None, order_id
 
+
 async def check_website_order_status(order_id: str):
-    """आपकी वेबसाइट से स्टेटस चेक करता है"""
+    """Website API se status check karta hai"""
     headers = {
         "Content-Type": "application/json",
-        "X-API-Key": API_KEY_VALUE,
-        "X-API-Secret": API_SECRET_VALUE
+        "X-API-Key": API_KEY_VALUE.strip(),
+        "X-API-Secret": API_SECRET_VALUE.strip()
     }
     payload = {
         "order_id": order_id
@@ -80,13 +90,19 @@ async def check_website_order_status(order_id: str):
     try:
         async with aiohttp.ClientSession() as session:
             async with session.post(CHECK_STATUS_URL, json=payload, headers=headers, timeout=12) as resp:
-                data = await resp.json()
+                resp_text = await resp.text()
+                print(f"[STATUS CHECK LOG] Code: {resp.status}, Response: {resp_text}")
+                
                 if resp.status == 200:
-                    status = str(data.get("status", "")).lower()
-                    if status in ["success", "paid", "completed"]:
-                        paid_amt = float(data.get("data", {}).get("amount", 0) or data.get("amount", 0))
+                    data = await resp.json()
+                    res_data = data.get("data", {}) if isinstance(data.get("data"), dict) else data
+                    
+                    status = str(res_data.get("payment_status") or res_data.get("status") or data.get("status") or "").upper()
+                    paid_amt = float(res_data.get("amount", 0) or data.get("amount", 0))
+                    
+                    if status in ["SUCCESS", "PAID", "COMPLETED"]:
                         return True, paid_amt, "Payment Verified Successfully"
-                    return False, 0.0, f"Status: {status.upper() if status else 'PENDING'}"
+                    return False, 0.0, f"Status: {status if status else 'PENDING'}"
                 return False, 0.0, f"Server Error (HTTP {resp.status})"
     except Exception as e:
         return False, 0.0, f"Connection Error: {str(e)}"
@@ -259,7 +275,6 @@ async def direct_verify_payment(client, callback):
     
     is_valid, actual_paid, msg = await check_website_order_status(order_id)
     
-    # 3 सेकंड बाद 1 बार री-ट्राई
     if not is_valid:
         await asyncio.sleep(3)
         is_valid, actual_paid, msg = await check_website_order_status(order_id)
@@ -269,12 +284,10 @@ async def direct_verify_payment(client, callback):
         ACTIVE_PAYMENTS.pop(user_id, None)
         actual_paid = actual_paid if actual_paid > 0 else expected_price
         
-        # WALLET TOPUP
         if session['type'] == "WALLET":
             new_bal = await add_wallet_balance(user_id, actual_paid)
             await callback.message.reply_text(f"🎉 <b>ᴀᴜᴛᴏ-ᴠᴇʀɪғɪᴇᴅ sᴜᴄᴄᴇssғᴜʟʟʏ!</b>\n\n💰 Added ₹{actual_paid} to Wallet.\n👛 New Balance: ₹{new_bal}")
             
-        # STORY PURCHASE
         else:
             story = await get_story_by_title(title)
             clean_title = story['title'].strip().split("\n")[0] if story else title
@@ -298,7 +311,7 @@ async def direct_verify_payment(client, callback):
 
     # ---------------- Failure / Pending ----------------
     else:
-        await callback.answer(f"❌ Payment Not Detected!\n{msg}\n\nअगर पेमेंट कट गई है तो 10 सेकंड बाद दोबारा दबाएं।", show_alert=True)
+        await callback.answer(f"❌ Payment Not Detected!\n{msg}\n\nGar payment kat gaya hai toh 10 sec baad firse check karein.", show_alert=True)
 
 # ---------------- WALLET TOPUP ----------------
 
@@ -385,7 +398,7 @@ async def receive_screenshot(client, message):
     
     clean_title = title.replace(" ", "_")
     btn = InlineKeyboardMarkup([
-        [InlineKeyboardButton("✅ ᴀᴘᴘʀᴏᴠᴇ", callback_data=f"app_{user.id}_{clean_title}_{price}"), InlineKeyboardButton("❌ ʀᴇᴊᴇᴄᴛ", callback_data=f"rej_{user.id}_{clean_title}")]
+        [InlineKeyboardButton("✅ ᴀᴘᴘʀᴏᴠᴇ", callback_data=f"app_{user.id}_{clean_title}_{price}"), InlineKeyboardButton("❌ ʀᴇᴊᴇcj", callback_data=f"rej_{user.id}_{clean_title}")]
     ])
     
     await client.send_photo(chat_id=ADMIN_ID, photo=message.photo.file_id, caption=admin_text, reply_markup=btn)
