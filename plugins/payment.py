@@ -6,7 +6,12 @@ import aiohttp
 from datetime import datetime
 from pyrogram import Client, filters, enums
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-from config import UPI_ID, ADMIN_ID, BOT_USERNAME, LOG_CHANNEL
+
+# Config Imports
+from config import (
+    UPI_ID, ADMIN_ID, BOT_USERNAME, LOG_CHANNEL,
+    CREATE_ORDER_URL, CHECK_STATUS_URL, API_KEY_VALUE, API_SECRET_VALUE
+)
 from database.db import get_story_by_title, add_user_purchase, add_wallet_balance
 
 # Global Dictionaries
@@ -14,15 +19,6 @@ ACTIVE_PAYMENTS = {}
 WALLET_TOPUP_WAITING = {}   
 
 GUIDE_IMAGE_URL = "https://i.ibb.co/VW778KdR/photo-2026-09-24-08-21-14-7689014092254023680.jpg" 
-
-# 🌐 Website API Endpoints
-CREATE_ORDER_URL = "https://demotry.shop/api/create-order"
-CHECK_STATUS_URL = "https://demotry.shop/api/check-status"
-
-# 🔑 API Credentials
-API_KEY_VALUE = "pi_live_8d53fa735e40f3206aef68a0bf36949b60b4bc9925150872"
-# ⚠️ Apne Dashboard se poori Secret Key yahan daalein
-API_SECRET_VALUE = "sk_live_1dc3d5bcdd3459ce36473704b073f25088e8f37f14b554a2" 
 
 TERMS_TEXT = (
     "📜 <b><u>ᴛᴇʀᴍs & ᴄᴏɴᴅɪᴛɪᴏɴs</u></b>\n\n"
@@ -32,10 +28,9 @@ TERMS_TEXT = (
     "• <b>ɴᴏ ʀᴇғᴜɴᴅs:</b> ᴀʟʟ sales ᴀʀᴇ ғɪɴᴀʟ."
 )
 
-# ---------------- 1. FIXED API HELPER FUNCTIONS ----------------
+# ---------------- 1. API HELPER FUNCTIONS ----------------
 
 async def create_website_order(user_id: int, user_name: str, amount: float):
-    """Website API se Order ID aur Payment Link generate karta hai"""
     order_id = f"ORD_{user_id}_{int(time.time())}"
     
     headers = {
@@ -77,7 +72,6 @@ async def create_website_order(user_id: int, user_name: str, amount: float):
 
 
 async def check_website_order_status(order_id: str):
-    """Website API se status check karta hai"""
     headers = {
         "Content-Type": "application/json",
         "X-API-Key": API_KEY_VALUE.strip(),
@@ -224,7 +218,6 @@ async def generate_qr_after_terms(client, callback):
     clean_title = title.replace(" ", "_")
     customer_name = callback.from_user.first_name or "Customer"
 
-    # Website API Call
     payment_url, order_id = await create_website_order(user_id, customer_name, price)
     session['order_id'] = order_id  
 
@@ -279,7 +272,6 @@ async def direct_verify_payment(client, callback):
         await asyncio.sleep(3)
         is_valid, actual_paid, msg = await check_website_order_status(order_id)
 
-    # ---------------- Success ----------------
     if is_valid:
         ACTIVE_PAYMENTS.pop(user_id, None)
         actual_paid = actual_paid if actual_paid > 0 else expected_price
@@ -308,10 +300,8 @@ async def direct_verify_payment(client, callback):
                     LOG_CHANNEL, 
                     f"⚡ <b>[DIRECT VERIFY SUCCESS] STORY BOUGHT</b>\n👤 <b>User:</b> {callback.from_user.first_name} (<code>{user_id}</code>)\n📖 <b>Story:</b> {clean_title}\n💰 <b>Amount:</b> ₹{actual_paid}"
                 )
-
-    # ---------------- Failure / Pending ----------------
     else:
-        await callback.answer(f"❌ Payment Not Detected!\n{msg}\n\nGar payment kat gaya hai toh 10 sec baad firse check karein.", show_alert=True)
+        await callback.answer(f"❌ Payment Not Detected!\n{msg}\n\nअगर पेमेंट कट गई है तो 10 सेकंड बाद दोबारा दबाएं।", show_alert=True)
 
 # ---------------- WALLET TOPUP ----------------
 
@@ -398,7 +388,7 @@ async def receive_screenshot(client, message):
     
     clean_title = title.replace(" ", "_")
     btn = InlineKeyboardMarkup([
-        [InlineKeyboardButton("✅ ᴀᴘᴘʀᴏᴠᴇ", callback_data=f"app_{user.id}_{clean_title}_{price}"), InlineKeyboardButton("❌ ʀᴇᴊᴇcj", callback_data=f"rej_{user.id}_{clean_title}")]
+        [InlineKeyboardButton("✅ ᴀᴘᴘʀᴏᴠᴇ", callback_data=f"app_{user.id}_{clean_title}_{price}"), InlineKeyboardButton("❌ ʀᴇᴊᴇᴄᴛ", callback_data=f"rej_{user.id}_{clean_title}")]
     ])
     
     await client.send_photo(chat_id=ADMIN_ID, photo=message.photo.file_id, caption=admin_text, reply_markup=btn)
