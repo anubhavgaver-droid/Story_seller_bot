@@ -2,6 +2,7 @@ import urllib.parse
 import time
 import asyncio
 import aiohttp
+import re
 from datetime import datetime
 from pyrogram import Client, filters, enums
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
@@ -28,6 +29,30 @@ TERMS_TEXT = (
 )
 
 # ---------------- 1. API HELPER FUNCTIONS ----------------
+
+async def extract_upi_from_website(payment_url: str):
+    """
+    Website Payment Link (demotry.shop/pay/...) par background request bhej kar
+    wahan se actual generated UPI Intent String ko extract karta hai.
+    """
+    try:
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        }
+        async with aiohttp.ClientSession() as session:
+            async with session.get(payment_url, headers=headers, timeout=10) as resp:
+                if resp.status == 200:
+                    html_content = await resp.text()
+                    
+                    # HTML ya JS code mein se upi://pay?... pattern dhundhna
+                    match = re.search(r'upi://pay\?[^\s"\'<>]+', html_content)
+                    if match:
+                        return match.group(0)
+                        
+    except Exception as e:
+        print(f"❌ Error extracting UPI intent from website: {e}")
+    return None
+
 
 async def create_website_order(user_id: int, user_name: str, amount: float):
     order_id = f"ORD_{user_id}_{int(time.time())}"
@@ -196,7 +221,7 @@ async def show_terms_first(client, callback):
 
     await callback.answer()
 
-# ---------------- STEP 2: GENERATE DIRECT DYNAMIC UPI QR ----------------
+# ---------------- STEP 2: GENERATE QR FROM WEBSITE INTENT ----------------
 
 @Client.on_callback_query(filters.regex("^show_qr_"))
 async def generate_qr_after_terms(client, callback):
@@ -206,13 +231,14 @@ async def generate_qr_after_terms(client, callback):
     if not session:
         return await callback.answer("⏰ Session Expired! Please click Buy again.", show_alert=True)
 
-    await callback.answer("🔄 Generating Payment QR...", show_alert=False)
+    await callback.answer("🔄 Processing Website Gateway QR...", show_alert=False)
 
     title = session['title']
     price = session['price']
     clean_title = title.replace(" ", "_")
     customer_name = callback.from_user.first_name or "Customer"
 
+    # 1. Pehle Website Backend API se Order create hoga
     payment_url, order_id = await create_website_order(user_id, customer_name, price)
     session['order_id'] = order_id  
 
@@ -222,13 +248,25 @@ async def generate_qr_after_terms(client, callback):
         pass
 
     btn_list = []
-    
-    # Dynamic UPI Intent URL creation using UPI_ID variable
-    upi_intent = f"upi://pay?pa={UPI_ID}&pn=Story%20Seller&am={price}&cu=INR&tr={order_id}"
-    qr_url = f"https://api.qrserver.com/v1/create-qr-code/?size=300x300&margin=10&data={urllib.parse.quote(upi_intent)}"
+    qr_data = None
 
     if payment_url:
+        # 2. Website URL par visit karke actual generated UPI String extract karein
+        extracted_intent = await extract_upi_from_website(payment_url)
+        
+        if extracted_intent:
+            qr_data = extracted_intent
+        else:
+            # Agar website JS-heavy ho aur string na mile toh Website Gateway URL ka fallback
+            qr_data = payment_url
+
         btn_list.append([InlineKeyboardButton("🌐 ᴘᴀʏ ᴠɪᴀ ᴡᴇʙsɪᴛᴇ", url=payment_url)])
+    else:
+        # Final Fallback: Config UPI ID
+        qr_data = f"upi://pay?pa={UPI_ID}&pn=Story%20Seller&am={price}&cu=INR&tr={order_id}"
+
+    # Exact QR Image generation
+    qr_url = f"https://api.qrserver.com/v1/create-qr-code/?size=300x300&margin=10&data={urllib.parse.quote(qr_data)}"
 
     caption = (
         f"⚡ <b>ᴀᴜᴛᴏᴍᴀᴛɪᴄ ᴘᴀʏᴍᴇɴᴛ ᴄʜᴇᴄᴋᴏᴜᴛ</b>\n\n"
