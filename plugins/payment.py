@@ -196,7 +196,7 @@ async def show_terms_first(client, callback):
 
     await callback.answer()
 
-# ---------------- STEP 2: GENERATE DIRECT UPI QR & WEBSITE LINK ----------------
+# ---------------- STEP 2: GENERATE DIRECT DYNAMIC UPI QR ----------------
 
 @Client.on_callback_query(filters.regex("^show_qr_"))
 async def generate_qr_after_terms(client, callback):
@@ -206,7 +206,7 @@ async def generate_qr_after_terms(client, callback):
     if not session:
         return await callback.answer("⏰ Session Expired! Please click Buy again.", show_alert=True)
 
-    await callback.answer("🔄 Generating QR & Payment Link...", show_alert=False)
+    await callback.answer("🔄 Generating Payment QR...", show_alert=False)
 
     title = session['title']
     price = session['price']
@@ -221,23 +221,24 @@ async def generate_qr_after_terms(client, callback):
     except Exception:
         pass
 
-    # Direct UPI Intent for Scanning (Bina Web Link Popup Ke Direct UPI App Kholega)
-    upi_intent = f"upi://pay?pa={UPI_ID}&pn=StorySeller&am={price}&cu=INR"
-    qr_url = f"https://api.qrserver.com/v1/create-qr-code/?size=250x250&margin=15&data={urllib.parse.quote(upi_intent)}"
-
     btn_list = []
     
+    # Dynamic UPI Intent URL creation using UPI_ID variable
+    upi_intent = f"upi://pay?pa={UPI_ID}&pn=Story%20Seller&am={price}&cu=INR&tr={order_id}"
+    qr_url = f"https://api.qrserver.com/v1/create-qr-code/?size=300x300&margin=10&data={urllib.parse.quote(upi_intent)}"
+
     if payment_url:
         btn_list.append([InlineKeyboardButton("🌐 ᴘᴀʏ ᴠɪᴀ ᴡᴇʙsɪᴛᴇ", url=payment_url)])
-        
+
     caption = (
         f"⚡ <b>ᴀᴜᴛᴏᴍᴀᴛɪᴄ ᴘᴀʏᴍᴇɴᴛ ᴄʜᴇᴄᴋᴏᴜᴛ</b>\n\n"
         f"📖 <b>sᴛᴏʀʏ:</b> {title}\n"
         f"💰 <b>ᴀᴍᴏᴜɴᴛ:</b> ₹{price}\n"
         f"🆔 <b>ᴏʀᴅᴇʀ ɪᴅ:</b> <code>{order_id}</code>\n"
         f"⏳ <b>ᴛɪᴍᴇ ʟɪᴍɪᴛ:</b> 10 Minutes\n\n"
-        f"📲 <i>1. Scan QR Code via Paytm/GPay/PhonePe OR Click <b>'🌐 ᴘᴀʏ ᴠɪᴀ ᴡᴇʙsɪᴛᴇ'</b> below.\n"
-        f"2. After completing payment, click <b>'⚡ ᴠᴇʀɪғʏ ᴘᴀʏᴍᴇɴᴛ'</b> below!</i>"
+        f"📲 <i>1. Scan this QR code using PhonePe, GPay, Paytm, or BHIM App.\n"
+        f"2. Or click <b>'🌐 ᴘᴀʏ ᴠɪᴀ ᴡᴇʙsɪᴛᴇ'</b> to open payment page.\n"
+        f"3. Click <b>'⚡ ᴠᴇʀɪғʏ ᴘᴀʏᴍᴇɴᴛ'</b> below after paying!</i>"
     )
     
     btn_list.append([InlineKeyboardButton("⚡ ᴠᴇʀɪғʏ ᴘᴀʏᴍᴇɴᴛ", style=enums.ButtonStyle.SUCCESS, callback_data=f"auto_check_payment_{user_id}")])
@@ -309,7 +310,7 @@ async def start_wallet_topup(client, callback):
     user_id = callback.from_user.id
     WALLET_TOPUP_WAITING[user_id] = True
     await callback.message.reply_text(
-        "💵 <b>ᴇɴᴛᴇR ᴛᴏᴘ-ᴜᴘ ᴀᴍᴏᴜɴᴛ:</b>\nPlease type amount (in ₹):",
+        "💵 <b>ᴇɴᴛᴇʀ ᴛᴏᴘ-ᴜᴘ ᴀᴍᴏᴜɴᴛ:</b>\nPlease type amount (in ₹):",
         reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ ᴄᴀɴᴄᴇʟ", callback_data="cancel_payment_process")]])
     )
     await callback.answer()
