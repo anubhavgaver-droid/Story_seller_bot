@@ -33,3 +33,10 @@ GMAIL_PASS = os.environ.get("GMAIL_PASS", "") # 16-Digit App Password (Bina spac
 # Stickers Config
 DELIVERY_STICKER_ID = os.environ.get("DELIVERY_STICKER_ID", "CAACAgUAAxkBAAIekGqafK19rMDCkWo-XnCakyhwR7iEAAJaBAAC-qSxV4gJ0UQKykTsHgQ...")
 SEARCH_RANGE_STICKER_ID = os.environ.get("SEARCH_RANGE_STICKER_ID", "")
+
+CREATE_ORDER_URL = "https://demotry.shop/api/create-order"
+CHECK_STATUS_URL = "https://demotry.shop/api/check-status"
+
+# 🔑 API Credentials
+API_KEY_VALUE = os.environ.get("API_KEY_VALUE", "")
+API_SECRET_VALUE = os.environ.get("API_SECRET_VALUE", "")
