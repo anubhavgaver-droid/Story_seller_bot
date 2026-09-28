@@ -20,9 +20,9 @@ CREATE_ORDER_URL = "https://demotry.shop/api/create-order"
 CHECK_STATUS_URL = "https://demotry.shop/api/check-status"
 
 # 🔑 API Credentials
-API_KEY_VALUE = "pi_live_8d53fa735e40f3206a"
+API_KEY_VALUE = "pi_live_8d53fa735e40f3206aef68a0bf36949b60b4bc9925150872"
 # ⚠️ Apne Dashboard se poori Secret Key yahan daalein
-API_SECRET_VALUE = "sk_live_1dc3d5bcdd3459..." 
+API_SECRET_VALUE = "sk_live_1dc3d5bcdd3459ce36473704b073f25088e8f37f14b554a2" 
 
 TERMS_TEXT = (
     "📜 <b><u>ᴛᴇʀᴍs & ᴄᴏɴᴅɪᴛɪᴏɴs</u></b>\n\n"
