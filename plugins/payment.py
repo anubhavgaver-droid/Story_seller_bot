@@ -1,6 +1,7 @@
 import io
 import time
 import asyncio
+import gc
 import aiohttp
 import re
 import urllib.parse
@@ -77,68 +78,57 @@ async def extract_qr_data_from_website(payment_url: str):
 
 
 def sync_generate_exact_website_qr_card(amount_text: str, qr_payload: str) -> io.BytesIO:
-    """Synchronous CPU bound function for Image & QR generation."""
-    img_w, img_h = 600, 750
+    """Simple Black & White QR Generator with 250x250 QR Size."""
+    img_w, img_h = 500, 500
+    
+    # Pure White Canvas
     card = Image.new("RGB", (img_w, img_h), (255, 255, 255))
     draw = ImageDraw.Draw(card)
 
     try:
-        font_label = ImageFont.truetype("arial.ttf", 26)
-        font_amount = ImageFont.truetype("arialbd.ttf", 75)
+        font_label = ImageFont.truetype("arial.ttf", 22)
+        font_amount = ImageFont.truetype("arialbd.ttf", 55)
     except Exception:
         font_label = ImageFont.load_default()
         font_amount = ImageFont.load_default()
 
-    # Top Heading
+    # Top Heading (Simple Grey Text)
     label_text = "TOTAL AMOUNT TO PAY"
     label_bbox = draw.textbbox((0, 0), label_text, font=font_label)
     label_w = label_bbox[2] - label_bbox[0]
-    draw.text(((img_w - label_w) / 2, 45), label_text, fill="#888888", font=font_label)
+    draw.text(((img_w - label_w) / 2, 35), label_text, fill="#555555", font=font_label)
 
-    # Large Amount Text
+    # Large Amount Text (Pure Black)
     amt_text = f"₹{amount_text}"
     amt_bbox = draw.textbbox((0, 0), amt_text, font=font_amount)
     amt_w = amt_bbox[2] - amt_bbox[0]
-    draw.text(((img_w - amt_w) / 2, 95), amt_text, fill="#0d3c75", font=font_amount)
+    draw.text(((img_w - amt_w) / 2, 70), amt_text, fill="#000000", font=font_amount)
 
-    # Pure UPI Intent QR Code
+    # Pure UPI Intent QR Code (Resized strictly to 250x250)
     qr = qrcode.QRCode(
         version=1,
         error_correction=qrcode.constants.ERROR_CORRECT_M,
-        box_size=12,
+        box_size=10,
         border=1,
     )
     qr.add_data(qr_payload)
     qr.make(fit=True)
-    qr_img = qr.make_image(fill_color="black", back_color="white").convert("RGB").resize((440, 440))
+    qr_img = qr.make_image(fill_color="black", back_color="white").convert("RGB").resize((250, 250), Image.Resampling.LANCZOS)
 
-    # Outer Container
-    fx1, fy1, fx2, fy2 = 70, 220, 530, 680
-    draw.rounded_rectangle([fx1, fy1, fx2, fy2], radius=25, fill="#ffffff", outline="#e2e8f0", width=2)
-    card.paste(qr_img, (80, 230))
-
-    # Focus Corners
-    blue_color, c_len, c_w = "#3b82f6", 35, 7
-    draw.arc([fx1, fy1, fx1+40, fy1+40], start=180, end=270, fill=blue_color, width=c_w)
-    draw.line([fx1+20, fy1, fx1+20+c_len, fy1], fill=blue_color, width=c_w)
-    draw.line([fx1, fy1+20, fx1, fy1+20+c_len], fill=blue_color, width=c_w)
-
-    draw.arc([fx2-40, fy1, fx2, fy1+40], start=270, end=0, fill=blue_color, width=c_w)
-    draw.line([fx2-20-c_len, fy1, fx2-20, fy1], fill=blue_color, width=c_w)
-    draw.line([fx2, fy1+20, fx2, fy1+20+c_len], fill=blue_color, width=c_w)
-
-    draw.arc([fx1, fy2-40, fx1+40, fy2], start=90, end=180, fill=blue_color, width=c_w)
-    draw.line([fx1+20, fy2, fx1+20+c_len, fy2], fill=blue_color, width=c_w)
-    draw.line([fx1, fy2-20-c_len, fx1, fy2-20], fill=blue_color, width=c_w)
-
-    draw.arc([fx2-40, fy2-40, fx2, fy2], start=0, end=90, fill=blue_color, width=c_w)
-    draw.line([fx2-20-c_len, fy2, fx2-20, fy2], fill=blue_color, width=c_w)
-    draw.line([fx2, fy2-20-c_len, fx2, fy2-20], fill=blue_color, width=c_w)
+    # Center Align QR Code on Canvas (X: 125, Y: 170)
+    card.paste(qr_img, (125, 170))
 
     bio = io.BytesIO()
     bio.name = "website_qr_card.png"
-    card.save(bio, "PNG")
+    card.save(bio, "PNG", optimize=True)
     bio.seek(0)
+    
+    # Memory Cleanup
+    del card
+    del draw
+    del qr_img
+    gc.collect()
+
     return bio
 
 
@@ -561,7 +551,6 @@ async def receive_screenshot(client, message):
 @Client.on_callback_query(filters.regex("^app_") & filters.user(ADMIN_ID))
 async def approve_order(client, callback):
     try:
-        # Pattern: app_{user_id}_{price}_{pay_type}_{clean_title}
         raw_data = callback.data[4:]
         user_id_str, price_str, pay_type, clean_title = raw_data.split("_", 3)
         user_id = int(user_id_str)
