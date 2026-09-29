@@ -63,7 +63,8 @@ async def extract_qr_data_from_website(payment_url: str):
                     oid = order_match.group(1) if order_match else None
 
                     if amt and oid:
-                        return f"upi://pay?pa={vpa}&pn=StorySeller&am={amt}&cu=INR&tr={oid}"
+                        # FIX: Added tn={oid} so Order ID shows up in Payment Note field
+                        return f"upi://pay?pa={vpa}&pn=StorySeller&am={amt}&cu=INR&tr={oid}&tn={oid}"
     except Exception as e:
         print(f"❌ Error extracting QR data from website: {e}")
     return None
@@ -341,9 +342,12 @@ async def generate_qr_after_terms(client, callback):
         qr_payload = await extract_qr_data_from_website(payment_url)
         btn_list.append([InlineKeyboardButton("🌐 ᴘᴀʏ ᴠɪᴀ ᴡᴇʙsɪᴛᴇ", url=payment_url)])
 
-    # FIX: Agar Extract nahi ho pata, to Direct Pure UPI Payload Banayein (Kabhi Web URL QR me nahi jayega)
-    if not qr_payload:
-        qr_payload = f"upi://pay?pa={UPI_ID}&pn=StorySeller&am={display_amount}&cu=INR&tr={gen_order_id}"
+    # FIX: Ensure 'tn=' parameter is attached so Order ID auto-fills in App Payment Note
+    if qr_payload:
+        if "tn=" not in qr_payload:
+            qr_payload += f"&tn={gen_order_id}"
+    else:
+        qr_payload = f"upi://pay?pa={UPI_ID}&pn=StorySeller&am={display_amount}&cu=INR&tr={gen_order_id}&tn={gen_order_id}"
 
     session['order_id'] = gen_order_id  
 
