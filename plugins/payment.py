@@ -1,9 +1,13 @@
-import urllib.parse
+import io
 import time
 import asyncio
 import aiohttp
 import re
+import urllib.parse
 from datetime import datetime
+from PIL import Image, ImageDraw, ImageFont
+import qrcode
+
 from pyrogram import Client, filters, enums
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
@@ -28,30 +32,125 @@ TERMS_TEXT = (
     "• <b>ɴᴏ ʀᴇғᴜɴᴅs:</b> ᴀʟʟ sales ᴀʀᴇ ғɪɴᴀʟ."
 )
 
-# ---------------- 1. API HELPER FUNCTIONS ----------------
+# ---------------- 1. API HELPER & EXTRACTOR FUNCTIONS ----------------
 
-async def extract_upi_from_website(payment_url: str):
+async def extract_qr_data_from_website(payment_url: str):
     """
     Website Payment Link (demotry.shop/pay/...) par background request bhej kar
-    wahan se actual generated UPI Intent String ko extract karta hai.
+    wahan se exact UPI payload, Amount aur Order ID extract karta hai.
     """
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    }
     try:
-        headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-        }
         async with aiohttp.ClientSession() as session:
             async with session.get(payment_url, headers=headers, timeout=10) as resp:
                 if resp.status == 200:
                     html_content = await resp.text()
                     
-                    # HTML ya JS code mein se upi://pay?... pattern dhundhna
-                    match = re.search(r'upi://pay\?[^\s"\'<>]+', html_content)
-                    if match:
-                        return match.group(0)
-                        
+                    # 1. HTML ya JS code mein se upi://pay?... intent string extract karna
+                    upi_match = re.search(r'upi://pay\?[^\s"\'<>]+', html_content)
+                    upi_string = upi_match.group(0) if upi_match else None
+                    
+                    # 2. Amount, Order ID aur VPA regex se extract karna
+                    amount_match = re.search(r'am=([0-9.]+)', html_content) or re.search(r'₹\s*([0-9.]+)', html_content)
+                    order_match = re.search(r'tr=([a-zA-Z0-9_\-]+)', html_content) or re.search(r'ORD_[0-9_]+', html_content)
+                    vpa_match = re.search(r'pa=([a-zA-Z0-9.\-_]+@[a-zA-Z0-9]+)', html_content)
+
+                    amount = amount_match.group(1) if amount_match else None
+                    order_id = order_match.group(1) if order_match else None
+                    vpa = vpa_match.group(1) if vpa_match else UPI_ID
+
+                    if not upi_string and (vpa and amount):
+                        upi_string = f"upi://pay?pa={vpa}&pn=Story%20Seller&am={amount}&cu=INR"
+                        if order_id:
+                            upi_string += f"&tr={order_id}"
+
+                    return {
+                        "upi_string": upi_string,
+                        "amount": amount,
+                        "order_id": order_id
+                    }
     except Exception as e:
-        print(f"❌ Error extracting UPI intent from website: {e}")
+        print(f"❌ Error extracting QR data from website: {e}")
     return None
+
+
+def generate_exact_website_qr_card(amount_text: str, qr_payload: str) -> io.BytesIO:
+    """
+    Website Jaisa Exact UI Card Image Generate Karta Hai:
+    - Heading: TOTAL AMOUNT TO PAY
+    - Large Bold Amount: ₹1.00
+    - Outer Rounded Frame Container
+    - Blue Corner Focus Lines
+    - Pure Scanned UPI Payload Embedded QR Code
+    """
+    img_w, img_h = 600, 750
+    card = Image.new("RGB", (img_w, img_h), (255, 255, 255))
+    draw = ImageDraw.Draw(card)
+
+    try:
+        font_label = ImageFont.truetype("arial.ttf", 26)
+        font_amount = ImageFont.truetype("arialbd.ttf", 75)
+    except Exception:
+        font_label = ImageFont.load_default()
+        font_amount = ImageFont.load_default()
+
+    # 1. Top Heading Label
+    label_text = "TOTAL AMOUNT TO PAY"
+    label_bbox = draw.textbbox((0, 0), label_text, font=font_label)
+    label_w = label_bbox[2] - label_bbox[0]
+    draw.text(((img_w - label_w) / 2, 45), label_text, fill="#888888", font=font_label)
+
+    # 2. Large Amount Text (e.g. ₹1.00)
+    amt_text = f"₹{amount_text}"
+    amt_bbox = draw.textbbox((0, 0), amt_text, font=font_amount)
+    amt_w = amt_bbox[2] - amt_bbox[0]
+    draw.text(((img_w - amt_w) / 2, 95), amt_text, fill="#0d3c75", font=font_amount)
+
+    # 3. QR Code Encoding Extracted UPI Intent
+    qr = qrcode.QRCode(
+        version=1,
+        error_correction=qrcode.constants.ERROR_CORRECT_M,
+        box_size=12,
+        border=1,
+    )
+    qr.add_data(qr_payload)
+    qr.make(fit=True)
+    qr_img = qr.make_image(fill_color="black", back_color="white").convert("RGB").resize((440, 440))
+
+    # 4. Outer Container Frame
+    fx1, fy1, fx2, fy2 = 70, 220, 530, 680
+    draw.rounded_rectangle([fx1, fy1, fx2, fy2], radius=25, fill="#ffffff", outline="#e2e8f0", width=2)
+    card.paste(qr_img, (80, 230))
+
+    # 5. Blue Focus Corner Styling
+    blue_color, c_len, c_w = "#3b82f6", 35, 7
+    # Top-Left Corner
+    draw.arc([fx1, fy1, fx1+40, fy1+40], start=180, end=270, fill=blue_color, width=c_w)
+    draw.line([fx1+20, fy1, fx1+20+c_len, fy1], fill=blue_color, width=c_w)
+    draw.line([fx1, fy1+20, fx1, fy1+20+c_len], fill=blue_color, width=c_w)
+
+    # Top-Right Corner
+    draw.arc([fx2-40, fy1, fx2, fy1+40], start=270, end=0, fill=blue_color, width=c_w)
+    draw.line([fx2-20-c_len, fy1, fx2-20, fy1], fill=blue_color, width=c_w)
+    draw.line([fx2, fy1+20, fx2, fy1+20+c_len], fill=blue_color, width=c_w)
+
+    # Bottom-Left Corner
+    draw.arc([fx1, fy2-40, fx1+40, fy2], start=90, end=180, fill=blue_color, width=c_w)
+    draw.line([fx1+20, fy2, fx1+20+c_len, fy2], fill=blue_color, width=c_w)
+    draw.line([fx1, fy2-20-c_len, fx1, fy2-20], fill=blue_color, width=c_w)
+
+    # Bottom-Right Corner
+    draw.arc([fx2-40, fy2-40, fx2, fy2], start=0, end=90, fill=blue_color, width=c_w)
+    draw.line([fx2-20-c_len, fy2, fx2-20, fy2], fill=blue_color, width=c_w)
+    draw.line([fx2, fy2-20-c_len, fx2, fy2-20], fill=blue_color, width=c_w)
+
+    bio = io.BytesIO()
+    bio.name = "website_qr_card.png"
+    card.save(bio, "PNG")
+    bio.seek(0)
+    return bio
 
 
 async def create_website_order(user_id: int, user_name: str, amount: float):
@@ -221,7 +320,7 @@ async def show_terms_first(client, callback):
 
     await callback.answer()
 
-# ---------------- STEP 2: GENERATE QR FROM WEBSITE INTENT ----------------
+# ---------------- STEP 2: EXTRACT DATA & RENDER WEBSITE STYLE QR ----------------
 
 @Client.on_callback_query(filters.regex("^show_qr_"))
 async def generate_qr_after_terms(client, callback):
@@ -231,16 +330,15 @@ async def generate_qr_after_terms(client, callback):
     if not session:
         return await callback.answer("⏰ Session Expired! Please click Buy again.", show_alert=True)
 
-    await callback.answer("🔄 Processing Website Gateway QR...", show_alert=False)
+    await callback.answer("🔄 Processing Website Gateway & Extracting QR...", show_alert=False)
 
     title = session['title']
     price = session['price']
     clean_title = title.replace(" ", "_")
     customer_name = callback.from_user.first_name or "Customer"
 
-    # 1. Pehle Website Backend API se Order create hoga
-    payment_url, order_id = await create_website_order(user_id, customer_name, price)
-    session['order_id'] = order_id  
+    # 1. Website Gateway API se Payment Link + Order ID generate karna
+    payment_url, gen_order_id = await create_website_order(user_id, customer_name, price)
 
     try:
         await callback.message.delete()
@@ -248,31 +346,38 @@ async def generate_qr_after_terms(client, callback):
         pass
 
     btn_list = []
-    qr_data = None
+    qr_payload = None
+    display_amount = f"{price:.2f}"
+    final_order_id = gen_order_id
 
     if payment_url:
-        # 2. Website URL par visit karke actual generated UPI String extract karein
-        extracted_intent = await extract_upi_from_website(payment_url)
+        # 2. Website URL se UPI Intent, Amount aur Order ID auto-extract karna
+        extracted = await extract_qr_data_from_website(payment_url)
         
-        if extracted_intent:
-            qr_data = extracted_intent
+        if extracted and extracted.get("upi_string"):
+            qr_payload = extracted["upi_string"]
+            if extracted.get("amount"):
+                display_amount = extracted["amount"]
+            if extracted.get("order_id"):
+                final_order_id = extracted["order_id"]
         else:
-            # Agar website JS-heavy ho aur string na mile toh Website Gateway URL ka fallback
-            qr_data = payment_url
+            qr_payload = payment_url
 
         btn_list.append([InlineKeyboardButton("🌐 ᴘᴀʏ ᴠɪᴀ ᴡᴇʙsɪᴛᴇ", url=payment_url)])
     else:
-        # Final Fallback: Config UPI ID
-        qr_data = f"upi://pay?pa={UPI_ID}&pn=Story%20Seller&am={price}&cu=INR&tr={order_id}"
+        # Fallback QR Data
+        qr_payload = f"upi://pay?pa={UPI_ID}&pn=Story%20Seller&am={price}&cu=INR&tr={gen_order_id}"
 
-    # Exact QR Image generation
-    qr_url = f"https://api.qrserver.com/v1/create-qr-code/?size=300x300&margin=10&data={urllib.parse.quote(qr_data)}"
+    session['order_id'] = final_order_id  
+
+    # 3. Extracted Payload se Exact Website UI Styled Image Card Banayein
+    qr_image_bytes = generate_exact_website_qr_card(display_amount, qr_payload)
 
     caption = (
         f"⚡ <b>ᴀᴜᴛᴏᴍᴀᴛɪᴄ ᴘᴀʏᴍᴇɴᴛ ᴄʜᴇᴄᴋᴏᴜᴛ</b>\n\n"
         f"📖 <b>sᴛᴏʀʏ:</b> {title}\n"
-        f"💰 <b>ᴀᴍᴏᴜɴᴛ:</b> ₹{price}\n"
-        f"🆔 <b>ᴏʀᴅᴇʀ ɪᴅ:</b> <code>{order_id}</code>\n"
+        f"💰 <b>ᴀᴍᴏᴜɴᴛ:</b> ₹{display_amount}\n"
+        f"🆔 <b>ᴏʀᴅᴇʀ ɪᴅ:</b> <code>{final_order_id}</code>\n"
         f"⏳ <b>ᴛɪᴍᴇ ʟɪᴍɪᴛ:</b> 10 Minutes\n\n"
         f"📲 <i>1. Scan this QR code using PhonePe, GPay, Paytm, or BHIM App.\n"
         f"2. Or click <b>'🌐 ᴘᴀʏ ᴠɪᴀ ᴡᴇʙsɪᴛᴇ'</b> to open payment page.\n"
@@ -283,10 +388,11 @@ async def generate_qr_after_terms(client, callback):
     btn_list.append([InlineKeyboardButton("📩 ᴍᴀɴᴜᴀʟ / ᴀᴅᴍɪɴ", callback_data=f"sent_{clean_title}_{price}")])
     btn_list.append([InlineKeyboardButton("❌ ᴄᴀɴᴄᴇʟ", style=enums.ButtonStyle.DANGER, callback_data="cancel_payment_process")])
 
-    try:
-        await callback.message.reply_photo(photo=qr_url, caption=caption, reply_markup=InlineKeyboardMarkup(btn_list))
-    except Exception:
-        await callback.message.reply_text(text=caption, reply_markup=InlineKeyboardMarkup(btn_list))
+    await callback.message.reply_photo(
+        photo=qr_image_bytes,
+        caption=caption,
+        reply_markup=InlineKeyboardMarkup(btn_list)
+    )
 
 # ---------------- STEP 3: VERIFY PAYMENT STATUS ----------------
 
