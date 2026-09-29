@@ -78,33 +78,13 @@ async def extract_qr_data_from_website(payment_url: str):
 
 
 def sync_generate_exact_website_qr_card(amount_text: str, qr_payload: str) -> io.BytesIO:
-    """Simple Black & White QR Generator with 250x250 QR Size."""
+    """Pure QR Code Generator (No Text / No Price). Centered 400x400 QR Image."""
     img_w, img_h = 500, 500
     
     # Pure White Canvas
     card = Image.new("RGB", (img_w, img_h), (255, 255, 255))
-    draw = ImageDraw.Draw(card)
 
-    try:
-        font_label = ImageFont.truetype("arial.ttf", 22)
-        font_amount = ImageFont.truetype("arialbd.ttf", 55)
-    except Exception:
-        font_label = ImageFont.load_default()
-        font_amount = ImageFont.load_default()
-
-    # Top Heading (Simple Grey Text)
-    label_text = "TOTAL AMOUNT TO PAY"
-    label_bbox = draw.textbbox((0, 0), label_text, font=font_label)
-    label_w = label_bbox[2] - label_bbox[0]
-    draw.text(((img_w - label_w) / 2, 35), label_text, fill="#555555", font=font_label)
-
-    # Large Amount Text (Pure Black)
-    amt_text = f"₹{amount_text}"
-    amt_bbox = draw.textbbox((0, 0), amt_text, font=font_amount)
-    amt_w = amt_bbox[2] - amt_bbox[0]
-    draw.text(((img_w - amt_w) / 2, 70), amt_text, fill="#000000", font=font_amount)
-
-    # Pure UPI Intent QR Code (Resized strictly to 250x250)
+    # Pure UPI Intent QR Code (Large 400x400 Size)
     qr = qrcode.QRCode(
         version=1,
         error_correction=qrcode.constants.ERROR_CORRECT_M,
@@ -113,10 +93,10 @@ def sync_generate_exact_website_qr_card(amount_text: str, qr_payload: str) -> io
     )
     qr.add_data(qr_payload)
     qr.make(fit=True)
-    qr_img = qr.make_image(fill_color="black", back_color="white").convert("RGB").resize((250, 250), Image.Resampling.LANCZOS)
+    qr_img = qr.make_image(fill_color="black", back_color="white").convert("RGB").resize((400, 400), Image.Resampling.LANCZOS)
 
-    # Center Align QR Code on Canvas (X: 125, Y: 170)
-    card.paste(qr_img, (125, 170))
+    # Exactly Centered QR Code on Canvas (X: 50, Y: 50)
+    card.paste(qr_img, (50, 50))
 
     bio = io.BytesIO()
     bio.name = "website_qr_card.png"
@@ -125,7 +105,6 @@ def sync_generate_exact_website_qr_card(amount_text: str, qr_payload: str) -> io
     
     # Memory Cleanup
     del card
-    del draw
     del qr_img
     gc.collect()
 
