@@ -32,6 +32,20 @@ TERMS_TEXT = (
     "• <b>ɴᴏ ʀᴇғᴜɴᴅs:</b> ᴀʟʟ sales ᴀʀᴇ ғɪɴᴀʟ."
 )
 
+# ---------------- 0. LOG HELPER FUNCTION ----------------
+
+async def send_log_to_channel(client: Client, text: str):
+    """Safe async logger to channel"""
+    if LOG_CHANNEL and LOG_CHANNEL != 0:
+        try:
+            await client.send_message(
+                chat_id=LOG_CHANNEL,
+                text=text,
+                disable_web_page_preview=True
+            )
+        except Exception as e:
+            print(f"❌ LOG_CHANNEL Error: {e}")
+
 # ---------------- 1. API HELPER & EXTRACTOR FUNCTIONS ----------------
 
 async def extract_qr_data_from_website(payment_url: str):
@@ -48,12 +62,10 @@ async def extract_qr_data_from_website(payment_url: str):
                 if resp.status == 200:
                     html_content = await resp.text()
                     
-                    # 1. HTML ya JS code mein se upi://pay?... intent string extract karna
                     upi_match = re.search(r'upi://pay\?[^\s"\'<>]+', html_content)
                     if upi_match:
                         return upi_match.group(0)
                     
-                    # 2. Extract VPA & Order ID if present in HTML
                     amount_match = re.search(r'am=([0-9.]+)', html_content)
                     order_match = re.search(r'tr=([a-zA-Z0-9_\-]+)', html_content)
                     vpa_match = re.search(r'pa=([a-zA-Z0-9.\-_]+@[a-zA-Z0-9]+)', html_content)
@@ -84,19 +96,19 @@ def generate_exact_website_qr_card(amount_text: str, qr_payload: str) -> io.Byte
         font_label = ImageFont.load_default()
         font_amount = ImageFont.load_default()
 
-    # 1. Top Heading Label
+    # Top Heading
     label_text = "TOTAL AMOUNT TO PAY"
     label_bbox = draw.textbbox((0, 0), label_text, font=font_label)
     label_w = label_bbox[2] - label_bbox[0]
     draw.text(((img_w - label_w) / 2, 45), label_text, fill="#888888", font=font_label)
 
-    # 2. Large Amount Text (e.g. ₹1.00)
+    # Large Amount Text
     amt_text = f"₹{amount_text}"
     amt_bbox = draw.textbbox((0, 0), amt_text, font=font_amount)
     amt_w = amt_bbox[2] - amt_bbox[0]
     draw.text(((img_w - amt_w) / 2, 95), amt_text, fill="#0d3c75", font=font_amount)
 
-    # 3. Pure UPI Intent QR Code
+    # Pure UPI Intent QR Code
     qr = qrcode.QRCode(
         version=1,
         error_correction=qrcode.constants.ERROR_CORRECT_M,
@@ -107,29 +119,25 @@ def generate_exact_website_qr_card(amount_text: str, qr_payload: str) -> io.Byte
     qr.make(fit=True)
     qr_img = qr.make_image(fill_color="black", back_color="white").convert("RGB").resize((440, 440))
 
-    # 4. Outer Container Frame
+    # Outer Container
     fx1, fy1, fx2, fy2 = 70, 220, 530, 680
     draw.rounded_rectangle([fx1, fy1, fx2, fy2], radius=25, fill="#ffffff", outline="#e2e8f0", width=2)
     card.paste(qr_img, (80, 230))
 
-    # 5. Blue Focus Corner Styling
+    # Focus Corners
     blue_color, c_len, c_w = "#3b82f6", 35, 7
-    # Top-Left Corner
     draw.arc([fx1, fy1, fx1+40, fy1+40], start=180, end=270, fill=blue_color, width=c_w)
     draw.line([fx1+20, fy1, fx1+20+c_len, fy1], fill=blue_color, width=c_w)
     draw.line([fx1, fy1+20, fx1, fy1+20+c_len], fill=blue_color, width=c_w)
 
-    # Top-Right Corner
     draw.arc([fx2-40, fy1, fx2, fy1+40], start=270, end=0, fill=blue_color, width=c_w)
     draw.line([fx2-20-c_len, fy1, fx2-20, fy1], fill=blue_color, width=c_w)
     draw.line([fx2, fy1+20, fx2, fy1+20+c_len], fill=blue_color, width=c_w)
 
-    # Bottom-Left Corner
     draw.arc([fx1, fy2-40, fx1+40, fy2], start=90, end=180, fill=blue_color, width=c_w)
     draw.line([fx1+20, fy2, fx1+20+c_len, fy2], fill=blue_color, width=c_w)
     draw.line([fx1, fy2-20-c_len, fx1, fy2-20], fill=blue_color, width=c_w)
 
-    # Bottom-Right Corner
     draw.arc([fx2-40, fy2-40, fx2, fy2], start=0, end=90, fill=blue_color, width=c_w)
     draw.line([fx2-20-c_len, fy2, fx2-20, fy2], fill=blue_color, width=c_w)
     draw.line([fx2, fy2-20-c_len, fx2, fy2-20], fill=blue_color, width=c_w)
@@ -218,7 +226,7 @@ async def cancel_payment_callback(client, callback):
         pass
         
     cancel_msg = await callback.message.reply_text("❌ <b>ᴘᴀʏᴍᴇɴᴛ / ᴛᴏᴘ-ᴜᴘ ᴘʀᴏᴄᴇss ᴄᴀɴᴄᴇʟʟᴇᴅ.</b>")
-    await callback.answer() # No alert text
+    await callback.answer()
     
     await asyncio.sleep(10)
     try:
@@ -310,14 +318,13 @@ async def generate_qr_after_terms(client, callback):
     if not session:
         return await callback.answer("⏰ Session Expired! Please click Buy again.", show_alert=True)
 
-    await callback.answer() # Silent callback answer (No pop-up text)
+    await callback.answer()
 
     title = session['title']
     price = session['price']
     clean_title = title.replace(" ", "_")
     customer_name = callback.from_user.first_name or "Customer"
 
-    # 1. Website Gateway API se Order Generate karna
     payment_url, gen_order_id = await create_website_order(user_id, customer_name, price)
 
     try:
@@ -329,7 +336,6 @@ async def generate_qr_after_terms(client, callback):
     qr_payload = None
     display_amount = f"{price:.2f}"
 
-    # 2. Extract UPI String or Fallback to Direct UPI URI String
     if payment_url:
         qr_payload = await extract_qr_data_from_website(payment_url)
 
@@ -341,20 +347,18 @@ async def generate_qr_after_terms(client, callback):
 
     session['order_id'] = gen_order_id  
 
-    # 3. Direct UPI Intent se QR Image Generate Karein
     qr_image_bytes = generate_exact_website_qr_card(display_amount, qr_payload)
 
     caption = (
         f"⚡ <b>ᴀᴜᴛᴏᴍᴀᴛɪᴄ ᴘᴀʏᴍᴇɴᴛ ᴄʜᴇᴄᴋᴏᴜᴛ</b>\n\n"
-        f"📖 <b>sᴛᴏʀʏ:</b> {title}\n"
+        f"📖 <b>ITEM:</b> {title}\n"
         f"💰 <b>ᴀᴍᴏᴜɴᴛ:</b> ₹{display_amount}\n"
         f"🆔 <b>ᴏʀᴅᴇʀ ɪᴅ:</b> <code>{gen_order_id}</code>\n"
         f"⏳ <b>ᴛɪᴍᴇ ʟɪᴍɪᴛ:</b> 10 Minutes\n\n"
         f"📲 <i>1. Scan this QR code using PhonePe, GPay, Paytm, or BHIM App.\n"
-        f"2. Click <b>'⚡ ᴠᴇʀɪғʏ ᴘᴀʏᴍᴇɴᴛ'</b> below after paying!</i>"
+        f"2. Click <b>'⚡ ᴠᴇʀɪғɪᴇᴅ ᴘᴀʏᴍᴇɴᴛ'</b> below after paying!</i>"
     )
     
-    # Updated Buttons List (Pay via Website removed)
     btn_list.append([InlineKeyboardButton("⚡ ᴠᴇʀɪғʏ ᴘᴀʏᴍᴇɴᴛ", style=enums.ButtonStyle.SUCCESS, callback_data=f"auto_check_payment_{user_id}")])
     btn_list.append([InlineKeyboardButton("📩 ᴍᴀɴᴜᴀʟ / ᴀᴅᴍɪɴ", callback_data=f"sent_{clean_title}_{price}")])
     btn_list.append([InlineKeyboardButton("❌ ᴄᴀɴᴄᴇʟ", style=enums.ButtonStyle.DANGER, callback_data="cancel_payment_process")])
@@ -378,6 +382,8 @@ async def direct_verify_payment(client, callback):
     expected_price = session['price']
     title = session['title']
     order_id = session.get('order_id')
+    user = callback.from_user
+    user_mention = f"<a href='tg://user?id={user_id}'>{user.first_name}</a>"
     
     is_valid, actual_paid, msg = await check_website_order_status(order_id)
     
@@ -390,10 +396,26 @@ async def direct_verify_payment(client, callback):
         ACTIVE_PAYMENTS.pop(user_id, None)
         actual_paid = actual_paid if actual_paid > 0 else expected_price
         
+        # --- 1. AUTO WALLET TOP-UP LOGIC ---
         if session['type'] == "WALLET":
             new_bal = await add_wallet_balance(user_id, actual_paid)
-            await callback.message.reply_text(f"🎉 <b>ᴀᴜᴛᴏ-ᴠᴇʀɪғɪᴇᴅ sᴜᴄᴄᴇssғᴜʟʟʏ!</b>\n\n💰 Added ₹{actual_paid} to Wallet.\n👛 New Balance: ₹{new_bal}")
+            await callback.message.reply_text(
+                f"🎉 <b>ᴀᴜᴛᴏ-ᴠᴇʀɪғɪᴇᴅ sᴜᴄᴄᴇssғᴜʟʟʏ!</b>\n\n"
+                f"💰 Added ₹{actual_paid} to Wallet.\n"
+                f"👛 New Balance: ₹{new_bal}"
+            )
             
+            # 🔥 Log Channel Alert (Auto Top-up)
+            log_msg = (
+                f"💳 <b>[AUTO VERIFY] WALLET TOP-UP</b>\n\n"
+                f"👤 <b>User:</b> {user_mention} (<code>{user_id}</code>)\n"
+                f"💰 <b>Amount Added:</b> ₹{actual_paid}\n"
+                f"👛 <b>New Balance:</b> ₹{new_bal}\n"
+                f"🆔 <b>Order ID:</b> <code>{order_id}</code>"
+            )
+            await send_log_to_channel(client, log_msg)
+            
+        # --- 2. AUTO STORY PURCHASE LOGIC ---
         else:
             story = await get_story_by_title(title)
             clean_title = story['title'].strip().split("\n")[0] if story else title
@@ -404,18 +426,25 @@ async def direct_verify_payment(client, callback):
             access_btn = InlineKeyboardMarkup([[InlineKeyboardButton("📂 ɢᴇᴛ ғɪʟᴇs (Unlocked)", style=enums.ButtonStyle.PRIMARY, url=delivery_link)]])
             
             await callback.message.reply_text(
-                f"🎉 <b>ᴀᴜᴛᴏ-ᴠᴇʀɪғɪᴇᴅ sᴜᴄᴄᴇssғᴜʟʟʏ!</b>\n\n📖 <b>Story:</b> {clean_title}\n💰 <b>Paid:</b> ₹{actual_paid}\n\nClick below to access your files:",
+                f"🎉 <b>ᴀᴜᴛᴏ-ᴠᴇʀɪғɪᴇᴅ sᴜᴄᴄᴇssғᴜʟʟʏ!</b>\n\n"
+                f"📖 <b>Story:</b> {clean_title}\n"
+                f"💰 <b>Paid:</b> ₹{actual_paid}\n\n"
+                f"Click below to access your files:",
                 reply_markup=access_btn,
                 protect_content=True
             )
             
-            if LOG_CHANNEL and LOG_CHANNEL != 0:
-                await client.send_message(
-                    LOG_CHANNEL, 
-                    f"⚡ <b>[DIRECT VERIFY SUCCESS] STORY BOUGHT</b>\n👤 <b>User:</b> {callback.from_user.first_name} (<code>{user_id}</code>)\n📖 <b>Story:</b> {clean_title}\n💰 <b>Amount:</b> ₹{actual_paid}"
-                )
+            # 🔥 Log Channel Alert (Auto Story Purchase)
+            log_msg = (
+                f"⚡ <b>[AUTO VERIFY] STORY BOUGHT</b>\n\n"
+                f"👤 <b>User:</b> {user_mention} (<code>{user_id}</code>)\n"
+                f"📖 <b>Story:</b> {clean_title}\n"
+                f"💰 <b>Amount Paid:</b> ₹{actual_paid}\n"
+                f"🆔 <b>Order ID:</b> <code>{order_id}</code>"
+            )
+            await send_log_to_channel(client, log_msg)
+            
     else:
-        # Single alert pop-up on Verify button click if payment not found
         await callback.answer("❌ Payment Not Found Yet! Try again after some time.", show_alert=True)
 
 # ---------------- WALLET TOPUP ----------------
@@ -474,7 +503,13 @@ async def ask_screenshot(client, callback):
         return await callback.answer("❌ Error parsing data!", show_alert=True)
         
     user_id = callback.from_user.id
-    ACTIVE_PAYMENTS[user_id] = {"title": story_title, "price": price, "manual": True}
+    session_type = ACTIVE_PAYMENTS.get(user_id, {}).get("type", "STORY")
+    ACTIVE_PAYMENTS[user_id] = {
+        "title": story_title,
+        "price": float(price),
+        "manual": True,
+        "type": session_type
+    }
     
     await callback.message.reply_text(
         "📸 <b>sᴇɴᴅ ᴘᴀʏᴍᴇɴᴛ sᴄʀᴇᴇɴsʜᴏᴛ:</b>\n\nPlease send your payment screenshot photo in this chat.",
@@ -491,39 +526,63 @@ async def receive_screenshot(client, message):
     data = ACTIVE_PAYMENTS[user_id]
     title = data['title']
     price = data['price']
+    pay_type = data.get('type', 'STORY')
     user = message.from_user
     
     admin_text = (
         f"🚨 <b>ᴍᴀɴᴜᴀʟ ᴘᴀʏᴍᴇɴᴛ ᴠᴇʀɪғɪᴄᴀᴛɪᴏɴ ʀᴇǫᴜᴇsᴛ!</b>\n\n"
         f"👤 <b>User:</b> {user.first_name} (@{user.username if user.username else 'N/A'})\n"
         f"🆔 <b>User ID:</b> <code>{user.id}</code>\n"
-        f"📌 <b>Item:</b> {title}\n"
+        f"📌 <b>Item/Type:</b> {title} ({pay_type})\n"
         f"💰 <b>Amount:</b> ₹{price}"
     )
     
     clean_title = title.replace(" ", "_")
     btn = InlineKeyboardMarkup([
-        [InlineKeyboardButton("✅ ᴀᴘᴘʀᴏᴠᴇ", callback_data=f"app_{user.id}_{clean_title}_{price}"), InlineKeyboardButton("❌ ʀᴇᴊᴇᴄᴛ", callback_data=f"rej_{user.id}_{clean_title}")]
+        [InlineKeyboardButton("✅ ᴀᴘᴘʀᴏᴠᴇ", callback_data=f"app_{user.id}_{clean_title}_{price}_{pay_type}"), InlineKeyboardButton("❌ ʀᴇᴊᴇᴄᴛ", callback_data=f"rej_{user.id}_{clean_title}")]
     ])
     
     await client.send_photo(chat_id=ADMIN_ID, photo=message.photo.file_id, caption=admin_text, reply_markup=btn)
     await message.reply_text("✅ <b>Screenshot received!</b> Admin will review and approve shortly.")
     ACTIVE_PAYMENTS.pop(user_id, None)
 
-# Admin Handlers
+# ---------------- ADMIN APPROVE & REJECT HANDLERS ----------------
+
 @Client.on_callback_query(filters.regex("^app_") & filters.user(ADMIN_ID))
 async def approve_order(client, callback):
     data = callback.data.split("_")
     user_id = int(data[1])
-    price = float(data[-1])
-    title = "_".join(data[2:-1]).replace("_", " ")
     
-    if title == "WalletTopup":
-        new_balance = await add_wallet_balance(user_id, price)
-        await client.send_message(chat_id=user_id, text=f"🎉 <b>ᴡᴀʟʟᴇᴛ ᴛᴏᴘ-ᴜᴘ ᴀᴘᴘʀᴏᴠᴇᴅ!</b>\n💰 Added: ₹{price}\n👛 Balance: ₹{new_balance}")
-        await callback.message.edit_caption(caption=f"{callback.message.caption.html}\n\n✅ <b>APPROVED BY ADMIN</b>")
-        return await callback.answer("Wallet Approved!", show_alert=True)
+    # Extract details safely
+    pay_type = data[-1] if data[-1] in ["WALLET", "STORY"] else "STORY"
+    price = float(data[-2]) if pay_type in ["WALLET", "STORY"] else float(data[-1])
+    title_parts = data[2:-2] if pay_type in ["WALLET", "STORY"] else data[2:-1]
+    title = "_".join(title_parts).replace("_", " ")
 
+    user_mention = f"<a href='tg://user?id={user_id}'>User</a>"
+
+    # --- 1. MANUAL WALLET APPROVAL ---
+    if title == "WalletTopup" or pay_type == "WALLET":
+        new_balance = await add_wallet_balance(user_id, price)
+        await client.send_message(
+            chat_id=user_id,
+            text=f"🎉 <b>ᴡᴀʟʟᴇᴛ ᴛᴏᴘ-ᴜᴘ ᴀᴘᴘʀᴏᴠᴇᴅ!</b>\n💰 Added: ₹{price}\n👛 Balance: ₹{new_balance}"
+        )
+        await callback.message.edit_caption(caption=f"{callback.message.caption.html}\n\n✅ <b>APPROVED BY ADMIN</b>")
+        await callback.answer("Wallet Approved!", show_alert=True)
+        
+        # 🔥 Log Channel Notification (Manual Wallet Topup Approved)
+        log_msg = (
+            f"🛠️ <b>[MANUAL APPROVED] WALLET TOP-UP</b>\n\n"
+            f"👤 <b>User ID:</b> <code>{user_id}</code>\n"
+            f"💰 <b>Amount Added:</b> ₹{price}\n"
+            f"👛 <b>New Balance:</b> ₹{new_balance}\n"
+            f"👮 <b>Approved By:</b> Admin"
+        )
+        await send_log_to_channel(client, log_msg)
+        return
+
+    # --- 2. MANUAL STORY BUY APPROVAL ---
     story = await get_story_by_title(title)
     clean_title = story['title'].strip().split("\n")[0] if story else title
     encoded_title = clean_title.replace(" ", "_")
@@ -540,6 +599,17 @@ async def approve_order(client, callback):
     )
     await callback.message.edit_caption(caption=f"{callback.message.caption.html}\n\n✅ <b>APPROVED BY ADMIN</b>")
     await callback.answer("Approved!", show_alert=True)
+    
+    # 🔥 Log Channel Notification (Manual Story Approved)
+    log_msg = (
+        f"🛠️ <b>[MANUAL APPROVED] STORY BOUGHT</b>\n\n"
+        f"👤 <b>User ID:</b> <code>{user_id}</code>\n"
+        f"📖 <b>Story:</b> {clean_title}\n"
+        f"💰 <b>Amount:</b> ₹{price}\n"
+        f"👮 <b>Approved By:</b> Admin"
+    )
+    await send_log_to_channel(client, log_msg)
+
 
 @Client.on_callback_query(filters.regex("^rej_") & filters.user(ADMIN_ID))
 async def reject_order(client, callback):
@@ -550,3 +620,12 @@ async def reject_order(client, callback):
     await client.send_message(chat_id=user_id, text=f"❌ <b>ʏᴏᴜʀ ᴘᴀʏᴍᴇɴᴛ ʜᴀs ʙᴇᴇɴ ʀᴇᴊᴇᴄᴛᴇᴅ!</b>\nItem: {title}")
     await callback.message.edit_caption(caption=f"{callback.message.caption.html}\n\n❌ <b>REJECTED BY ADMIN</b>")
     await callback.answer("Rejected!", show_alert=True)
+    
+    # 🔥 Log Channel Notification (Manual Rejected)
+    log_msg = (
+        f"❌ <b>[MANUAL REJECTED] PAYMENT DECLINED</b>\n\n"
+        f"👤 <b>User ID:</b> <code>{user_id}</code>\n"
+        f"📌 <b>Item:</b> {title}\n"
+        f"👮 <b>Rejected By:</b> Admin"
+    )
+    await send_log_to_channel(client, log_msg)
