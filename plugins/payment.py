@@ -113,7 +113,7 @@ def sync_generate_exact_website_qr_card(amount_text: str, qr_payload: str) -> io
     )
     qr.add_data(qr_payload)
     qr.make(fit=True)
-    qr_img = qr.make_image(fill_color="black", back_color="white").convert("RGB").resize((350, 350), Image.Resampling.LANCZOS)
+    qr_img = qr.make_image(fill_color="black", back_color="white").convert("RGB").resize((250, 250), Image.Resampling.LANCZOS)
 
     # Center Align QR Code on Canvas (X: 125, Y: 170)
     card.paste(qr_img, (125, 170))
