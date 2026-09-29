@@ -11,8 +11,6 @@ import qrcode
 
 from pyrogram import Client, filters, enums
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-
-# Config Imports
 from config import (
     ADMIN_ID, BOT_USERNAME, LOG_CHANNEL,
     CREATE_ORDER_URL, CHECK_STATUS_URL, API_KEY_VALUE, API_SECRET_VALUE, UPI_ID
@@ -78,33 +76,33 @@ async def extract_qr_data_from_website(payment_url: str):
 
 
 def sync_generate_exact_website_qr_card(amount_text: str, qr_payload: str) -> io.BytesIO:
-    """Simple Black & White QR Generator with 250x250 QR Size."""
-    img_w, img_h = 500, 500
+    """Clean Black & White QR Generator with Big QR Fit."""
+    img_w, img_h = 450, 520
     
     # Pure White Canvas
     card = Image.new("RGB", (img_w, img_h), (255, 255, 255))
     draw = ImageDraw.Draw(card)
 
     try:
-        font_label = ImageFont.truetype("arial.ttf", 22)
-        font_amount = ImageFont.truetype("arialbd.ttf", 55)
+        font_label = ImageFont.truetype("arial.ttf", 20)
+        font_amount = ImageFont.truetype("arialbd.ttf", 45)
     except Exception:
         font_label = ImageFont.load_default()
         font_amount = ImageFont.load_default()
 
-    # Top Heading (Simple Grey Text)
+    # Top Heading
     label_text = "TOTAL AMOUNT TO PAY"
     label_bbox = draw.textbbox((0, 0), label_text, font=font_label)
     label_w = label_bbox[2] - label_bbox[0]
-    draw.text(((img_w - label_w) / 2, 35), label_text, fill="#555555", font=font_label)
+    draw.text(((img_w - label_w) / 2, 20), label_text, fill="#444444", font=font_label)
 
-    # Large Amount Text (Pure Black)
-    amt_text = f"₹{amount_text}"
+    # Large Amount Text (Rupee Symbol Fix using "Rs.")
+    amt_text = f"Rs. {amount_text}"
     amt_bbox = draw.textbbox((0, 0), amt_text, font=font_amount)
     amt_w = amt_bbox[2] - amt_bbox[0]
-    draw.text(((img_w - amt_w) / 2, 70), amt_text, fill="#000000", font=font_amount)
+    draw.text(((img_w - amt_w) / 2, 50), amt_text, fill="#000000", font=font_amount)
 
-    # Pure UPI Intent QR Code (Resized strictly to 250x250)
+    # QR Code (Resized to 380x380 for proper visibility)
     qr = qrcode.QRCode(
         version=1,
         error_correction=qrcode.constants.ERROR_CORRECT_M,
@@ -113,10 +111,10 @@ def sync_generate_exact_website_qr_card(amount_text: str, qr_payload: str) -> io
     )
     qr.add_data(qr_payload)
     qr.make(fit=True)
-    qr_img = qr.make_image(fill_color="black", back_color="white").convert("RGB").resize((250, 250), Image.Resampling.LANCZOS)
+    qr_img = qr.make_image(fill_color="black", back_color="white").convert("RGB").resize((380, 380), Image.Resampling.LANCZOS)
 
-    # Center Align QR Code on Canvas (X: 125, Y: 170)
-    card.paste(qr_img, (125, 170))
+    # Center Align QR Code on Canvas
+    card.paste(qr_img, (35, 115))
 
     bio = io.BytesIO()
     bio.name = "website_qr_card.png"
