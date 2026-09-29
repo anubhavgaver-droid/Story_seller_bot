@@ -37,40 +37,33 @@ TERMS_TEXT = (
 async def extract_qr_data_from_website(payment_url: str):
     """
     Website Payment Link (demotry.shop/pay/...) par background request bhej kar
-    wahan se exact UPI payload, Amount aur Order ID extract karta hai.
+    wahan se exact UPI payload extract karta hai.
     """
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
     }
     try:
         async with aiohttp.ClientSession() as session:
-            async with session.get(payment_url, headers=headers, timeout=10) as resp:
+            async with session.get(payment_url, headers=headers, timeout=8) as resp:
                 if resp.status == 200:
                     html_content = await resp.text()
                     
                     # 1. HTML ya JS code mein se upi://pay?... intent string extract karna
                     upi_match = re.search(r'upi://pay\?[^\s"\'<>]+', html_content)
-                    upi_string = upi_match.group(0) if upi_match else None
+                    if upi_match:
+                        return upi_match.group(0)
                     
-                    # 2. Amount, Order ID aur VPA regex se extract karna
-                    amount_match = re.search(r'am=([0-9.]+)', html_content) or re.search(r'₹\s*([0-9.]+)', html_content)
-                    order_match = re.search(r'tr=([a-zA-Z0-9_\-]+)', html_content) or re.search(r'ORD_[0-9_]+', html_content)
+                    # 2. Extract VPA & Order ID if present in HTML
+                    amount_match = re.search(r'am=([0-9.]+)', html_content)
+                    order_match = re.search(r'tr=([a-zA-Z0-9_\-]+)', html_content)
                     vpa_match = re.search(r'pa=([a-zA-Z0-9.\-_]+@[a-zA-Z0-9]+)', html_content)
 
-                    amount = amount_match.group(1) if amount_match else None
-                    order_id = order_match.group(1) if order_match else None
                     vpa = vpa_match.group(1) if vpa_match else UPI_ID
+                    amt = amount_match.group(1) if amount_match else None
+                    oid = order_match.group(1) if order_match else None
 
-                    if not upi_string and (vpa and amount):
-                        upi_string = f"upi://pay?pa={vpa}&pn=Story%20Seller&am={amount}&cu=INR"
-                        if order_id:
-                            upi_string += f"&tr={order_id}"
-
-                    return {
-                        "upi_string": upi_string,
-                        "amount": amount,
-                        "order_id": order_id
-                    }
+                    if amt and oid:
+                        return f"upi://pay?pa={vpa}&pn=StorySeller&am={amt}&cu=INR&tr={oid}"
     except Exception as e:
         print(f"❌ Error extracting QR data from website: {e}")
     return None
@@ -78,12 +71,8 @@ async def extract_qr_data_from_website(payment_url: str):
 
 def generate_exact_website_qr_card(amount_text: str, qr_payload: str) -> io.BytesIO:
     """
-    Website Jaisa Exact UI Card Image Generate Karta Hai:
-    - Heading: TOTAL AMOUNT TO PAY
-    - Large Bold Amount: ₹1.00
-    - Outer Rounded Frame Container
-    - Blue Corner Focus Lines
-    - Pure Scanned UPI Payload Embedded QR Code
+    Website Style UI Card Image with Pure UPI Payload in QR Code.
+    Ensures PhonePe/GPay opens Direct Payment Screen instead of Link.
     """
     img_w, img_h = 600, 750
     card = Image.new("RGB", (img_w, img_h), (255, 255, 255))
@@ -108,7 +97,7 @@ def generate_exact_website_qr_card(amount_text: str, qr_payload: str) -> io.Byte
     amt_w = amt_bbox[2] - amt_bbox[0]
     draw.text(((img_w - amt_w) / 2, 95), amt_text, fill="#0d3c75", font=font_amount)
 
-    # 3. QR Code Encoding Extracted UPI Intent
+    # 3. Pure UPI Intent QR Code (Direct Payment)
     qr = qrcode.QRCode(
         version=1,
         error_correction=qrcode.constants.ERROR_CORRECT_M,
@@ -186,8 +175,6 @@ async def create_website_order(user_id: int, user_name: str, amount: float):
                         pay_url = data.get("payment_url") or data.get("url")
                         
                     return pay_url, order_id
-                else:
-                    print(f"❌ Order Creation Failed: {resp_text}")
     except Exception as e:
         print(f"❌ Error in create_website_order: {e}")
         
@@ -320,7 +307,7 @@ async def show_terms_first(client, callback):
 
     await callback.answer()
 
-# ---------------- STEP 2: EXTRACT DATA & RENDER WEBSITE STYLE QR ----------------
+# ---------------- STEP 2: GENERATE DIRECT UPI QR CARD ----------------
 
 @Client.on_callback_query(filters.regex("^show_qr_"))
 async def generate_qr_after_terms(client, callback):
@@ -330,14 +317,14 @@ async def generate_qr_after_terms(client, callback):
     if not session:
         return await callback.answer("⏰ Session Expired! Please click Buy again.", show_alert=True)
 
-    await callback.answer("🔄 Processing Website Gateway & Extracting QR...", show_alert=False)
+    await callback.answer("🔄 Generating Direct UPI QR Code...", show_alert=False)
 
     title = session['title']
     price = session['price']
     clean_title = title.replace(" ", "_")
     customer_name = callback.from_user.first_name or "Customer"
 
-    # 1. Website Gateway API se Payment Link + Order ID generate karna
+    # 1. Website Gateway API se Order Generate karna
     payment_url, gen_order_id = await create_website_order(user_id, customer_name, price)
 
     try:
@@ -348,36 +335,26 @@ async def generate_qr_after_terms(client, callback):
     btn_list = []
     qr_payload = None
     display_amount = f"{price:.2f}"
-    final_order_id = gen_order_id
 
+    # 2. Extract UPI String or Fallback to Direct UPI URI String
     if payment_url:
-        # 2. Website URL se UPI Intent, Amount aur Order ID auto-extract karna
-        extracted = await extract_qr_data_from_website(payment_url)
-        
-        if extracted and extracted.get("upi_string"):
-            qr_payload = extracted["upi_string"]
-            if extracted.get("amount"):
-                display_amount = extracted["amount"]
-            if extracted.get("order_id"):
-                final_order_id = extracted["order_id"]
-        else:
-            qr_payload = payment_url
-
+        qr_payload = await extract_qr_data_from_website(payment_url)
         btn_list.append([InlineKeyboardButton("🌐 ᴘᴀʏ ᴠɪᴀ ᴡᴇʙsɪᴛᴇ", url=payment_url)])
-    else:
-        # Fallback QR Data
-        qr_payload = f"upi://pay?pa={UPI_ID}&pn=Story%20Seller&am={price}&cu=INR&tr={gen_order_id}"
 
-    session['order_id'] = final_order_id  
+    # FIX: Agar Extract nahi ho pata, to Direct Pure UPI Payload Banayein (Kabhi Web URL QR me nahi jayega)
+    if not qr_payload:
+        qr_payload = f"upi://pay?pa={UPI_ID}&pn=StorySeller&am={display_amount}&cu=INR&tr={gen_order_id}"
 
-    # 3. Extracted Payload se Exact Website UI Styled Image Card Banayein
+    session['order_id'] = gen_order_id  
+
+    # 3. Direct UPI Intent se QR Image Generate Karein
     qr_image_bytes = generate_exact_website_qr_card(display_amount, qr_payload)
 
     caption = (
         f"⚡ <b>ᴀᴜᴛᴏᴍᴀᴛɪᴄ ᴘᴀʏᴍᴇɴᴛ ᴄʜᴇᴄᴋᴏᴜᴛ</b>\n\n"
         f"📖 <b>sᴛᴏʀʏ:</b> {title}\n"
         f"💰 <b>ᴀᴍᴏᴜɴᴛ:</b> ₹{display_amount}\n"
-        f"🆔 <b>ᴏʀᴅᴇʀ ɪᴅ:</b> <code>{final_order_id}</code>\n"
+        f"🆔 <b>ᴏʀᴅᴇʀ ɪᴅ:</b> <code>{gen_order_id}</code>\n"
         f"⏳ <b>ᴛɪᴍᴇ ʟɪᴍɪᴛ:</b> 10 Minutes\n\n"
         f"📲 <i>1. Scan this QR code using PhonePe, GPay, Paytm, or BHIM App.\n"
         f"2. Or click <b>'🌐 ᴘᴀʏ ᴠɪᴀ ᴡᴇʙsɪᴛᴇ'</b> to open payment page.\n"
