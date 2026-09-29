@@ -36,7 +36,7 @@ TERMS_TEXT = (
 
 async def extract_qr_data_from_website(payment_url: str):
     """
-    Website Payment Link (demotry.shop/pay/...) par background request bhej kar
+    Website Payment Link par background request bhej kar
     wahan se exact UPI payload extract karta hai.
     """
     headers = {
@@ -63,7 +63,6 @@ async def extract_qr_data_from_website(payment_url: str):
                     oid = order_match.group(1) if order_match else None
 
                     if amt and oid:
-                        # FIX: Added tn={oid} so Order ID shows up in Payment Note field
                         return f"upi://pay?pa={vpa}&pn=StorySeller&am={amt}&cu=INR&tr={oid}&tn={oid}"
     except Exception as e:
         print(f"❌ Error extracting QR data from website: {e}")
@@ -73,7 +72,6 @@ async def extract_qr_data_from_website(payment_url: str):
 def generate_exact_website_qr_card(amount_text: str, qr_payload: str) -> io.BytesIO:
     """
     Website Style UI Card Image with Pure UPI Payload in QR Code.
-    Ensures PhonePe/GPay opens Direct Payment Screen instead of Link.
     """
     img_w, img_h = 600, 750
     card = Image.new("RGB", (img_w, img_h), (255, 255, 255))
@@ -98,7 +96,7 @@ def generate_exact_website_qr_card(amount_text: str, qr_payload: str) -> io.Byte
     amt_w = amt_bbox[2] - amt_bbox[0]
     draw.text(((img_w - amt_w) / 2, 95), amt_text, fill="#0d3c75", font=font_amount)
 
-    # 3. Pure UPI Intent QR Code (Direct Payment)
+    # 3. Pure UPI Intent QR Code
     qr = qrcode.QRCode(
         version=1,
         error_correction=qrcode.constants.ERROR_CORRECT_M,
@@ -164,9 +162,6 @@ async def create_website_order(user_id: int, user_name: str, amount: float):
     try:
         async with aiohttp.ClientSession() as session:
             async with session.post(CREATE_ORDER_URL, json=payload, headers=headers, timeout=12) as resp:
-                resp_text = await resp.text()
-                print(f"[CREATE ORDER LOG] Code: {resp.status}, Response: {resp_text}")
-                
                 if resp.status in [200, 201]:
                     data = await resp.json()
                     pay_url = None
@@ -195,9 +190,6 @@ async def check_website_order_status(order_id: str):
     try:
         async with aiohttp.ClientSession() as session:
             async with session.post(CHECK_STATUS_URL, json=payload, headers=headers, timeout=12) as resp:
-                resp_text = await resp.text()
-                print(f"[STATUS CHECK LOG] Code: {resp.status}, Response: {resp_text}")
-                
                 if resp.status == 200:
                     data = await resp.json()
                     res_data = data.get("data", {}) if isinstance(data.get("data"), dict) else data
@@ -226,7 +218,7 @@ async def cancel_payment_callback(client, callback):
         pass
         
     cancel_msg = await callback.message.reply_text("❌ <b>ᴘᴀʏᴍᴇɴᴛ / ᴛᴏᴘ-ᴜᴘ ᴘʀᴏᴄᴇss ᴄᴀɴᴄᴇʟʟᴇᴅ.</b>")
-    await callback.answer("Process Cancelled!")
+    await callback.answer() # No alert text
     
     await asyncio.sleep(10)
     try:
@@ -318,7 +310,7 @@ async def generate_qr_after_terms(client, callback):
     if not session:
         return await callback.answer("⏰ Session Expired! Please click Buy again.", show_alert=True)
 
-    await callback.answer("🔄 Generating Direct UPI QR Code...", show_alert=False)
+    await callback.answer() # Silent callback answer (No pop-up text)
 
     title = session['title']
     price = session['price']
@@ -340,9 +332,7 @@ async def generate_qr_after_terms(client, callback):
     # 2. Extract UPI String or Fallback to Direct UPI URI String
     if payment_url:
         qr_payload = await extract_qr_data_from_website(payment_url)
-        btn_list.append([InlineKeyboardButton("🌐 ᴘᴀʏ ᴠɪᴀ ᴡᴇʙsɪᴛᴇ", url=payment_url)])
 
-    # FIX: Ensure 'tn=' parameter is attached so Order ID auto-fills in App Payment Note
     if qr_payload:
         if "tn=" not in qr_payload:
             qr_payload += f"&tn={gen_order_id}"
@@ -361,10 +351,10 @@ async def generate_qr_after_terms(client, callback):
         f"🆔 <b>ᴏʀᴅᴇʀ ɪᴅ:</b> <code>{gen_order_id}</code>\n"
         f"⏳ <b>ᴛɪᴍᴇ ʟɪᴍɪᴛ:</b> 10 Minutes\n\n"
         f"📲 <i>1. Scan this QR code using PhonePe, GPay, Paytm, or BHIM App.\n"
-        f"2. Or click <b>'🌐 ᴘᴀʏ ᴠɪᴀ ᴡᴇʙsɪᴛᴇ'</b> to open payment page.\n"
-        f"3. Click <b>'⚡ ᴠᴇʀɪғʏ ᴘᴀʏᴍᴇɴᴛ'</b> below after paying!</i>"
+        f"2. Click <b>'⚡ ᴠᴇʀɪғʏ ᴘᴀʏᴍᴇɴᴛ'</b> below after paying!</i>"
     )
     
+    # Updated Buttons List (Pay via Website removed)
     btn_list.append([InlineKeyboardButton("⚡ ᴠᴇʀɪғʏ ᴘᴀʏᴍᴇɴᴛ", style=enums.ButtonStyle.SUCCESS, callback_data=f"auto_check_payment_{user_id}")])
     btn_list.append([InlineKeyboardButton("📩 ᴍᴀɴᴜᴀʟ / ᴀᴅᴍɪɴ", callback_data=f"sent_{clean_title}_{price}")])
     btn_list.append([InlineKeyboardButton("❌ ᴄᴀɴᴄᴇʟ", style=enums.ButtonStyle.DANGER, callback_data="cancel_payment_process")])
@@ -389,15 +379,14 @@ async def direct_verify_payment(client, callback):
     title = session['title']
     order_id = session.get('order_id')
     
-    await callback.answer("🔄 Checking payment status...", show_alert=False)
-    
     is_valid, actual_paid, msg = await check_website_order_status(order_id)
     
     if not is_valid:
-        await asyncio.sleep(3)
+        await asyncio.sleep(2)
         is_valid, actual_paid, msg = await check_website_order_status(order_id)
 
     if is_valid:
+        await callback.answer()
         ACTIVE_PAYMENTS.pop(user_id, None)
         actual_paid = actual_paid if actual_paid > 0 else expected_price
         
@@ -426,7 +415,8 @@ async def direct_verify_payment(client, callback):
                     f"⚡ <b>[DIRECT VERIFY SUCCESS] STORY BOUGHT</b>\n👤 <b>User:</b> {callback.from_user.first_name} (<code>{user_id}</code>)\n📖 <b>Story:</b> {clean_title}\n💰 <b>Amount:</b> ₹{actual_paid}"
                 )
     else:
-        await callback.answer(f"❌ Payment Not Detected!\n{msg}\n\nAgar payment complete ho gaya hai toh 10 sec baad firse check karein.", show_alert=True)
+        # Single alert pop-up on Verify button click if payment not found
+        await callback.answer("❌ Payment Not Found Yet! Try again after some time.", show_alert=True)
 
 # ---------------- WALLET TOPUP ----------------
 
