@@ -395,8 +395,8 @@ async def start_add_episodes_wizard(client, message):
         reply_markup=ForceReply(True)
     )
 
-# 2. Callback Handlers for Ongoing Ranges
-@Client.on_callback_query(filters.regex("^(og_add_range|og_finish_ranges)") & filters.user(ADMIN_ID))
+# 2. Callback Handlers for Ongoing Options
+@Client.on_callback_query(filters.regex("^(og_opt_buttons|og_opt_single|og_add_range|og_finish_ranges)") & filters.user(ADMIN_ID))
 async def ongoing_range_callbacks(client, callback):
     user_id = callback.from_user.id
     data = callback.data
@@ -404,7 +404,34 @@ async def ongoing_range_callbacks(client, callback):
     if user_id not in ONGOING_STATE:
         return await callback.answer("Session Expired!", show_alert=True)
 
-    if data == "og_add_range":
+    # Option A: Create Buttons
+    if data == "og_opt_buttons":
+        ONGOING_STATE[user_id]['mode'] = 'BUTTONS'
+        old_first = ONGOING_STATE[user_id]['old_first_id']
+        old_last = ONGOING_STATE[user_id]['old_last_id']
+        
+        ONGOING_STATE[user_id]['step'] = 'OLD_RANGE_NAME'
+        await callback.message.reply_text(
+            f"📦 <b>पुरानी फाइलों (Msg {old_first} to {old_last}) का Button Name दर्ज करें:</b>\n"
+            f"<i>(उदाहरण: Ep 1 to 50 या Part 1)</i>",
+            reply_markup=ForceReply(True)
+        )
+        await callback.answer()
+
+    # Option B: Single Delivery (No Buttons)
+    elif data == "og_opt_single":
+        ONGOING_STATE[user_id]['mode'] = 'SINGLE'
+        ONGOING_STATE[user_id]['step'] = 'SINGLE_NEW_LAST'
+        old_last = ONGOING_STATE[user_id]['old_last_id']
+        await callback.message.reply_text(
+            f"🔢 <b>नये एपिसोड्स का Last Message ID / Link भेजें:</b>\n"
+            f"<i>(पुरानी Last ID थी: {old_last})</i>",
+            reply_markup=ForceReply(True)
+        )
+        await callback.answer()
+
+    # Add More Range Button
+    elif data == "og_add_range":
         ONGOING_STATE[user_id]['step'] = 'RANGE_NAME'
         await callback.message.reply_text(
             "✏️ <b>नये Button का Name दर्ज करें:</b>\n"
@@ -413,13 +440,14 @@ async def ongoing_range_callbacks(client, callback):
         )
         await callback.answer()
 
+    # Finish and Save Buttons Range
     elif data == "og_finish_ranges":
         state_data = ONGOING_STATE.pop(user_id, None)
-        await finalize_add_episodes(client, callback.message, state_data)
+        await finalize_add_episodes_buttons(client, callback.message, state_data)
         await callback.answer()
 
-# Helper Function: Finalize & Save Ongoing Episodes
-async def finalize_add_episodes(client, message, data):
+# Helper Function A: Save Ongoing Episodes as Buttons Range
+async def finalize_add_episodes_buttons(client, message, data):
     story_id = data['story_id']
     title = data['title']
     updated_ranges = data['custom_ranges']
@@ -445,21 +473,64 @@ async def finalize_add_episodes(client, message, data):
     )
 
     success_msg = (
-        f"✅ <b>ᴏɴɢᴏɪɴɢ sᴛᴏʀʏ ᴜᴘᴅᴀᴛᴇᴅ sᴜᴄᴄᴇssғᴜʟʟʏ!</b>\n\n"
+        f"✅ <b>ᴏɴɢᴏɪɴɢ sᴛᴏʀʏ ᴜᴘᴅᴀᴛᴇᴅ (WITH BUTTONS)!</b>\n\n"
         f"♨️ <b>Story Title:</b> {title}\n"
         f"🔰 <b>Status:</b> Ongoing\n"
         f"📦 <b>Total Files Now:</b> {total_files_count} files\n"
         f"🎯 <b>Total Range Buttons:</b> {len(updated_ranges)} Configured\n\n"
-        f"<i>Mini App aur Bot dono me naye buttons aur episodes add ho gaye hain!</i>"
+        f"<i>Mini App और Bot दोनों में नए Buttons और Episodes सफलतापूर्वक ऐड हो गए हैं!</i>"
     )
     
     await message.reply_text(success_msg)
 
     try:
         log_text = (
-            f"<b>➕ ᴏɴɢᴏɪɴɢ ᴇᴘɪsᴏᴅᴇs ᴜᴘᴅᴀᴛᴇᴅ</b>\n\n"
+            f"<b>➕ ᴏɴɢᴏɪɴɢ ᴇᴘɪsᴏᴅᴇs ᴜᴘᴅᴀᴛᴇᴅ (BUTTONS)</b>\n\n"
             f"📖 <b>Story:</b> <code>{title}</code>\n"
             f"🎯 <b>Total Buttons:</b> {len(updated_ranges)}\n"
+            f"📊 <b>Total Files:</b> {total_files_count}"
+        )
+        await send_log(client, log_text)
+    except Exception:
+        pass
+
+# Helper Function B: Save Ongoing Episodes as Single Delivery
+async def finalize_add_episodes_single(client, message, data):
+    story_id = data['story_id']
+    title = data['title']
+    first_id = data['old_first_id']
+    new_last_id = data['new_last_id']
+    
+    total_files_count = (new_last_id - first_id) + 1
+
+    update_payload = {
+        "last_msg_id": new_last_id,
+        "total_files": f"{total_files_count} files",
+        "episodes": f"{total_files_count} Episodes",
+        "status": "Ongoing"
+    }
+
+    await stories_col.update_one(
+        {"_id": story_id},
+        {"$set": update_payload}
+    )
+
+    success_msg = (
+        f"✅ <b>ᴏɴɢᴏɪɴɢ sᴛᴏʀʏ ᴜᴘᴅᴀᴛᴇᴅ (SINGLE DELIVERY)!</b>\n\n"
+        f"♨️ <b>Story Title:</b> {title}\n"
+        f"🔰 <b>Status:</b> Ongoing\n"
+        f"📦 <b>New Range:</b> Message {first_id} to {new_last_id}\n"
+        f"📊 <b>Total Files Now:</b> {total_files_count} files\n\n"
+        f"<i>Mini App और Bot में Single Delivery (बिना बटन) अपडेट हो गई है!</i>"
+    )
+    
+    await message.reply_text(success_msg)
+
+    try:
+        log_text = (
+            f"<b>➕ ᴏɴɢᴏɪɴɢ ᴇᴘɪsᴏᴅᴇs ᴜᴘᴅᴀᴛᴇᴅ (SINGLE)</b>\n\n"
+            f"📖 <b>Story:</b> <code>{title}</code>\n"
+            f"📦 <b>Range:</b> Msg {first_id} to {new_last_id}\n"
             f"📊 <b>Total Files:</b> {total_files_count}"
         )
         await send_log(client, log_text)
@@ -487,11 +558,14 @@ async def wizard_inputs(client, message):
             ONGOING_STATE[user_id]['story_id'] = story['_id']
             ONGOING_STATE[user_id]['title'] = story['title']
             ONGOING_STATE[user_id]['custom_ranges'] = list(story.get('custom_ranges', []))
+            ONGOING_STATE[user_id]['old_first_id'] = story.get('first_msg_id')
+            ONGOING_STATE[user_id]['old_last_id'] = story.get('last_msg_id')
 
             existing_ranges = story.get('custom_ranges', [])
-            ONGOING_STATE[user_id]['step'] = 'RANGE_NAME'
 
             if existing_ranges:
+                # केस 1: पहले से बटन बने हुए हैं
+                ONGOING_STATE[user_id]['step'] = 'RANGE_NAME'
                 ranges_txt = "\n".join([f"• <b>{r['name']}</b> (Msg {r['first_id']} to {r['last_id']})" for r in existing_ranges])
                 await message.reply_text(
                     f"✅ <b>स्टोरी मिल गई:</b> {story['title']}\n\n"
@@ -501,15 +575,61 @@ async def wizard_inputs(client, message):
                     reply_markup=ForceReply(True)
                 )
             else:
+                # केस 2: पहले से बटन नहीं बने हैं -> डिलीवरी मोड पूछें
+                ONGOING_STATE[user_id]['step'] = 'SELECT_MODE'
+                old_f = story.get('first_msg_id')
+                old_l = story.get('last_msg_id')
+                old_count = (old_l - old_f) + 1 if (old_f and old_l) else 0
+
+                kb = InlineKeyboardMarkup([
+                    [InlineKeyboardButton("🔘 Custom Range Buttons बनाना चाहते हैं", callback_data="og_opt_buttons")],
+                    [InlineKeyboardButton("📦 Single Delivery (बिना बटन अटैच करना)", callback_data="og_opt_single")]
+                ])
+
                 await message.reply_text(
                     f"✅ <b>स्टोरी मिल गई:</b> {story['title']}\n"
-                    f"⚠️ <i>इस स्टोरी में पहले से कोई Custom Button नहीं बना है।</i>\n\n"
-                    f"✏️ <b>नये Button का Name दर्ज करें:</b>\n"
-                    f"<i>(उदाहरण: Ep 1 to 50 या Part 1)</i>",
-                    reply_markup=ForceReply(True)
+                    f"ℹ️ <b>पुरानी फाइलों की रेंज:</b> Msg {old_f} to {old_l} ({old_count} एपिसोड्स)\n\n"
+                    f"⚠️ <i>इस स्टोरी में पहले से कोई Button नहीं बना है।</i>\n\n"
+                    f"<b>आप नए एपिसोड किस फॉर्मेट में जोड़ना चाहते हैं?</b>",
+                    reply_markup=kb
                 )
 
-        # Step 2: Range Button Name
+        # Step 2A: Old Range Button Name (अगर पहले से बटन नहीं बने थे और एडमिन बटन मोड चुना)
+        elif step == 'OLD_RANGE_NAME':
+            old_name = message.text.strip()
+            old_f = ONGOING_STATE[user_id]['old_first_id']
+            old_l = ONGOING_STATE[user_id]['old_last_id']
+
+            # पुरानी फाइलों को पहले बटन के रूप में जोड़ें
+            ONGOING_STATE[user_id]['custom_ranges'].append({
+                "name": old_name,
+                "first_id": old_f,
+                "last_id": old_l
+            })
+
+            ONGOING_STATE[user_id]['step'] = 'RANGE_NAME'
+            await message.reply_text(
+                f"✅ पुरानी फाइलों का बटन बना दिया: <b>{old_name}</b> (Msg {old_f} to {old_l})\n\n"
+                f"✏️ <b>अब नये एपिसोड्स के Button का Name दर्ज करें:</b>\n"
+                f"<i>(उदाहरण: Ep 51-100 या Part 2)</i>",
+                reply_markup=ForceReply(True)
+            )
+
+        # Step 2B: Single Delivery New Last ID
+        elif step == 'SINGLE_NEW_LAST':
+            l_id = extract_msg_id(message.text)
+            if not l_id:
+                return await message.reply_text("❌ Invalid ID/Link! Valid Message ID/Link भेजें:")
+
+            old_l = ONGOING_STATE[user_id]['old_last_id']
+            if l_id <= old_l:
+                return await message.reply_text(f"❌ नया Last Link पुरानी Last ID ({old_l}) से बड़ा होना चाहिए। फिर से सही Last Link भेजें:")
+
+            ONGOING_STATE[user_id]['new_last_id'] = l_id
+            state_data = ONGOING_STATE.pop(user_id, None)
+            await finalize_add_episodes_single(client, message, state_data)
+
+        # Step 3: Range Button Name
         elif step == 'RANGE_NAME':
             ONGOING_STATE[user_id]['temp_range_name'] = message.text.strip()
             ONGOING_STATE[user_id]['step'] = 'RANGE_FIRST'
@@ -518,7 +638,7 @@ async def wizard_inputs(client, message):
                 reply_markup=ForceReply(True)
             )
 
-        # Step 3: Range First Link / ID
+        # Step 4: Range First Link / ID
         elif step == 'RANGE_FIRST':
             f_id = extract_msg_id(message.text)
             if not f_id:
@@ -531,7 +651,7 @@ async def wizard_inputs(client, message):
                 reply_markup=ForceReply(True)
             )
 
-        # Step 4: Range Last Link / ID
+        # Step 5: Range Last Link / ID
         elif step == 'RANGE_LAST':
             l_id = extract_msg_id(message.text)
             if not l_id:
@@ -668,7 +788,7 @@ async def wizard_inputs(client, message):
             reply_markup=kb
         )
 
-    # Dynamic Range Steps
+    # Dynamic Range Steps for Add Story
     elif step == 'RANGE_NAME':
         ADD_STATE[user_id]['temp_range_name'] = message.text.strip()
         ADD_STATE[user_id]['step'] = 'RANGE_FIRST'
