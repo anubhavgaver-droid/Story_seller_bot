@@ -20,6 +20,7 @@ ADD_STATE = {}
 DELETE_STATE = {}
 UPDATE_STATE = {}
 ONGOING_STATE = {}
+COMPLETE_STATE = {}
 
 def extract_msg_id(text: str):
     """Link या Message ID में से Numeric Message ID निकालने का Helper फ़ंक्शन"""
@@ -137,11 +138,12 @@ async def add_money_handler(client, message):
 @Client.on_message(filters.command("cancel") & filters.user(ADMIN_ID) & filters.private, group=1)
 async def cancel_action(client, message):
     user_id = message.from_user.id
-    if user_id in ADD_STATE or user_id in DELETE_STATE or user_id in UPDATE_STATE or user_id in ONGOING_STATE:
+    if any(user_id in state for state in [ADD_STATE, DELETE_STATE, UPDATE_STATE, ONGOING_STATE, COMPLETE_STATE]):
         ADD_STATE.pop(user_id, None)
         DELETE_STATE.pop(user_id, None)
         UPDATE_STATE.pop(user_id, None)
         ONGOING_STATE.pop(user_id, None)
+        COMPLETE_STATE.pop(user_id, None)
         await message.reply_text("❌ <b>ᴘʀᴏᴄᴇss ᴄᴀɴᴄᴇʟʟᴇᴅ!</b>")
     else:
         await message.reply_text("❓ ʏᴏᴜ ʜᴀᴠᴇ ɴᴏ ᴀᴄᴛɪᴠᴇ ᴘʀᴏᴄᴇss.")
@@ -193,7 +195,7 @@ async def start_delete(client, message):
     )
 
 # 3.1 Delete Input Execution Handler
-@Client.on_message(filters.private & filters.user(ADMIN_ID) & ~filters.command(["start", "addstory", "deletestory", "allstories", "cancel", "addmoney", "refreshstories", "addepisodes"]), group=1)
+@Client.on_message(filters.private & filters.user(ADMIN_ID) & ~filters.command(["start", "addstory", "deletestory", "allstories", "cancel", "addmoney", "refreshstories", "addepisodes", "markcomplete"]), group=1)
 async def process_delete_input(client, message):
     user_id = message.from_user.id
 
@@ -207,7 +209,7 @@ async def process_delete_input(client, message):
     DELETE_STATE.pop(user_id, None)
 
     if deleted:
-        await message.reply_text(f"✅ <b>sᴛᴏʀʏ '{story_title}' ᴅᴇʟᴇᴛᴇᴅ sᴜᴄᴄᴇssғᴜʟʟʏ ғʀᴏᴍ ᴅᴀᴛᴀʙᴀsᴇ!</b>")
+        await message.reply_text(f"✅ <b>sᴛᴏʀʏ '{story_title}' ᴅᴇʟᴇᴛᴇᴅ sᴜᴄᴄᴇssғᴜʟʟʏ ғᴏʀᴍ ᴅᴀᴛᴀʙᴀsᴇ!</b>")
         try:
             await send_log(client, f"🗑️ <b>sᴛᴏʀʏ ᴅᴇʟᴇᴛᴇᴅ:</b> <code>{story_title}</code>")
         except Exception:
@@ -551,8 +553,142 @@ async def finalize_add_episodes_single(client, message, data):
         pass
 
 
+# ------------------ MARK STORY AS COMPLETED ------------------
+
+@Client.on_message(filters.command("markcomplete") & filters.user(ADMIN_ID) & filters.private, group=1)
+async def start_mark_complete(client, message):
+    COMPLETE_STATE[message.from_user.id] = {'step': 'STORY_NAME'}
+    await message.reply_text(
+        "🏆 <b>ᴍᴀʀᴋ sᴛᴏʀʏ ᴀs ᴄᴏᴍᴘʟᴇᴛᴇᴅ WIZARD:</b>\n\n"
+        "जिस Ongoing स्टोरी को <b>Completed</b> मार्क करना है, उसका <b>Exact Title</b> दर्ज करें:\n"
+        "<i>(टाइप करें /cancel रद्द करने के लिए)</i>",
+        reply_markup=ForceReply(True)
+    )
+
+# Wizard Input Handler for Mark Complete
+@Client.on_message(filters.private & filters.user(ADMIN_ID) & ~filters.command(["start", "addstory", "deletestory", "allstories", "cancel", "addmoney", "refreshstories", "addepisodes", "markcomplete"]), group=1)
+async def process_mark_complete_inputs(client, message):
+    user_id = message.from_user.id
+
+    if user_id not in COMPLETE_STATE:
+        message.continue_propagation()
+        return
+
+    step = COMPLETE_STATE[user_id]['step']
+
+    # Step 1: Story Search
+    if step == 'STORY_NAME':
+        story_title = message.text.strip().split("\n")[0]
+        story = await stories_col.find_one({"title": {"$regex": f"^{re.escape(story_title)}$", "$options": "i"}})
+
+        if not story:
+            return await message.reply_text(f"❌ <b>'{story_title}' नाम से कोई स्टोरी नहीं मिली!</b>\nसही स्टोरी नाम दर्ज करें या /cancel करें:")
+
+        COMPLETE_STATE[user_id]['story_id'] = story['_id']
+        COMPLETE_STATE[user_id]['title'] = story['title']
+        COMPLETE_STATE[user_id]['old_first_id'] = story.get('first_msg_id')
+        COMPLETE_STATE[user_id]['old_last_id'] = story.get('last_msg_id')
+        COMPLETE_STATE[user_id]['step'] = 'ASK_NEW_LAST'
+
+        kb = InlineKeyboardMarkup([
+            [
+                InlineKeyboardButton("YES (अपडेट करें)", callback_data="mc_last_yes"),
+                InlineKeyboardButton("NO (पुराना ही रखें)", callback_data="mc_last_no")
+            ]
+        ])
+
+        await message.reply_text(
+            f"✅ <b>स्टोरी मिल गई:</b> {story['title']}\n"
+            f"ℹ️ <b>Current Status:</b> {story.get('status', 'Ongoing')}\n"
+            f"📦 <b>Current Last Msg ID:</b> {story.get('last_msg_id')}\n\n"
+            f"<b>क्या आप इस स्टोरी का Final Last Message ID / Link भी बदलना चाहते हैं?</b>",
+            reply_markup=kb
+        )
+
+    # Step 2: Custom Last ID Input
+    elif step == 'INPUT_NEW_LAST':
+        new_last = extract_msg_id(message.text)
+        if not new_last:
+            return await message.reply_text("❌ Invalid ID/Link! Valid Link/ID भेजें:")
+
+        old_f = COMPLETE_STATE[user_id]['old_first_id']
+        if new_last and old_f and new_last < old_f:
+            return await message.reply_text("❌ Last Message ID, First ID से छोटा नहीं हो सकता। दोबारा सही Link भेजें:")
+
+        COMPLETE_STATE[user_id]['final_last_id'] = new_last
+        state_data = COMPLETE_STATE.pop(user_id, None)
+        await finalize_mark_completed(client, message, state_data)
+
+
+# Callbacks for Mark Complete
+@Client.on_callback_query(filters.regex("^mc_last_") & filters.user(ADMIN_ID))
+async def mark_complete_callbacks(client, callback):
+    user_id = callback.from_user.id
+    if user_id not in COMPLETE_STATE:
+        return await callback.answer("Session Expired!", show_alert=True)
+
+    choice = callback.data.split("mc_last_")[1]
+
+    if choice == "yes":
+        COMPLETE_STATE[user_id]['step'] = 'INPUT_NEW_LAST'
+        await callback.message.reply_text(
+            "🔢 <b>Final/Last Episode का Message ID या Telegram Link भेजें:</b>",
+            reply_markup=ForceReply(True)
+        )
+        await callback.answer()
+    else:
+        COMPLETE_STATE[user_id]['final_last_id'] = COMPLETE_STATE[user_id]['old_last_id']
+        state_data = COMPLETE_STATE.pop(user_id, None)
+        await finalize_mark_completed(client, callback.message, state_data)
+        await callback.answer()
+
+
+# Helper Function to Save Completed Status in DB & Notify
+async def finalize_mark_completed(client, message, data):
+    story_id = data['story_id']
+    title = data['title']
+    first_id = data['old_first_id']
+    final_last_id = data['final_last_id']
+
+    total_files_count = (final_last_id - first_id) + 1 if (first_id and final_last_id) else "All"
+
+    update_payload = {
+        "status": "Completed",
+        "last_msg_id": final_last_id,
+        "total_files": f"{total_files_count} files" if isinstance(total_files_count, int) else total_files_count,
+        "episodes": f"{total_files_count} Episodes (Full)" if isinstance(total_files_count, int) else "Completed"
+    }
+
+    await stories_col.update_one({"_id": story_id}, {"$set": update_payload})
+
+    success_text = (
+        f"🏆 <b>sᴛᴏʀʏ ᴍᴀʀᴋᴇᴅ ᴀs ᴄᴏᴍᴘʟᴇᴛᴇᴅ!</b>\n\n"
+        f"📖 <b>Title:</b> {title}\n"
+        f"🔰 <b>New Status:</b> Completed 🎉\n"
+        f"📦 <b>Total Files:</b> {total_files_count}\n\n"
+        f"<i>Mini App और Bot दोनों जगह यह स्टोरी अब COMPLETED शो करेगी!</i>\n"
+        f"📢 <i>Buyers को Completion नोटिफिकेशन भेजा जा रहा है...</i>"
+    )
+
+    await message.reply_text(success_text)
+
+    # 🔔 Automatic Notification to Buyers
+    ep_info_str = f"🎉 Story fully completed! All episodes uploaded ({total_files_count} files)."
+    asyncio.create_task(notify_story_buyers(client, title, ep_info_str))
+
+    try:
+        log_text = (
+            f"<b>🏆 sᴛᴏʀʏ COMPLETED</b>\n\n"
+            f"📖 <b>Title:</b> <code>{title}</code>\n"
+            f"📊 <b>Total Files:</b> {total_files_count}"
+        )
+        await send_log(client, log_text)
+    except Exception:
+        pass
+
+
 # 7. Admin Wizard Inputs Handler (For both Add Story & Ongoing Episodes)
-@Client.on_message(filters.private & filters.user(ADMIN_ID) & ~filters.command(["start", "addstory", "deletestory", "allstories", "cancel", "addmoney", "refreshstories", "addepisodes"]), group=1)
+@Client.on_message(filters.private & filters.user(ADMIN_ID) & ~filters.command(["start", "addstory", "deletestory", "allstories", "cancel", "addmoney", "refreshstories", "addepisodes", "markcomplete"]), group=1)
 async def wizard_inputs(client, message):
     user_id = message.from_user.id
 
