@@ -1,7 +1,8 @@
 import asyncio
 from pyrogram import Client, filters
+from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from pyrogram.errors import FloodWait, UserIsBlocked, InputUserDeactivated
-from config import ADMIN_ID
+from config import ADMIN_ID, BOT_USERNAME
 from database.db import purchases_col, users_col, send_log
 
 # -------------------- HELPER: GET STORY BUYERS --------------------
@@ -26,7 +27,7 @@ async def get_story_buyers(story_title: str):
 # -------------------- BROADCAST NOTIFICATION FUNCTION --------------------
 async def notify_story_buyers(client: Client, story_title: str, ep_info: str = "New Episode Added"):
     """
-    स्टोरी में नया एपिसोड/फाइल ऐड होने पर बायर्स को ऑटोमेटिक नोटिफिकेशन भेजने का फ़ंक्शन।
+    स्टोरी में नया एपिसोड/फाइल ऐड होने पर बायर्स को ऑटोमेटिक नोटिफिकेशन बटन के साथ भेजने का फ़ंक्शन।
     """
     clean_title = story_title.strip().split("\n")[0]
     buyers = await get_story_buyers(clean_title)
@@ -35,12 +36,21 @@ async def notify_story_buyers(client: Client, story_title: str, ep_info: str = "
         print(f"[Notification] No buyers found for story: {clean_title}")
         return
 
+    # Deep Link Generate (e.g. https://t.me/botusername?start=get_Story_Name)
+    formatted_title = clean_title.replace(" ", "_")
+    story_link = f"https://t.me/{BOT_USERNAME}?start=get_{formatted_title}"
+
     notification_text = (
         f"🎉 <b>New Episode Alert!</b> 🎉\n\n"
         f"📖 <b>Story:</b> <code>{clean_title}</code>\n"
         f"🎬 <b>Update:</b> <code>{ep_info}</code>\n\n"
-        f"✨ आपकी खरीदी हुई स्टोरी में नए एपिसोड ऐड हो गए हैं! देखने के लिए अभी बोट या Mini App चेक करें।"
+        f"✨ आपकी खरीदी हुई स्टोरी में नए एपिसोड ऐड हो गए हैं! देखने के लिए नीचे दिए गए बटन पर क्लिक करें:"
     )
+
+    # 🔘 Inline Access Button
+    access_markup = InlineKeyboardMarkup([
+        [InlineKeyboardButton("📲 Access Your Story", url=story_link)]
+    ])
 
     success = 0
     blocked = 0
@@ -48,13 +58,23 @@ async def notify_story_buyers(client: Client, story_title: str, ep_info: str = "
 
     for user_id in buyers:
         try:
-            await client.send_message(chat_id=user_id, text=notification_text)
+            await client.send_message(
+                chat_id=user_id, 
+                text=notification_text, 
+                reply_markup=access_markup,
+                disable_web_page_preview=True
+            )
             success += 1
             await asyncio.sleep(0.08)  # Rate Limit / FloodWait से बचने के लिए Delay
         except FloodWait as e:
             await asyncio.sleep(e.value)
             try:
-                await client.send_message(chat_id=user_id, text=notification_text)
+                await client.send_message(
+                    chat_id=user_id, 
+                    text=notification_text, 
+                    reply_markup=access_markup,
+                    disable_web_page_preview=True
+                )
                 success += 1
             except Exception:
                 failed += 1
@@ -67,12 +87,13 @@ async def notify_story_buyers(client: Client, story_title: str, ep_info: str = "
         f"📢 <b>Episode Notification Broadcast Complete!</b>\n\n"
         f"📖 <b>Story:</b> <code>{clean_title}</code>\n"
         f"🎬 <b>Details:</b> <code>{ep_info}</code>\n"
+        f"🔗 <b>Access Link:</b> {story_link}\n\n"
         f"✅ Delivered: <code>{success}</code>\n"
         f"🚫 Blocked Users: <code>{blocked}</code>\n"
         f"❌ Failed: <code>{failed}</code>"
     )
     
-    # Log Channel में पूरा रिपोर्ट भेज देगा
+    # Log Channel में पूरी रिपोर्ट भेजेगा
     try:
         await send_log(client, log_msg)
     except Exception:
