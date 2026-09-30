@@ -17,6 +17,7 @@ from plugins.post import send_story_to_channel
 ADD_STATE = {}
 DELETE_STATE = {}
 UPDATE_STATE = {}
+ONGOING_STATE = {}
 
 def extract_msg_id(text: str):
     """Link या Message ID में से Numeric Message ID निकालने का Helper फ़ंक्शन"""
@@ -134,10 +135,11 @@ async def add_money_handler(client, message):
 @Client.on_message(filters.command("cancel") & filters.user(ADMIN_ID) & filters.private, group=1)
 async def cancel_action(client, message):
     user_id = message.from_user.id
-    if user_id in ADD_STATE or user_id in DELETE_STATE or user_id in UPDATE_STATE:
+    if user_id in ADD_STATE or user_id in DELETE_STATE or user_id in UPDATE_STATE or user_id in ONGOING_STATE:
         ADD_STATE.pop(user_id, None)
         DELETE_STATE.pop(user_id, None)
         UPDATE_STATE.pop(user_id, None)
+        ONGOING_STATE.pop(user_id, None)
         await message.reply_text("❌ <b>ᴘʀᴏᴄᴇss ᴄᴀɴᴄᴇʟʟᴇᴅ!</b>")
     else:
         await message.reply_text("❓ ʏᴏᴜ ʜᴀᴠᴇ ɴᴏ ᴀᴄᴛɪᴠᴇ ᴘʀᴏᴄᴇss.")
@@ -380,11 +382,188 @@ async def finalize_add_story(client, message, data):
         disable_web_page_preview=True
     )
 
-# 7. Admin Add Story Input Wizard
+# ------------------ ONGOING STORY ADD EPISODES WIZARD ------------------
+
+# 1. Start Command (/addepisodes)
+@Client.on_message(filters.command("addepisodes") & filters.user(ADMIN_ID) & filters.private, group=1)
+async def start_add_episodes_wizard(client, message):
+    ONGOING_STATE[message.from_user.id] = {'step': 'STORY_NAME'}
+    await message.reply_text(
+        "➕ <b>ᴀᴅᴅ ᴇᴘɪsᴏᴅᴇs (ᴏɴɢᴏɪɴɢ sᴛᴏʀʏ) WIZARD:</b>\n\n"
+        "जिस स्टोरी में नए एपिसोड ऐड करने हैं, उसका <b>Exact Story Title</b> दर्ज करें:\n"
+        "<i>(टाइप करें /cancel रद्द करने के लिए)</i>",
+        reply_markup=ForceReply(True)
+    )
+
+# 2. Callback Handlers for Ongoing Ranges
+@Client.on_callback_query(filters.regex("^(og_add_range|og_finish_ranges)") & filters.user(ADMIN_ID))
+async def ongoing_range_callbacks(client, callback):
+    user_id = callback.from_user.id
+    data = callback.data
+
+    if user_id not in ONGOING_STATE:
+        return await callback.answer("Session Expired!", show_alert=True)
+
+    if data == "og_add_range":
+        ONGOING_STATE[user_id]['step'] = 'RANGE_NAME'
+        await callback.message.reply_text(
+            "✏️ <b>नये Button का Name दर्ज करें:</b>\n"
+            "<i>(उदाहरण: Ep 51-100, Part 2, या Final Episodes)</i>",
+            reply_markup=ForceReply(True)
+        )
+        await callback.answer()
+
+    elif data == "og_finish_ranges":
+        state_data = ONGOING_STATE.pop(user_id, None)
+        await finalize_add_episodes(client, callback.message, state_data)
+        await callback.answer()
+
+# Helper Function: Finalize & Save Ongoing Episodes
+async def finalize_add_episodes(client, message, data):
+    story_id = data['story_id']
+    title = data['title']
+    updated_ranges = data['custom_ranges']
+    
+    all_last_ids = [r['last_id'] for r in updated_ranges]
+    all_first_ids = [r['first_id'] for r in updated_ranges]
+    
+    new_last_id = max(all_last_ids)
+    min_first_id = min(all_first_ids)
+    total_files_count = (new_last_id - min_first_id) + 1
+
+    update_payload = {
+        "last_msg_id": new_last_id,
+        "total_files": f"{total_files_count} files",
+        "episodes": f"{total_files_count} Episodes",
+        "custom_ranges": updated_ranges,
+        "status": "Ongoing"
+    }
+
+    await stories_col.update_one(
+        {"_id": story_id},
+        {"$set": update_payload}
+    )
+
+    success_msg = (
+        f"✅ <b>ᴏɴɢᴏɪɴɢ sᴛᴏʀʏ ᴜᴘᴅᴀᴛᴇᴅ sᴜᴄᴄᴇssғᴜʟʟʏ!</b>\n\n"
+        f"♨️ <b>Story Title:</b> {title}\n"
+        f"🔰 <b>Status:</b> Ongoing\n"
+        f"📦 <b>Total Files Now:</b> {total_files_count} files\n"
+        f"🎯 <b>Total Range Buttons:</b> {len(updated_ranges)} Configured\n\n"
+        f"<i>Mini App aur Bot dono me naye buttons aur episodes add ho gaye hain!</i>"
+    )
+    
+    await message.reply_text(success_msg)
+
+    try:
+        log_text = (
+            f"<b>➕ ᴏɴɢᴏɪɴɢ ᴇᴘɪsᴏᴅᴇs ᴜᴘᴅᴀᴛᴇᴅ</b>\n\n"
+            f"📖 <b>Story:</b> <code>{title}</code>\n"
+            f"🎯 <b>Total Buttons:</b> {len(updated_ranges)}\n"
+            f"📊 <b>Total Files:</b> {total_files_count}"
+        )
+        await send_log(client, log_text)
+    except Exception:
+        pass
+
+
+# 7. Admin Wizard Inputs Handler (For both Add Story & Ongoing Episodes)
 @Client.on_message(filters.private & filters.user(ADMIN_ID) & ~filters.command(["start", "addstory", "deletestory", "allstories", "cancel", "addmoney", "refreshstories", "addepisodes"]), group=1)
 async def wizard_inputs(client, message):
     user_id = message.from_user.id
 
+    # ------------------ ONGOING STORY WIZARD STEPS ------------------
+    if user_id in ONGOING_STATE and 'step' in ONGOING_STATE[user_id]:
+        step = ONGOING_STATE[user_id]['step']
+
+        # Step 1: Search Story Title
+        if step == 'STORY_NAME':
+            story_title = message.text.strip().split("\n")[0]
+            story = await stories_col.find_one({"title": {"$regex": f"^{re.escape(story_title)}$", "$options": "i"}})
+
+            if not story:
+                return await message.reply_text(f"❌ <b>'{story_title}' नाम से कोई स्टोरी नहीं मिली!</b>\nसही स्टोरी नाम दर्ज करें या /cancel करें:")
+
+            ONGOING_STATE[user_id]['story_id'] = story['_id']
+            ONGOING_STATE[user_id]['title'] = story['title']
+            ONGOING_STATE[user_id]['custom_ranges'] = list(story.get('custom_ranges', []))
+
+            existing_ranges = story.get('custom_ranges', [])
+            ONGOING_STATE[user_id]['step'] = 'RANGE_NAME'
+
+            if existing_ranges:
+                ranges_txt = "\n".join([f"• <b>{r['name']}</b> (Msg {r['first_id']} to {r['last_id']})" for r in existing_ranges])
+                await message.reply_text(
+                    f"✅ <b>स्टोरी मिल गई:</b> {story['title']}\n\n"
+                    f"🔘 <b>मौजूदा Buttons:</b>\n{ranges_txt}\n\n"
+                    f"✏️ <b>नये Button का Name दर्ज करें:</b>\n"
+                    f"<i>(उदाहरण: Ep 51-100, Part 2, या Final Episodes)</i>",
+                    reply_markup=ForceReply(True)
+                )
+            else:
+                await message.reply_text(
+                    f"✅ <b>स्टोरी मिल गई:</b> {story['title']}\n"
+                    f"⚠️ <i>इस स्टोरी में पहले से कोई Custom Button नहीं बना है।</i>\n\n"
+                    f"✏️ <b>नये Button का Name दर्ज करें:</b>\n"
+                    f"<i>(उदाहरण: Ep 1 to 50 या Part 1)</i>",
+                    reply_markup=ForceReply(True)
+                )
+
+        # Step 2: Range Button Name
+        elif step == 'RANGE_NAME':
+            ONGOING_STATE[user_id]['temp_range_name'] = message.text.strip()
+            ONGOING_STATE[user_id]['step'] = 'RANGE_FIRST'
+            await message.reply_text(
+                f"🔢 Button <b>'{message.text.strip()}'</b> के लिए <b>First Message ID / Link</b> भेजें:",
+                reply_markup=ForceReply(True)
+            )
+
+        # Step 3: Range First Link / ID
+        elif step == 'RANGE_FIRST':
+            f_id = extract_msg_id(message.text)
+            if not f_id:
+                return await message.reply_text("❌ Invalid ID/Link! Valid Message ID ya Telegram Link bhejein:")
+
+            ONGOING_STATE[user_id]['temp_range_first'] = f_id
+            ONGOING_STATE[user_id]['step'] = 'RANGE_LAST'
+            await message.reply_text(
+                f"🔢 Button <b>'{ONGOING_STATE[user_id]['temp_range_name']}'</b> के लिए <b>Last Message ID / Link</b> भेजें:",
+                reply_markup=ForceReply(True)
+            )
+
+        # Step 4: Range Last Link / ID
+        elif step == 'RANGE_LAST':
+            l_id = extract_msg_id(message.text)
+            if not l_id:
+                return await message.reply_text("❌ Invalid ID/Link! Valid Message ID ya Telegram Link bhejein:")
+
+            f_id = ONGOING_STATE[user_id]['temp_range_first']
+            name = ONGOING_STATE[user_id]['temp_range_name']
+
+            if l_id < f_id:
+                return await message.reply_text("❌ Last Message ID, First Message ID से छोटी नहीं हो सकती। फिर से सही Last Link भेजें:")
+
+            ONGOING_STATE[user_id]['custom_ranges'].append({
+                "name": name,
+                "first_id": f_id,
+                "last_id": l_id
+            })
+
+            kb = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton("➕ Add One More Range/Button", callback_data="og_add_range"),
+                    InlineKeyboardButton("✅ Done & Save Ongoing Story", callback_data="og_finish_ranges")
+                ]
+            ])
+
+            await message.reply_text(
+                f"✅ <b>New Button Added:</b> <code>{name}</code> (Msg {f_id} to {l_id})\n\n"
+                f"क्या आप एक और Button/Range ऐड करना चाहते हैं या सेव करें?",
+                reply_markup=kb
+            )
+        return
+
+    # ------------------ ADD STORY WIZARD STEPS ------------------
     if user_id not in ADD_STATE or 'step' not in ADD_STATE[user_id]:
         message.continue_propagation()
         return
@@ -404,7 +583,7 @@ async def wizard_inputs(client, message):
     elif step == 'EPISODES':
         ADD_STATE[user_id]['episodes'] = message.text.strip()
         ADD_STATE[user_id]['step'] = 'PHOTO'
-        await message.reply_text("<b>[sᴛᴇᴘ 6/10]</b> sᴇɴᴅ ᴛʜᴇ sᴛᴏʀʏ ᴘᴏsᴛᴇʀ ᴘʜᴏᴛᴏ (ᴏʀ ᴇɴᴛᴇʀ ᴀɴ ɪᴍᴀɢᴇ ᴜᴜʀʟ):", reply_markup=ForceReply(True))
+        await message.reply_text("<b>[sᴛᴇᴘ 6/10]</b> sᴇɴᴅ ᴛʜᴇ sᴛᴏʀʏ ᴘᴏsᴛᴇʀ ᴘʜᴏᴛᴏ (ᴏʀ ᴇɴᴛᴇʀ ᴀɴ ɪᴍᴀɢᴇ ᴜʀʟ):", reply_markup=ForceReply(True))
         
     elif step == 'PHOTO':
         if message.photo:
@@ -476,7 +655,6 @@ async def wizard_inputs(client, message):
 
         total_files = (data['last_msg_id'] - data['first_msg_id']) + 1
 
-        # लिमिट हटा दी गई है - अब हमेशा एडमिन से पूछा जाएगा
         data['custom_ranges'] = []
         kb = InlineKeyboardMarkup([
             [
@@ -533,4 +711,3 @@ async def wizard_inputs(client, message):
             f"क्या आप एक और Button/Range ऐड करना चाहते हैं या सेव करें?",
             reply_markup=kb
         )
-
