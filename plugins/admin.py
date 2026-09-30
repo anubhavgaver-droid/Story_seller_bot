@@ -1,5 +1,6 @@
 import re
 import random
+import asyncio
 from pyrogram import Client, filters
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ForceReply
 from config import ADMIN_ID, BOT_USERNAME, WEB_APP_URL, CHANNEL_ID
@@ -13,6 +14,7 @@ from database.db import (
     users_col
 )
 from plugins.post import send_story_to_channel
+from plugins.notification import notify_story_buyers
 
 ADD_STATE = {}
 DELETE_STATE = {}
@@ -478,10 +480,15 @@ async def finalize_add_episodes_buttons(client, message, data):
         f"🔰 <b>Status:</b> Ongoing\n"
         f"📦 <b>Total Files Now:</b> {total_files_count} files\n"
         f"🎯 <b>Total Range Buttons:</b> {len(updated_ranges)} Configured\n\n"
-        f"<i>Mini App और Bot दोनों में नए Buttons और Episodes सफलतापूर्वक ऐड हो गए हैं!</i>"
+        f"<i>Mini App और Bot दोनों में नए Buttons और Episodes सफलतापूर्वक ऐड हो गए हैं!</i>\n"
+        f"📢 <i>Buyers को नोटिफिकेशन भेजा जा रहा है...</i>"
     )
     
     await message.reply_text(success_msg)
+
+    # 🔔 Automatic Notification Trigger (Background Task)
+    ep_info_str = f"New Episodes / Ranges Added (Total: {total_files_count} files)"
+    asyncio.create_task(notify_story_buyers(client, title, ep_info_str))
 
     try:
         log_text = (
@@ -499,6 +506,7 @@ async def finalize_add_episodes_single(client, message, data):
     story_id = data['story_id']
     title = data['title']
     first_id = data['old_first_id']
+    old_last_id = data['old_last_id']
     new_last_id = data['new_last_id']
     
     total_files_count = (new_last_id - first_id) + 1
@@ -521,10 +529,15 @@ async def finalize_add_episodes_single(client, message, data):
         f"🔰 <b>Status:</b> Ongoing\n"
         f"📦 <b>New Range:</b> Message {first_id} to {new_last_id}\n"
         f"📊 <b>Total Files Now:</b> {total_files_count} files\n\n"
-        f"<i>Mini App और Bot में Single Delivery (बिना बटन) अपडेट हो गई है!</i>"
+        f"<i>Mini App और Bot में Single Delivery (बिना बटन) अपडेट हो गई है!</i>\n"
+        f"📢 <i>Buyers को नोटिफिकेशन भेजा जा रहा है...</i>"
     )
     
     await message.reply_text(success_msg)
+
+    # 🔔 Automatic Notification Trigger (Background Task)
+    ep_info_str = f"New Episodes Added (Msg {old_last_id + 1} to {new_last_id})"
+    asyncio.create_task(notify_story_buyers(client, title, ep_info_str))
 
     try:
         log_text = (
