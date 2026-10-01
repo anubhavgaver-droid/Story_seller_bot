@@ -23,7 +23,7 @@ from database.db import get_story_by_title, add_user_purchase, add_wallet_balanc
 ACTIVE_PAYMENTS = {}        
 WALLET_TOPUP_WAITING = {}   
 
-GUIDE_IMAGE_URL = "https://i.ibb.co/hxSgff6h/photo-2026-09-27-13-06-01-7690200646190697472.jpg" 
+GUIDE_IMAGE_URL = "https://i.ibb.co/359XV31J/photo-2026-10-01-02-31-01-7691521352814455808.jpg" 
 
 # ---------------- 0. LOG HELPER FUNCTION ----------------
 
@@ -251,9 +251,9 @@ async def show_payment_methods(client, callback):
     )
 
     btn = InlineKeyboardMarkup([
-        [InlineKeyboardButton("⚡ ᴀᴜᴛᴏ ᴜᴘɪ (ǫʀ & ɪɴsᴛᴀɴᴛ)", style=enums.ButtonStyle.PRIMARY, callback_data=f"show_qr_{price}_{clean_title}")],
-        [InlineKeyboardButton("📲 ᴍᴀɴᴜᴀʟ ᴜᴘɪ (sᴄʀᴇᴇɴsʜᴏᴛ)", callback_data=f"sent_{clean_title}_{price}")],
-        [InlineKeyboardButton("💬 ᴄᴏɴᴛᴀᴄᴛ ᴏᴡɴᴇʀ", url=f"https://t.me/{BOT_USERNAME}")],
+        [InlineKeyboardButton("⚡ ᴀᴜᴛᴏ ᴜᴘɪ (ɪɴsᴛᴀɴᴛ)", style=enums.ButtonStyle.PRIMARY, callback_data=f"show_qr_{price}_{clean_title}")],
+        [InlineKeyboardButton("📲 ᴍᴀɴᴜᴀʟ (sᴄʀᴇᴇɴsʜᴏᴛ)", callback_data=f"sent_{clean_title}_{price}")],
+        [InlineKeyboardButton("💬 ᴄᴏɴᴛᴀᴄᴛ ᴏᴡɴᴇʀ", url=f"https://t.me/hdfilm0900_bot")],
         [InlineKeyboardButton("❌ ᴄᴀɴᴄᴇʟ", style=enums.ButtonStyle.DANGER, callback_data="cancel_payment_process")]
     ])
 
@@ -333,7 +333,6 @@ async def generate_qr_after_terms(client, callback):
     
     encoded_title = title.replace(" ", "_")
     btn_list.append([InlineKeyboardButton("⚡ ᴠᴇʀɪғʏ ᴘᴀʏᴍᴇɴᴛ", style=enums.ButtonStyle.SUCCESS, callback_data=f"auto_check_payment_{user_id}")])
-    btn_list.append([InlineKeyboardButton("📩 ᴍᴀɴᴜᴀʟ / ᴀᴅᴍɪɴ", callback_data=f"sent_{encoded_title}_{price}")])
     btn_list.append([InlineKeyboardButton("❌ ᴄᴀɴᴄᴇʟ", style=enums.ButtonStyle.DANGER, callback_data="cancel_payment_process")])
 
     await callback.message.reply_photo(
@@ -458,8 +457,8 @@ async def process_wallet_amount(client, message):
     )
 
     btn = InlineKeyboardMarkup([
-        [InlineKeyboardButton("⚡ ᴀᴜᴛᴏ ᴜᴘɪ (ǫʀ & ɪɴsᴛᴀɴᴛ)", style=enums.ButtonStyle.PRIMARY, callback_data=f"show_qr_{price}_WalletTopup")],
-        [InlineKeyboardButton("📲 ᴍᴀɴᴜᴀʟ ᴜᴘɪ (sᴄʀᴇᴇɴsʜᴏᴛ)", callback_data=f"sent_WalletTopup_{price}")],
+        [InlineKeyboardButton("⚡ ᴀᴜᴛᴏ ᴜᴘɪ (ɪɴsᴛᴀɴᴛ)", style=enums.ButtonStyle.PRIMARY, callback_data=f"show_qr_{price}_WalletTopup")],
+        [InlineKeyboardButton("📲 ᴍᴀɴᴜᴀʟ  (sᴄʀᴇᴇɴsʜᴏᴛ)", callback_data=f"sent_WalletTopup_{price}")],
         [InlineKeyboardButton("💬 ᴄᴏɴᴛᴀᴄᴛ ᴏᴡɴᴇʀ", url=f"https://t.me/hdfilm0900_bot")],
         [InlineKeyboardButton("❌ ᴄᴀɴᴄᴇʟ", style=enums.ButtonStyle.DANGER, callback_data="cancel_payment_process")]
     ])
