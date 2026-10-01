@@ -25,12 +25,6 @@ WALLET_TOPUP_WAITING = {}
 
 GUIDE_IMAGE_URL = "https://i.ibb.co/hxSgff6h/photo-2026-09-27-13-06-01-7690200646190697472.jpg" 
 
-TERMS_TEXT = (
-    "📜 <b><u>ᴛᴇʀᴍs & ᴄᴏɴᴅɪᴛɪᴏɴs</u></b>\n\n"
-    "• <b>ᴇxᴀᴄᴛ ᴀᴍᴏᴜɴᴛ:</b> ᴘᴀʏᴍᴇɴᴛ ᴍᴜsᴛ ᴍᴀᴛᴄʜ ᴛʜᴇ exact sᴛᴏʀʏ ᴘʀɪᴄᴇ.\n"
-    "• <b>ɴᴏ ʀᴇғᴜɴᴅs:</b> ᴀʟʟ sales ᴀʀᴇ ғɪɴᴀʟ."
-)
-
 # ---------------- 0. LOG HELPER FUNCTION ----------------
 
 async def send_log_to_channel(client: Client, text: str):
@@ -81,10 +75,8 @@ def sync_generate_exact_website_qr_card(amount_text: str, qr_payload: str) -> io
     """Pure QR Code Generator (No Text / No Price). Centered 400x400 QR Image."""
     img_w, img_h = 500, 500
     
-    # Pure White Canvas
     card = Image.new("RGB", (img_w, img_h), (255, 255, 255))
 
-    # Pure UPI Intent QR Code (Large 400x400 Size)
     qr = qrcode.QRCode(
         version=1,
         error_correction=qrcode.constants.ERROR_CORRECT_M,
@@ -95,7 +87,6 @@ def sync_generate_exact_website_qr_card(amount_text: str, qr_payload: str) -> io
     qr.make(fit=True)
     qr_img = qr.make_image(fill_color="black", back_color="white").convert("RGB").resize((400, 400), Image.Resampling.LANCZOS)
 
-    # Exactly Centered QR Code on Canvas (X: 50, Y: 50)
     card.paste(qr_img, (50, 50))
 
     bio = io.BytesIO()
@@ -103,7 +94,6 @@ def sync_generate_exact_website_qr_card(amount_text: str, qr_payload: str) -> io
     card.save(bio, "PNG", optimize=True)
     bio.seek(0)
     
-    # Memory Cleanup
     del card
     del qr_img
     gc.collect()
@@ -234,16 +224,16 @@ async def view_story(client, callback):
         await callback.message.reply_text(caption_text, reply_markup=btn)
     await callback.answer()
 
-# ---------------- STEP 1: SHOW TERMS ----------------
+# ---------------- STEP 1: DIRECT MEDIATOR (CHOOSE PAYMENT METHOD) ----------------
 
 @Client.on_callback_query(filters.regex("^buy_"))
-async def show_terms_first(client, callback):
+async def show_payment_methods(client, callback):
     try:
         raw_data = callback.data[4:]
         clean_title, price = raw_data.rsplit("_", 1)
         story_title = clean_title.replace("_", " ")
     except Exception:
-        return await callback.answer("❌ ᴇʀʀᴏʀ ᴘᴀʀsɪɴɢ ᴘᴀʏᴍᴇɴᴛ ᴅᴀᴛᴀ!", show_alert=True)
+        return await callback.answer("❌ ᴇʀʀᴏʀ ᴘᴀʀsɪɴɢ ᴘᴀʏᴍᴇnt ᴅᴀᴛᴀ!", show_alert=True)
     
     user_id = callback.from_user.id
     ACTIVE_PAYMENTS[user_id] = {
@@ -253,26 +243,28 @@ async def show_terms_first(client, callback):
         "type": "STORY"
     }
 
-    terms_caption = (
-        f"📖 <b>sᴛᴏʀʏ:</b> {story_title}\n"
-        f"💰 <b>ᴀᴍᴏᴜɴᴛ:</b> ₹{price}\n\n"
-        f"{TERMS_TEXT}\n\n"
-        f"👇 <i>ᴘʟᴇᴀsᴇ ᴄʟɪᴄᴋ <b>'✅ ɪ ᴀᴄᴄᴇᴘᴛ & ᴄᴏɴᴛɪɴᴜᴇ'</b> ᴛᴏ ɢᴇɴᴇʀᴀᴛᴇ QR & ᴘᴀʏᴍᴇɴᴛ ʟɪɴᴋ:</i>"
+    mediator_caption = (
+        f"💳 <b><u>sᴇʟᴇᴄᴛ ᴘᴀʏᴍᴇɴᴛ ᴍᴇᴛʜᴏᴅ</u></b>\n\n"
+        f"📌 <b>Item:</b> {story_title}\n"
+        f"💰 <b>Amount:</b> ₹{price}\n\n"
+        f"<i>Please choose how you would like to complete your payment:</i>"
     )
-    
+
     btn = InlineKeyboardMarkup([
-        [InlineKeyboardButton("✅ ɪ ᴀᴄᴄᴇᴘᴛ & ᴄᴏɴᴛɪɴᴜᴇ", style=enums.ButtonStyle.SUCCESS, callback_data=f"show_qr_{price}_{clean_title}")],
+        [InlineKeyboardButton("⚡ ᴀᴜᴛᴏ ᴜᴘɪ (ǫʀ & ɪɴsᴛᴀɴᴛ)", style=enums.ButtonStyle.PRIMARY, callback_data=f"show_qr_{price}_{clean_title}")],
+        [InlineKeyboardButton("📲 ᴍᴀɴᴜᴀʟ ᴜᴘɪ (sᴄʀᴇᴇɴsʜᴏᴛ)", callback_data=f"sent_{clean_title}_{price}")],
+        [InlineKeyboardButton("💬 ᴄᴏɴᴛᴀᴄᴛ ᴏᴡɴᴇʀ", url=f"https://t.me/{BOT_USERNAME}")],
         [InlineKeyboardButton("❌ ᴄᴀɴᴄᴇʟ", style=enums.ButtonStyle.DANGER, callback_data="cancel_payment_process")]
     ])
-    
+
     try:
         await callback.message.reply_photo(
             photo=GUIDE_IMAGE_URL,
-            caption=terms_caption,
+            caption=mediator_caption,
             reply_markup=btn
         )
     except Exception:
-        await callback.message.reply_text(terms_caption, reply_markup=btn)
+        await callback.message.reply_text(mediator_caption, reply_markup=btn)
 
     await callback.answer()
 
@@ -307,6 +299,7 @@ async def generate_qr_after_terms(client, callback):
 
     payment_url, gen_order_id = await create_website_order(user_id, customer_name, price)
 
+    # पिछला मीडिएटर वाला मैसेज डिलीट करने के लिए
     try:
         await callback.message.delete()
     except Exception:
@@ -459,16 +452,20 @@ async def process_wallet_amount(client, message):
         "type": "WALLET"
     }
 
-    terms_caption = (
-        f"👛 <b>ᴡᴀʟʟᴇᴛ ᴛᴏᴘ-ᴜᴘ:</b> ₹{price}\n\n"
-        f"{TERMS_TEXT}\n\n"
-        f"👇 <i>ᴘʟᴇᴀsᴇ ᴄʟɪᴄᴋ <b>'✅ ɪ ᴀᴄᴄᴇᴘᴛ & ᴄᴏɴᴛɪɴᴜᴇ'</b> ᴛᴏ ɢᴇɴᴇʀᴀᴛᴇ QR & ᴘᴀʏᴍᴇɴᴛ ʟɪɴᴋ:</i>"
+    mediator_caption = (
+        f"💳 <b><u>sᴇʟᴇᴄᴛ ᴘᴀʏᴍᴇɴᴛ ᴍᴇᴛʜᴏᴅ</u></b>\n\n"
+        f"👛 <b>Wallet Top-Up:</b> ₹{price}\n\n"
+        f"<i>Please choose how you would like to complete your payment:</i>"
     )
+
     btn = InlineKeyboardMarkup([
-        [InlineKeyboardButton("✅ ɪ ᴀᴄᴄᴇᴘᴛ & ᴄᴏɴᴛɪɴᴜᴇ", style=enums.ButtonStyle.SUCCESS, callback_data=f"show_qr_{price}_WalletTopup")],
+        [InlineKeyboardButton("⚡ ᴀᴜᴛᴏ ᴜᴘɪ (ǫʀ & ɪɴsᴛᴀɴᴛ)", style=enums.ButtonStyle.PRIMARY, callback_data=f"show_qr_{price}_WalletTopup")],
+        [InlineKeyboardButton("📲 ᴍᴀɴᴜᴀʟ ᴜᴘɪ (sᴄʀᴇᴇɴsʜᴏᴛ)", callback_data=f"sent_WalletTopup_{price}")],
+        [InlineKeyboardButton("💬 ᴄᴏɴᴛᴀᴄᴛ ᴏᴡɴᴇʀ", url=f"https://t.me/{BOT_USERNAME}")],
         [InlineKeyboardButton("❌ ᴄᴀɴᴄᴇʟ", style=enums.ButtonStyle.DANGER, callback_data="cancel_payment_process")]
     ])
-    await message.reply_photo(photo=GUIDE_IMAGE_URL, caption=terms_caption, reply_markup=btn)
+
+    await message.reply_photo(photo=GUIDE_IMAGE_URL, caption=mediator_caption, reply_markup=btn)
 
 # ---------------- MANUAL SCREENSHOT ----------------
 
@@ -490,6 +487,12 @@ async def ask_screenshot(client, callback):
         "type": session_type
     }
     
+    # पिछला मीडिएटर मैसेज डिलीट करने के लिए
+    try:
+        await callback.message.delete()
+    except Exception:
+        pass
+
     await callback.message.reply_text(
         "📸 <b>sᴇɴᴅ ᴘᴀʏᴍᴇɴᴛ sᴄʀᴇᴇɴsʜᴏᴛ:</b>\n\nPlease send your payment screenshot photo in this chat.",
         reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ ᴄᴀɴᴄᴇʟ", callback_data="cancel_payment_process")]])
