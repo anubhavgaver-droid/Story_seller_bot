@@ -233,7 +233,7 @@ async def show_payment_methods(client, callback):
         clean_title, price = raw_data.rsplit("_", 1)
         story_title = clean_title.replace("_", " ")
     except Exception:
-        return await callback.answer("❌ ᴇʀʀᴏʀ ᴘᴀʀsɪɴɢ ᴘᴀʏᴍᴇnt ᴅᴀᴛᴀ!", show_alert=True)
+        return await callback.answer("❌ ᴇʀʀᴏʀ ᴘᴀʀsɪɴɢ ᴘᴀʏᴍᴇɴᴛ ᴅᴀᴛᴀ!", show_alert=True)
     
     user_id = callback.from_user.id
     ACTIVE_PAYMENTS[user_id] = {
@@ -299,7 +299,6 @@ async def generate_qr_after_terms(client, callback):
 
     payment_url, gen_order_id = await create_website_order(user_id, customer_name, price)
 
-    # पिछला मीडिएटर वाला मैसेज डिलीट करने के लिए
     try:
         await callback.message.delete()
     except Exception:
@@ -461,13 +460,13 @@ async def process_wallet_amount(client, message):
     btn = InlineKeyboardMarkup([
         [InlineKeyboardButton("⚡ ᴀᴜᴛᴏ ᴜᴘɪ (ǫʀ & ɪɴsᴛᴀɴᴛ)", style=enums.ButtonStyle.PRIMARY, callback_data=f"show_qr_{price}_WalletTopup")],
         [InlineKeyboardButton("📲 ᴍᴀɴᴜᴀʟ ᴜᴘɪ (sᴄʀᴇᴇɴsʜᴏᴛ)", callback_data=f"sent_WalletTopup_{price}")],
-        [InlineKeyboardButton("💬 ᴄᴏɴᴛᴀᴄᴛ ᴏᴡɴᴇʀ", url=f"https://t.me/{BOT_USERNAME}")],
+        [InlineKeyboardButton("💬 ᴄᴏɴᴛᴀᴄᴛ ᴏᴡɴᴇʀ", url=f"https://t.me/hdfilm0900_bot")],
         [InlineKeyboardButton("❌ ᴄᴀɴᴄᴇʟ", style=enums.ButtonStyle.DANGER, callback_data="cancel_payment_process")]
     ])
 
     await message.reply_photo(photo=GUIDE_IMAGE_URL, caption=mediator_caption, reply_markup=btn)
 
-# ---------------- MANUAL SCREENSHOT ----------------
+# ---------------- MANUAL SCREENSHOT (SHOWS UPI ID FIRST) ----------------
 
 @Client.on_callback_query(filters.regex("^sent_"))
 async def ask_screenshot(client, callback):
@@ -487,14 +486,23 @@ async def ask_screenshot(client, callback):
         "type": session_type
     }
     
-    # पिछला मीडिएटर मैसेज डिलीट करने के लिए
     try:
         await callback.message.delete()
     except Exception:
         pass
 
+    manual_text = (
+        f"📲 <b><u>ᴍᴀɴᴜᴀʟ ᴜᴘɪ ᴘᴀʏᴍᴇɴᴛ</u></b>\n\n"
+        f"📌 <b>Item:</b> {story_title}\n"
+        f"💰 <b>Amount:</b> ₹{price}\n\n"
+        f"👇 <b>Pay to this UPI ID:</b>\n"
+        f"<code>{UPI_ID}</code>\n\n"
+        f"<i>(Tap the UPI ID above to copy it)</i>\n\n"
+        f"📸 <b>After payment, please send your payment screenshot photo directly in this chat.</b>"
+    )
+
     await callback.message.reply_text(
-        "📸 <b>sᴇɴᴅ ᴘᴀʏᴍᴇɴᴛ sᴄʀᴇᴇɴsʜᴏᴛ:</b>\n\nPlease send your payment screenshot photo in this chat.",
+        text=manual_text,
         reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ ᴄᴀɴᴄᴇʟ", callback_data="cancel_payment_process")]])
     )
     await callback.answer()
