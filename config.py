@@ -17,7 +17,7 @@ def parse_channel_ids(env_val, default_val=""):
     return ids
 
 # Database Channel Variable (अब इसमें मल्टीपल चैनल्स डाल सकते हैं: "-100111,-100222")
-CHANNEL_ID = parse_channel_ids("CHANNEL_ID", "-1003970824423")
+CHANNEL_ID = parse_channel_ids("CHANNEL_ID", "-1003970824423, -1003986144843")
 
 # Category / Platform-wise Posting Channels (इनमें भी मल्टीपल चैनल्स सपोर्टेड हैं)
 POCKET_FM_CHANNEL = parse_channel_ids("POCKET_FM_CHANNEL", "-1003525105249")
