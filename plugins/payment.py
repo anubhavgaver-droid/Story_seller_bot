@@ -402,7 +402,7 @@ async def direct_verify_payment(client, callback):
                 f"💰 <b>Paid:</b> ₹{actual_paid}\n\n"
                 f"Click below to access your files:",
                 reply_markup=access_btn,
-                protect_content=True
+                protect_content=False
             )
             
             log_msg = (
@@ -584,7 +584,7 @@ async def approve_order(client, callback):
         chat_id=user_id,
         text=f"🎉 <b>ʏᴏᴜʀ ᴘᴀʏᴍᴇɴᴛ ʜᴀs ʙᴇᴇɴ ᴀᴘᴘʀᴏᴠᴇᴅ!</b>\n📖 Story: {clean_title_full}",
         reply_markup=access_btn,
-        protect_content=True
+        protect_content=False
     )
     await callback.message.edit_caption(caption=f"{callback.message.caption.html}\n\n✅ <b>APPROVED BY ADMIN</b>")
     await callback.answer("Approved!", show_alert=True)
