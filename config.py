@@ -6,25 +6,14 @@ BOT_TOKEN = os.environ.get("BOT_TOKEN", "YOUR_BOT_TOKEN")
 ADMIN_ID = int(os.environ.get("ADMIN_ID", "987654321"))
 LOG_CHANNEL = int(os.environ.get("LOG_CHANNEL", "-1001234567890"))
 
-# Helper Function: कॉमा (,) से सेपरेटेड IDs को Int List में कन्वर्ट करने के लिए
-def parse_channel_ids(env_val, default_val=""):
-    raw_ids = os.environ.get(env_val, default_val)
-    ids = []
-    for x in str(raw_ids).split(","):
-        x = x.strip()
-        if x.replace("-", "").isdigit():
-            ids.append(int(x))
-    return ids
+CHANNEL_ID = int(os.environ.get("CHANNEL_ID", "-1003970824423"))
 
-# Database Channel Variable (अब इसमें मल्टीपल चैनल्स डाल सकते हैं: "-100111,-100222")
-CHANNEL_ID = parse_channel_ids("CHANNEL_ID", "-1003970824423, -1003986144843")
+# Category / Platform-wise Posting Channels
+POCKET_FM_CHANNEL = int(os.environ.get("POCKET_FM_CHANNEL", "-1003525105249"))
+PRATILIPI_FM_CHANNEL = int(os.environ.get("PRATILIPI_FM_CHANNEL", "-1003226074080"))
 
-# Category / Platform-wise Posting Channels (इनमें भी मल्टीपल चैनल्स सपोर्टेड हैं)
-POCKET_FM_CHANNEL = parse_channel_ids("POCKET_FM_CHANNEL", "-1003525105249")
-PRATILIPI_FM_CHANNEL = parse_channel_ids("PRATILIPI_FM_CHANNEL", "-1003226074080")
+CHANNEL = int(os.environ.get("CHANNEL", "-1003226074080"))
 
-# Default / Fallback Channel
-CHANNEL = parse_channel_ids("CHANNEL", "-1003226074080")
 
 UPI_ID = os.environ.get("UPI_ID", "paytm.s417pfl@pty")
 PORT = int(os.environ.get("PORT", "8080"))
