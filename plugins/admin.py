@@ -30,12 +30,6 @@ def extract_msg_id(text: str):
     match = re.search(r"/(\d+)$", text)
     return int(match.group(1)) if match else None
 
-def is_valid_channel_id(chat_id):
-    """जाँचता है कि दिया गया चैट ID स्वीकृत CHANNEL_ID लिस्ट में मौजूद है या नहीं"""
-    if isinstance(CHANNEL_ID, list):
-        return chat_id in CHANNEL_ID
-    return chat_id == CHANNEL_ID
-
 # ------------------ ADMIN REFRESH COMMAND FOR ALL STORIES ------------------
 @Client.on_message(filters.command("refreshstories") & filters.user(ADMIN_ID) & filters.private, group=1)
 async def refresh_all_stories(client, message):
@@ -853,7 +847,7 @@ async def wizard_inputs(client, message):
     elif step == 'STATUS':
         ADD_STATE[user_id]['status'] = message.text.strip()
         ADD_STATE[user_id]['step'] = 'EPISODES'
-        await message.reply_text("<b>[sᴛᴇᴘ 5/10]</b> 🎬 ᴇɴᴛᴇʀ ᴛᴏᴛᴀtotal ᴇᴘɪsᴏᴅᴇs:\n<i>(उदाहरण: 80 Episodes, 100+ Episodes या Ongoing)</i>", reply_markup=ForceReply(True))
+        await message.reply_text("<b>[sᴛᴇᴘ 5/10]</b> 🎬 ᴇɴᴛᴇʀ ᴛᴏᴛᴀʟ ᴇᴘɪsᴏᴅᴇs:\n<i>(उदाहरण: 80 Episodes, 100+ Episodes या Ongoing)</i>", reply_markup=ForceReply(True))
 
     elif step == 'EPISODES':
         ADD_STATE[user_id]['episodes'] = message.text.strip()
