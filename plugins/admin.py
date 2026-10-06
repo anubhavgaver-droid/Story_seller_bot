@@ -16,6 +16,7 @@ from database.db import (
 from plugins.post import send_story_to_channel
 from plugins.notification import notify_story_buyers
 
+# State Trackers
 ADD_STATE = {}
 DELETE_STATE = {}
 UPDATE_STATE = {}
@@ -24,6 +25,8 @@ COMPLETE_STATE = {}
 
 def extract_msg_id(text: str):
     """Link या Message ID में से Numeric Message ID निकालने का Helper फ़ंक्शन"""
+    if not text:
+        return None
     text = str(text).strip()
     if text.isdigit():
         return int(text)
@@ -87,7 +90,7 @@ async def add_money_handler(client, message):
     
     if len(args) < 3:
         usage_text = (
-            "⚠️ <b>ɪɴᴠᴀʟɪᴅ ᴄᴏᴍᴍᴀɴᴅ ғᴏʀᴍᴀᴛ!</b>\n\n"
+            "⚠️️ <b>ɪɴᴠᴀʟɪᴅ ᴄᴏᴍᴍᴀɴᴅ ғᴏʀᴍᴀᴛ!</b>\n\n"
             "<b>ᴜsᴀɢᴇ:</b>\n"
             "<code>/addmoney <user_id> <amount></code>\n\n"
             "<b>ᴇxᴀᴍᴘʟᴇs:</b>\n"
@@ -180,7 +183,12 @@ async def list_stories(client, message):
             f"   🔗 <b>sʜᴀʀᴇ ʟɪɴᴋ:</b> <code>{bot_link}</code>\n\n"
         )
     
-    await message.reply_text(text, disable_web_page_preview=True)
+    # Message length check for Telegram limits (4096 chars)
+    if len(text) > 4000:
+        for chunk in [text[i:i+4000] for i in range(0, len(text), 4000)]:
+            await message.reply_text(chunk, disable_web_page_preview=True)
+    else:
+        await message.reply_text(text, disable_web_page_preview=True)
 
 # 3. Delete Story Command Start
 @Client.on_message(filters.command("deletestory") & filters.user(ADMIN_ID) & filters.private, group=1)
@@ -194,45 +202,27 @@ async def start_delete(client, message):
         reply_markup=ForceReply(True)
     )
 
-# 3.1 Delete Input Execution Handler
-@Client.on_message(filters.private & filters.user(ADMIN_ID) & ~filters.command(["start", "addstory", "deletestory", "allstories", "cancel", "addmoney", "refreshstories", "addepisodes", "markcomplete"]), group=1)
-async def process_delete_input(client, message):
-    user_id = message.from_user.id
-
-    if user_id not in DELETE_STATE:
-        message.continue_propagation()
-        return
-
-    story_title = message.text.strip().split("\n")[0]
-    deleted = await delete_story_db(story_title)
-
-    DELETE_STATE.pop(user_id, None)
-
-    if deleted:
-        await message.reply_text(f"✅ <b>sᴛᴏʀʏ '{story_title}' ᴅᴇʟᴇᴛᴇᴅ sᴜᴄᴄᴇssғᴜʟʟʏ ғᴏʀᴍ ᴅᴀᴛᴀʙᴀsᴇ!</b>")
-        try:
-            await send_log(client, f"🗑️ <b>sᴛᴏʀʏ ᴅᴇʟᴇᴛᴇᴅ:</b> <code>{story_title}</code>")
-        except Exception:
-            pass
-    else:
-        await message.reply_text(f"❌ <b>ғᴀɪʟᴇᴅ ᴛᴏ ᴅᴇʟᴇᴛᴇ!</b> Story name <code>{story_title}</code> not found in database.")
-
-
 # 4. Add Story Command Start
 @Client.on_message(filters.command("addstory") & filters.user(ADMIN_ID) & filters.private, group=1)
 async def start_add(client, message):
     ADD_STATE[message.from_user.id] = {}
     kb = InlineKeyboardMarkup([
         [InlineKeyboardButton("📻 Pocket FM", callback_data="setcat_Pocket FM")],
-        [InlineKeyboardButton("📚 Pratilipi FM", callback_data="setcat_Pratilipi FM")]
+        [InlineKeyboardButton("📚 Pratilipi FM", callback_data="setcat_Pratilipi FM")],
+        [InlineKeyboardButton("🎧 Kuku FM", callback_data="setcat_Kuku FM")]
     ])
     await message.reply_text("<b>[sᴛᴇᴘ 1/10]</b> sᴇʟᴇᴄᴛ ᴛʜᴇ sᴛᴏʀʏ ᴄᴀᴛᴇɢᴏʀʏ:\n<i>(ᴛʏᴘᴇ /cancel ᴛᴏ ᴀʙᴏʀᴛ)</i>", reply_markup=kb)
 
 # 5. Category Selection Callback
 @Client.on_callback_query(filters.regex("^setcat_") & filters.user(ADMIN_ID))
 async def cat_selected(client, callback):
-    ADD_STATE[callback.from_user.id]['category'] = callback.data.split("setcat_")[1]
-    ADD_STATE[callback.from_user.id]['platform'] = callback.data.split("setcat_")[1]
+    user_id = callback.from_user.id
+    if user_id not in ADD_STATE:
+        return await callback.answer("Session expired! Please start with /addstory", show_alert=True)
+        
+    category_val = callback.data.split("setcat_")[1]
+    ADD_STATE[user_id]['category'] = category_val
+    ADD_STATE[user_id]['platform'] = category_val
     
     genre_kb = InlineKeyboardMarkup([
         [InlineKeyboardButton("🎭 Drama", callback_data="setgenre_Drama"), InlineKeyboardButton("💖 Romance", callback_data="setgenre_Romance")],
@@ -246,9 +236,13 @@ async def cat_selected(client, callback):
 # 5.1 Genre Selection Callback
 @Client.on_callback_query(filters.regex("^setgenre_") & filters.user(ADMIN_ID))
 async def genre_selected(client, callback):
+    user_id = callback.from_user.id
+    if user_id not in ADD_STATE:
+        return await callback.answer("Session expired!", show_alert=True)
+
     genre_val = callback.data.split("setgenre_")[1]
-    ADD_STATE[callback.from_user.id]['genre'] = genre_val
-    ADD_STATE[callback.from_user.id]['step'] = 'TITLE'
+    ADD_STATE[user_id]['genre'] = genre_val
+    ADD_STATE[user_id]['step'] = 'TITLE'
     await callback.message.reply_text("<b>[sᴛᴇᴘ 3/10]</b> 📖 ᴇɴᴛᴇʀ ᴛʜᴇ sᴛᴏʀʏ ᴛɪᴛʟᴇ:", reply_markup=ForceReply(True))
     await callback.answer()
 
@@ -276,13 +270,12 @@ async def skip_free_link_handler(client, callback):
 # 6. Demo Option Selection Callback (Yes / No)
 @Client.on_callback_query(filters.regex("^setdemo_") & filters.user(ADMIN_ID))
 async def demo_option_selected(client, callback):
-    choice = callback.data.split("setdemo_")[1]
     user_id = callback.from_user.id
+    if user_id not in ADD_STATE:
+        return await callback.answer("Session expired!", show_alert=True)
 
-    if choice == "yes":
-        ADD_STATE[user_id]['demo_enabled'] = True
-    else:
-        ADD_STATE[user_id]['demo_enabled'] = False
+    choice = callback.data.split("setdemo_")[1]
+    ADD_STATE[user_id]['demo_enabled'] = (choice == "yes")
         
     ADD_STATE[user_id]['step'] = 'FIRST_MSG'
     await callback.message.reply_text("<b>[sᴛᴇᴘ 9/10]</b> DB Channel से स्टोरी की <b>FIRST Message ID / Link</b> भेजें:", reply_markup=ForceReply(True))
@@ -300,7 +293,7 @@ async def range_callbacks(client, callback):
     if data in ["setrange_yes", "add_more_range"]:
         ADD_STATE[user_id]['step'] = 'RANGE_NAME'
         await callback.message.reply_text(
-            "✏️ <b>Button Name दर्ज करें:</b>\n"
+            "✏ <b>Button Name दर्ज करें:</b>\n"
             "<i>(उदाहरण: Ep 1 to 50, Part 1, या Episode 51-100)</i>",
             reply_markup=ForceReply(True)
         )
@@ -341,7 +334,7 @@ async def finalize_add_story(client, message, data):
     try:
         await send_story_to_channel(client, data)
     except Exception as e:
-        print(f"⚠️ Auto post failed: {e}")
+        print(f"⚠️️ Auto post failed: {e}")
 
     bot_share_link = f"https://t.me/{BOT_USERNAME}?start=story_{clean_title}"
     total_files = data['last_msg_id'] - data['first_msg_id'] + 1
@@ -388,7 +381,6 @@ async def finalize_add_story(client, message, data):
 
 # ------------------ ONGOING STORY ADD EPISODES WIZARD ------------------
 
-# 1. Start Command (/addepisodes)
 @Client.on_message(filters.command("addepisodes") & filters.user(ADMIN_ID) & filters.private, group=1)
 async def start_add_episodes_wizard(client, message):
     ONGOING_STATE[message.from_user.id] = {'step': 'STORY_NAME'}
@@ -399,7 +391,6 @@ async def start_add_episodes_wizard(client, message):
         reply_markup=ForceReply(True)
     )
 
-# 2. Callback Handlers for Ongoing Options
 @Client.on_callback_query(filters.regex("^(og_opt_buttons|og_opt_single|og_add_range|og_finish_ranges)") & filters.user(ADMIN_ID))
 async def ongoing_range_callbacks(client, callback):
     user_id = callback.from_user.id
@@ -408,7 +399,6 @@ async def ongoing_range_callbacks(client, callback):
     if user_id not in ONGOING_STATE:
         return await callback.answer("Session Expired!", show_alert=True)
 
-    # Option A: Create Buttons
     if data == "og_opt_buttons":
         ONGOING_STATE[user_id]['mode'] = 'BUTTONS'
         old_first = ONGOING_STATE[user_id]['old_first_id']
@@ -422,19 +412,16 @@ async def ongoing_range_callbacks(client, callback):
         )
         await callback.answer()
 
-    # Option B: Single Delivery (No Buttons)
     elif data == "og_opt_single":
         ONGOING_STATE[user_id]['mode'] = 'SINGLE'
-        ONGOING_STATE[user_id]['step'] = 'SINGLE_NEW_LAST'
-        old_last = ONGOING_STATE[user_id]['old_last_id']
+        ONGOING_STATE[user_id]['step'] = 'ASK_EPISODE_COUNT'
         await callback.message.reply_text(
-            f"🔢 <b>नये एपिसोड्स का Last Message ID / Link भेजें:</b>\n"
-            f"<i>(पुरानी Last ID थी: {old_last})</i>",
+            "🎬 <b>आपने एपिसोड कहाँ तक अपडेट कर दिए हैं?</b>\n"
+            "<i>(कृपया सिर्फ नंबर भेजें, जैसे: 50, 100, या 120)</i>",
             reply_markup=ForceReply(True)
         )
         await callback.answer()
 
-    # Add More Range Button
     elif data == "og_add_range":
         ONGOING_STATE[user_id]['step'] = 'RANGE_NAME'
         await callback.message.reply_text(
@@ -444,13 +431,11 @@ async def ongoing_range_callbacks(client, callback):
         )
         await callback.answer()
 
-    # Finish and Save Buttons Range
     elif data == "og_finish_ranges":
         state_data = ONGOING_STATE.pop(user_id, None)
         await finalize_add_episodes_buttons(client, callback.message, state_data)
         await callback.answer()
 
-# Helper Function A: Save Ongoing Episodes as Buttons Range
 async def finalize_add_episodes_buttons(client, message, data):
     story_id = data['story_id']
     title = data['title']
@@ -463,10 +448,13 @@ async def finalize_add_episodes_buttons(client, message, data):
     min_first_id = min(all_first_ids)
     total_files_count = (new_last_id - min_first_id) + 1
 
+    # एपिसोड काउंट का लेबल ऑटो जनरेट या उपयोग
+    ep_count_text = data.get('episode_num_input') or f"{total_files_count} Episodes"
+
     update_payload = {
         "last_msg_id": new_last_id,
         "total_files": f"{total_files_count} files",
-        "episodes": f"{total_files_count} Episodes",
+        "episodes": f"{ep_count_text} Episodes" if ep_count_text.isdigit() else ep_count_text,
         "custom_ranges": updated_ranges,
         "status": "Ongoing"
     }
@@ -480,6 +468,7 @@ async def finalize_add_episodes_buttons(client, message, data):
         f"✅ <b>ᴏɴɢᴏɪɴɢ sᴛᴏʀʏ ᴜᴘᴅᴀᴛᴇᴅ (WITH BUTTONS)!</b>\n\n"
         f"♨️ <b>Story Title:</b> {title}\n"
         f"🔰 <b>Status:</b> Ongoing\n"
+        f"🎬 <b>Updated Episodes:</b> {update_payload['episodes']}\n"
         f"📦 <b>Total Files Now:</b> {total_files_count} files\n"
         f"🎯 <b>Total Range Buttons:</b> {len(updated_ranges)} Configured\n\n"
         f"<i>Mini App और Bot दोनों में नए Buttons और Episodes सफलतापूर्वक ऐड हो गए हैं!</i>\n"
@@ -488,14 +477,14 @@ async def finalize_add_episodes_buttons(client, message, data):
     
     await message.reply_text(success_msg)
 
-    # 🔔 Automatic Notification Trigger (Background Task)
-    ep_info_str = f"New Episodes / Ranges Added (Total: {total_files_count} files)"
+    ep_info_str = f"New Episodes / Ranges Added (Total: {update_payload['episodes']})"
     asyncio.create_task(notify_story_buyers(client, title, ep_info_str))
 
     try:
         log_text = (
             f"<b>➕ ᴏɴɢᴏɪɴɢ ᴇᴘɪsᴏᴅᴇs ᴜᴘᴅᴀᴛᴇᴅ (BUTTONS)</b>\n\n"
             f"📖 <b>Story:</b> <code>{title}</code>\n"
+            f"🎬 <b>Episodes:</b> {update_payload['episodes']}\n"
             f"🎯 <b>Total Buttons:</b> {len(updated_ranges)}\n"
             f"📊 <b>Total Files:</b> {total_files_count}"
         )
@@ -503,20 +492,21 @@ async def finalize_add_episodes_buttons(client, message, data):
     except Exception:
         pass
 
-# Helper Function B: Save Ongoing Episodes as Single Delivery
 async def finalize_add_episodes_single(client, message, data):
     story_id = data['story_id']
     title = data['title']
     first_id = data['old_first_id']
     old_last_id = data['old_last_id']
     new_last_id = data['new_last_id']
+    ep_num = data.get('episode_num_input')
     
-    total_files_count = (new_last_id - first_id) + 1
+    total_files_count = (new_last_id - first_id) + 1 if (first_id and new_last_id) else "N/A"
+    ep_text = f"{ep_num} Episodes" if str(ep_num).isdigit() else f"{ep_num}"
 
     update_payload = {
         "last_msg_id": new_last_id,
-        "total_files": f"{total_files_count} files",
-        "episodes": f"{total_files_count} Episodes",
+        "total_files": f"{total_files_count} files" if isinstance(total_files_count, int) else total_files_count,
+        "episodes": ep_text,
         "status": "Ongoing"
     }
 
@@ -526,32 +516,30 @@ async def finalize_add_episodes_single(client, message, data):
     )
 
     success_msg = (
-        f"✅ <b>ᴏɴɢᴏɪɴɢ sᴛᴏʀʏ ᴜᴘᴅᴀᴛᴇᴅ (SINGLE DELIVERY)!</b>\n\n"
+        f"✅ <b>ᴏɴɢᴏɪɴɢ sᴛᴏʀʏ ᴜᴘᴅᴀᴛᴇᴅ!</b>\n\n"
         f"♨️ <b>Story Title:</b> {title}\n"
         f"🔰 <b>Status:</b> Ongoing\n"
-        f"📦 <b>New Range:</b> Message {first_id} to {new_last_id}\n"
-        f"📊 <b>Total Files Now:</b> {total_files_count} files\n\n"
-        f"<i>Mini App और Bot में Single Delivery (बिना बटन) अपडेट हो गई है!</i>\n"
+        f"🎬 <b>Episodes Updated To:</b> {ep_text}\n"
+        f"📦 <b>New Last Msg ID:</b> {new_last_id}\n\n"
+        f"<i>Mini App और Bot में एपिसोड काउंट {ep_text} सफलतापूर्वक सेट कर दिया गया है!</i>\n"
         f"📢 <i>Buyers को नोटिफिकेशन भेजा जा रहा है...</i>"
     )
     
     await message.reply_text(success_msg)
 
-    # 🔔 Automatic Notification Trigger (Background Task)
-    ep_info_str = f"New Episodes Added (Msg {old_last_id + 1} to {new_last_id})"
+    ep_info_str = f"New Episodes Updated (Now up to {ep_text})"
     asyncio.create_task(notify_story_buyers(client, title, ep_info_str))
 
     try:
         log_text = (
-            f"<b>➕ ᴏɴɢᴏɪɴɢ ᴇᴘɪsᴏᴅᴇs ᴜᴘᴅᴀᴛᴇᴅ (SINGLE)</b>\n\n"
+            f"<b>➕ ᴏɴɢᴏɪɴɢ ᴇᴘɪsᴏᴅᴇs ᴜᴘᴅᴀᴛᴇᴅ</b>\n\n"
             f"📖 <b>Story:</b> <code>{title}</code>\n"
-            f"📦 <b>Range:</b> Msg {first_id} to {new_last_id}\n"
-            f"📊 <b>Total Files:</b> {total_files_count}"
+            f"🎬 <b>Episodes:</b> {ep_text}\n"
+            f"📦 <b>Last Msg ID:</b> {new_last_id}"
         )
         await send_log(client, log_text)
     except Exception:
         pass
-
 
 # ------------------ MARK STORY AS COMPLETED ------------------
 
@@ -565,62 +553,6 @@ async def start_mark_complete(client, message):
         reply_markup=ForceReply(True)
     )
 
-# Wizard Input Handler for Mark Complete
-@Client.on_message(filters.private & filters.user(ADMIN_ID) & ~filters.command(["start", "addstory", "deletestory", "allstories", "cancel", "addmoney", "refreshstories", "addepisodes", "markcomplete"]), group=1)
-async def process_mark_complete_inputs(client, message):
-    user_id = message.from_user.id
-
-    if user_id not in COMPLETE_STATE:
-        message.continue_propagation()
-        return
-
-    step = COMPLETE_STATE[user_id]['step']
-
-    # Step 1: Story Search
-    if step == 'STORY_NAME':
-        story_title = message.text.strip().split("\n")[0]
-        story = await stories_col.find_one({"title": {"$regex": f"^{re.escape(story_title)}$", "$options": "i"}})
-
-        if not story:
-            return await message.reply_text(f"❌ <b>'{story_title}' नाम से कोई स्टोरी नहीं मिली!</b>\nसही स्टोरी नाम दर्ज करें या /cancel करें:")
-
-        COMPLETE_STATE[user_id]['story_id'] = story['_id']
-        COMPLETE_STATE[user_id]['title'] = story['title']
-        COMPLETE_STATE[user_id]['old_first_id'] = story.get('first_msg_id')
-        COMPLETE_STATE[user_id]['old_last_id'] = story.get('last_msg_id')
-        COMPLETE_STATE[user_id]['step'] = 'ASK_NEW_LAST'
-
-        kb = InlineKeyboardMarkup([
-            [
-                InlineKeyboardButton("YES (अपडेट करें)", callback_data="mc_last_yes"),
-                InlineKeyboardButton("NO (पुराना ही रखें)", callback_data="mc_last_no")
-            ]
-        ])
-
-        await message.reply_text(
-            f"✅ <b>स्टोरी मिल गई:</b> {story['title']}\n"
-            f"ℹ️ <b>Current Status:</b> {story.get('status', 'Ongoing')}\n"
-            f"📦 <b>Current Last Msg ID:</b> {story.get('last_msg_id')}\n\n"
-            f"<b>क्या आप इस स्टोरी का Final Last Message ID / Link भी बदलना चाहते हैं?</b>",
-            reply_markup=kb
-        )
-
-    # Step 2: Custom Last ID Input
-    elif step == 'INPUT_NEW_LAST':
-        new_last = extract_msg_id(message.text)
-        if not new_last:
-            return await message.reply_text("❌ Invalid ID/Link! Valid Link/ID भेजें:")
-
-        old_f = COMPLETE_STATE[user_id]['old_first_id']
-        if new_last and old_f and new_last < old_f:
-            return await message.reply_text("❌ Last Message ID, First ID से छोटा नहीं हो सकता। दोबारा सही Link भेजें:")
-
-        COMPLETE_STATE[user_id]['final_last_id'] = new_last
-        state_data = COMPLETE_STATE.pop(user_id, None)
-        await finalize_mark_completed(client, message, state_data)
-
-
-# Callbacks for Mark Complete
 @Client.on_callback_query(filters.regex("^mc_last_") & filters.user(ADMIN_ID))
 async def mark_complete_callbacks(client, callback):
     user_id = callback.from_user.id
@@ -642,8 +574,6 @@ async def mark_complete_callbacks(client, callback):
         await finalize_mark_completed(client, callback.message, state_data)
         await callback.answer()
 
-
-# Helper Function to Save Completed Status in DB & Notify
 async def finalize_mark_completed(client, message, data):
     story_id = data['story_id']
     title = data['title']
@@ -672,7 +602,6 @@ async def finalize_mark_completed(client, message, data):
 
     await message.reply_text(success_text)
 
-    # 🔔 Automatic Notification to Buyers
     ep_info_str = f"🎉 Story fully completed! All episodes uploaded ({total_files_count} files)."
     asyncio.create_task(notify_story_buyers(client, title, ep_info_str))
 
@@ -686,17 +615,78 @@ async def finalize_mark_completed(client, message, data):
     except Exception:
         pass
 
+# ------------------ MASTER INPUT HANDLER FOR PRIVATE MESSAGES ------------------
 
-# 7. Admin Wizard Inputs Handler (For both Add Story & Ongoing Episodes)
 @Client.on_message(filters.private & filters.user(ADMIN_ID) & ~filters.command(["start", "addstory", "deletestory", "allstories", "cancel", "addmoney", "refreshstories", "addepisodes", "markcomplete"]), group=1)
-async def wizard_inputs(client, message):
+async def master_input_handler(client, message):
     user_id = message.from_user.id
 
-    # ------------------ ONGOING STORY WIZARD STEPS ------------------
+    # 1. DELETE STORY WIZARD INPUT
+    if user_id in DELETE_STATE:
+        story_title = message.text.strip().split("\n")[0]
+        deleted = await delete_story_db(story_title)
+        DELETE_STATE.pop(user_id, None)
+
+        if deleted:
+            await message.reply_text(f"✅ <b>sᴛᴏʀʏ '{story_title}' ᴅᴇʟᴇᴛᴇᴅ sᴜᴄᴄᴇssғᴜʟʟʏ ғᴏʀᴍ ᴅᴀᴛᴀʙᴀsᴇ!</b>")
+            try:
+                await send_log(client, f"🗑️ <b>sᴛᴏʀʏ ᴅᴇʟᴇᴛᴇᴅ:</b> <code>{story_title}</code>")
+            except Exception:
+                pass
+        else:
+            await message.reply_text(f"❌ <b>ғᴀɪʟᴇᴅ ᴛᴏ ᴅᴇʟᴇᴛᴇ!</b> Story name <code>{story_title}</code> not found in database.")
+        return
+
+    # 2. MARK COMPLETE WIZARD INPUT
+    if user_id in COMPLETE_STATE and 'step' in COMPLETE_STATE[user_id]:
+        step = COMPLETE_STATE[user_id]['step']
+
+        if step == 'STORY_NAME':
+            story_title = message.text.strip().split("\n")[0]
+            story = await stories_col.find_one({"title": {"$regex": f"^{re.escape(story_title)}$", "$options": "i"}})
+
+            if not story:
+                return await message.reply_text(f"❌ <b>'{story_title}' नाम से कोई स्टोरी नहीं मिली!</b>\nसही स्टोरी नाम दर्ज करें या /cancel करें:")
+
+            COMPLETE_STATE[user_id]['story_id'] = story['_id']
+            COMPLETE_STATE[user_id]['title'] = story['title']
+            COMPLETE_STATE[user_id]['old_first_id'] = story.get('first_msg_id')
+            COMPLETE_STATE[user_id]['old_last_id'] = story.get('last_msg_id')
+            COMPLETE_STATE[user_id]['step'] = 'ASK_NEW_LAST'
+
+            kb = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton("YES (अपडेट करें)", callback_data="mc_last_yes"),
+                    InlineKeyboardButton("NO (पुराना ही रखें)", callback_data="mc_last_no")
+                ]
+            ])
+
+            await message.reply_text(
+                f"✅ <b>स्टोरी मिल गई:</b> {story['title']}\n"
+                f"ℹ️ <b>Current Status:</b> {story.get('status', 'Ongoing')}\n"
+                f"📦 <b>Current Last Msg ID:</b> {story.get('last_msg_id')}\n\n"
+                f"<b>क्या आप इस स्टोरी का Final Last Message ID / Link भी बदलना चाहते हैं?</b>",
+                reply_markup=kb
+            )
+
+        elif step == 'INPUT_NEW_LAST':
+            new_last = extract_msg_id(message.text)
+            if not new_last:
+                return await message.reply_text("❌ Invalid ID/Link! Valid Link/ID भेजें:")
+
+            old_f = COMPLETE_STATE[user_id]['old_first_id']
+            if new_last and old_f and new_last < old_f:
+                return await message.reply_text("❌ Last Message ID, First ID से छोटा नहीं हो सकता। दोबारा सही Link भेजें:")
+
+            COMPLETE_STATE[user_id]['final_last_id'] = new_last
+            state_data = COMPLETE_STATE.pop(user_id, None)
+            await finalize_mark_completed(client, message, state_data)
+        return
+
+    # 3. ONGOING STORY WIZARD INPUT
     if user_id in ONGOING_STATE and 'step' in ONGOING_STATE[user_id]:
         step = ONGOING_STATE[user_id]['step']
 
-        # Step 1: Search Story Title
         if step == 'STORY_NAME':
             story_title = message.text.strip().split("\n")[0]
             story = await stories_col.find_one({"title": {"$regex": f"^{re.escape(story_title)}$", "$options": "i"}})
@@ -710,24 +700,35 @@ async def wizard_inputs(client, message):
             ONGOING_STATE[user_id]['old_first_id'] = story.get('first_msg_id')
             ONGOING_STATE[user_id]['old_last_id'] = story.get('last_msg_id')
 
-            existing_ranges = story.get('custom_ranges', [])
+            ONGOING_STATE[user_id]['step'] = 'ASK_EPISODE_COUNT'
+            await message.reply_text(
+                f"✅ <b>स्टोरी मिल गई:</b> {story['title']}\n"
+                f"🎬 <b>Current Episode Status:</b> {story.get('episodes', 'N/A')}\n\n"
+                f"❓ <b>आपने इस ऑनगोइंग स्टोरी के एपिसोड कहाँ तक अपडेट कर दिए हैं?</b>\n"
+                f"<i>(कृपया सिर्फ नंबर भेजें, जैसे: 25, 50 या 100)</i>",
+                reply_markup=ForceReply(True)
+            )
+
+        elif step == 'ASK_EPISODE_COUNT':
+            ep_input = message.text.strip()
+            ONGOING_STATE[user_id]['episode_num_input'] = ep_input
+
+            existing_ranges = ONGOING_STATE[user_id].get('custom_ranges', [])
 
             if existing_ranges:
-                # केस 1: पहले से बटन बने हुए हैं
                 ONGOING_STATE[user_id]['step'] = 'RANGE_NAME'
                 ranges_txt = "\n".join([f"• <b>{r['name']}</b> (Msg {r['first_id']} to {r['last_id']})" for r in existing_ranges])
                 await message.reply_text(
-                    f"✅ <b>स्टोरी मिल गई:</b> {story['title']}\n\n"
+                    f"✅ एपिसोड अपडेट होकर <b>{ep_input} Episodes</b> सेट करने के लिए रेडी हैं।\n\n"
                     f"🔘 <b>मौजूदा Buttons:</b>\n{ranges_txt}\n\n"
                     f"✏️ <b>नये Button का Name दर्ज करें:</b>\n"
                     f"<i>(उदाहरण: Ep 51-100, Part 2, या Final Episodes)</i>",
                     reply_markup=ForceReply(True)
                 )
             else:
-                # केस 2: पहले से बटन नहीं बने हैं -> डिलीवरी मोड पूछें
                 ONGOING_STATE[user_id]['step'] = 'SELECT_MODE'
-                old_f = story.get('first_msg_id')
-                old_l = story.get('last_msg_id')
+                old_f = ONGOING_STATE[user_id].get('old_first_id')
+                old_l = ONGOING_STATE[user_id].get('old_last_id')
                 old_count = (old_l - old_f) + 1 if (old_f and old_l) else 0
 
                 kb = InlineKeyboardMarkup([
@@ -736,20 +737,18 @@ async def wizard_inputs(client, message):
                 ])
 
                 await message.reply_text(
-                    f"✅ <b>स्टोरी मिल गई:</b> {story['title']}\n"
-                    f"ℹ️ <b>पुरानी फाइलों की रेंज:</b> Msg {old_f} to {old_l} ({old_count} एपिसोड्स)\n\n"
+                    f"✅ <b>एपिसोड स्टेटस सेट:</b> {ep_input} Episodes\n"
+                    f"ℹ️️ <b>पुरानी फाइलों की रेंज:</b> Msg {old_f} to {old_l} ({old_count} एपिसोड्स)\n\n"
                     f"⚠️ <i>इस स्टोरी में पहले से कोई Button नहीं बना है।</i>\n\n"
                     f"<b>आप नए एपिसोड किस फॉर्मेट में जोड़ना चाहते हैं?</b>",
                     reply_markup=kb
                 )
 
-        # Step 2A: Old Range Button Name (अगर पहले से बटन नहीं बने थे और एडमिन बटन मोड चुना)
         elif step == 'OLD_RANGE_NAME':
             old_name = message.text.strip()
             old_f = ONGOING_STATE[user_id]['old_first_id']
             old_l = ONGOING_STATE[user_id]['old_last_id']
 
-            # पुरानी फाइलों को पहले बटन के रूप में जोड़ें
             ONGOING_STATE[user_id]['custom_ranges'].append({
                 "name": old_name,
                 "first_id": old_f,
@@ -764,21 +763,19 @@ async def wizard_inputs(client, message):
                 reply_markup=ForceReply(True)
             )
 
-        # Step 2B: Single Delivery New Last ID
         elif step == 'SINGLE_NEW_LAST':
             l_id = extract_msg_id(message.text)
             if not l_id:
                 return await message.reply_text("❌ Invalid ID/Link! Valid Message ID/Link भेजें:")
 
             old_l = ONGOING_STATE[user_id]['old_last_id']
-            if l_id <= old_l:
+            if old_l and l_id <= old_l:
                 return await message.reply_text(f"❌ नया Last Link पुरानी Last ID ({old_l}) से बड़ा होना चाहिए। फिर से सही Last Link भेजें:")
 
             ONGOING_STATE[user_id]['new_last_id'] = l_id
             state_data = ONGOING_STATE.pop(user_id, None)
             await finalize_add_episodes_single(client, message, state_data)
 
-        # Step 3: Range Button Name
         elif step == 'RANGE_NAME':
             ONGOING_STATE[user_id]['temp_range_name'] = message.text.strip()
             ONGOING_STATE[user_id]['step'] = 'RANGE_FIRST'
@@ -787,7 +784,6 @@ async def wizard_inputs(client, message):
                 reply_markup=ForceReply(True)
             )
 
-        # Step 4: Range First Link / ID
         elif step == 'RANGE_FIRST':
             f_id = extract_msg_id(message.text)
             if not f_id:
@@ -800,7 +796,6 @@ async def wizard_inputs(client, message):
                 reply_markup=ForceReply(True)
             )
 
-        # Step 5: Range Last Link / ID
         elif step == 'RANGE_LAST':
             l_id = extract_msg_id(message.text)
             if not l_id:
@@ -832,151 +827,151 @@ async def wizard_inputs(client, message):
             )
         return
 
-    # ------------------ ADD STORY WIZARD STEPS ------------------
-    if user_id not in ADD_STATE or 'step' not in ADD_STATE[user_id]:
-        message.continue_propagation()
-        return
+    # 4. ADD STORY WIZARD INPUT
+    if user_id in ADD_STATE and 'step' in ADD_STATE[user_id]:
+        step = ADD_STATE[user_id]['step']
         
-    step = ADD_STATE[user_id]['step']
-    
-    if step == 'TITLE':
-        ADD_STATE[user_id]['title'] = message.text.strip().split("\n")[0]
-        ADD_STATE[user_id]['step'] = 'STATUS'
-        await message.reply_text("<b>[sᴛᴇᴘ 4/10]</b> 🔰 ᴇɴᴛᴇʀ sᴛᴏʀʏ sᴛᴀᴛᴜs:\n<i>(उदाहरण: Completed या Ongoing)</i>", reply_markup=ForceReply(True))
+        if step == 'TITLE':
+            ADD_STATE[user_id]['title'] = message.text.strip().split("\n")[0]
+            ADD_STATE[user_id]['step'] = 'STATUS'
+            await message.reply_text("<b>[sᴛᴇᴘ 4/10]</b> 🔰 ᴇɴᴛᴇʀ sᴛᴏʀʏ sᴛᴀᴛᴜs:\n<i>(उदाहरण: Completed या Ongoing)</i>", reply_markup=ForceReply(True))
 
-    elif step == 'STATUS':
-        ADD_STATE[user_id]['status'] = message.text.strip()
-        ADD_STATE[user_id]['step'] = 'EPISODES'
-        await message.reply_text("<b>[sᴛᴇᴘ 5/10]</b> 🎬 ᴇɴᴛᴇʀ ᴛᴏᴛᴀʟ ᴇᴘɪsᴏᴅᴇs:\n<i>(उदाहरण: 80 Episodes, 100+ Episodes या Ongoing)</i>", reply_markup=ForceReply(True))
+        elif step == 'STATUS':
+            ADD_STATE[user_id]['status'] = message.text.strip()
+            ADD_STATE[user_id]['step'] = 'EPISODES'
+            await message.reply_text("<b>[sᴛᴇᴘ 5/10]</b> 🎬 ᴇɴᴛᴇʀ ᴛᴏᴛᴀʟ ᴇᴘɪsᴏᴅᴇs:\n<i>(उदाहरण: 80 Episodes, 100+ Episodes या Ongoing)</i>", reply_markup=ForceReply(True))
 
-    elif step == 'EPISODES':
-        ADD_STATE[user_id]['episodes'] = message.text.strip()
-        ADD_STATE[user_id]['step'] = 'PHOTO'
-        await message.reply_text("<b>[sᴛᴇᴘ 6/10]</b> sᴇɴᴅ ᴛʜᴇ sᴛᴏʀʏ ᴘᴏsᴛᴇʀ ᴘʜᴏᴛᴏ (ᴏʀ ᴇɴᴛᴇʀ ᴀɴ ɪᴍᴀɢᴇ ᴜʀʟ):", reply_markup=ForceReply(True))
-        
-    elif step == 'PHOTO':
-        if message.photo:
-            ADD_STATE[user_id]['photo'] = message.photo.file_id
-        elif message.text and (message.text.startswith("http://") or message.text.startswith("https://")):
-            ADD_STATE[user_id]['photo'] = message.text.strip()
-        else:
-            return await message.reply_text("❌ ᴘʟᴇᴀsᴇ sᴇɴᴅ ᴀ ᴠᴀʟɪᴅ ᴘʜᴏᴛᴏ ᴏʀ ɪᴍᴀɢᴇ ᴜʀʟ:")
+        elif step == 'EPISODES':
+            ADD_STATE[user_id]['episodes'] = message.text.strip()
+            ADD_STATE[user_id]['step'] = 'PHOTO'
+            await message.reply_text("<b>[sᴛᴇᴘ 6/10]</b> sᴇɴᴅ ᴛʜᴇ sᴛᴏʀʏ ᴘᴏsᴛᴇʀ ᴘʜᴏᴛᴏ (ᴏʀ ᴇɴᴛᴇʀ ᴀɴ ɪᴍᴀɢᴇ ᴜʀʟ):", reply_markup=ForceReply(True))
             
-        ADD_STATE[user_id]['step'] = 'PRICE'
-        await message.reply_text("<b>[sᴛᴇᴘ 7/10]</b> ᴇɴᴛᴇʀ ᴛʜᴇ ᴘʀɪᴄᴇ (₹):", reply_markup=ForceReply(True))
-        
-    elif step == 'PRICE':
-        if not message.text or not message.text.isdigit():
-            return await message.reply_text("❌ ᴘʟᴇᴀsᴇ ᴇɴᴛᴇʀ ᴛʜᴇ ᴘʀɪᴄᴇ ɪɴ ɴᴜᴍʙᴇʀs ᴏɴʟʏ (ᴇ.ɢ., 99):")
-        ADD_STATE[user_id]['price'] = int(message.text)
-        ADD_STATE[user_id]['step'] = 'DESC'
-        await message.reply_text("<b>[sᴛᴇᴘ 8/10]</b> ᴇɴᴛᴇʀ ᴛʜᴇ ᴅᴇsᴄʀɪᴘᴛɪᴏɴ:", reply_markup=ForceReply(True))
-        
-    elif step == 'DESC':
-        ADD_STATE[user_id]['desc'] = message.text.strip()
-        ADD_STATE[user_id]['step'] = 'FREE_LINK'
-        
-        skip_btn = InlineKeyboardMarkup([
-            [InlineKeyboardButton("⏩ Skip Link", callback_data="skip_free_link")]
-        ])
-        await message.reply_text(
-            "🔗 <b>[sᴛᴇᴘ 8.5/10] External Free Link दर्ज करें:</b>\n\n"
-            "EarnLink / Terabox या कोई भी Free User URL भेजें।\n"
-            "<i>(अगर नहीं देना चाहते तो नीचे <b>Skip Link</b> पर क्लिक करें)</i>",
-            reply_markup=skip_btn
-        )
+        elif step == 'PHOTO':
+            if message.photo:
+                ADD_STATE[user_id]['photo'] = message.photo.file_id
+            elif message.text and (message.text.startswith("http://") or message.text.startswith("https://")):
+                ADD_STATE[user_id]['photo'] = message.text.strip()
+            else:
+                return await message.reply_text("❌ ᴘʟᴇᴀsᴇ sᴇɴᴅ ᴀ ᴠᴀʟɪᴅ ᴘʜᴏᴛᴏ ᴏʀ ɪᴍᴀɢᴇ ᴜʀʟ:")
+                
+            ADD_STATE[user_id]['step'] = 'PRICE'
+            await message.reply_text("<b>[sᴛᴇᴘ 7/10]</b> ᴇɴᴛᴇʀ ᴛʜᴇ ᴘʀɪᴄᴇ (₹):", reply_markup=ForceReply(True))
+            
+        elif step == 'PRICE':
+            if not message.text or not message.text.isdigit():
+                return await message.reply_text("❌ ᴘʟᴇᴀsᴇ ᴇɴᴛᴇʀ ᴛʜᴇ ᴘʀɪᴄᴇ ɪɴ ɴᴜᴍʙᴇʀs ᴏɴʟʏ (ᴇ.ɢ., 99):")
+            ADD_STATE[user_id]['price'] = int(message.text)
+            ADD_STATE[user_id]['step'] = 'DESC'
+            await message.reply_text("<b>[sᴛᴇᴘ 8/10]</b> ᴇɴᴛᴇʀ ᴛʜᴇ ᴅᴇsᴄʀɪᴘᴛɪᴏɴ:", reply_markup=ForceReply(True))
+            
+        elif step == 'DESC':
+            ADD_STATE[user_id]['desc'] = message.text.strip()
+            ADD_STATE[user_id]['step'] = 'FREE_LINK'
+            
+            skip_btn = InlineKeyboardMarkup([
+                [InlineKeyboardButton("⏩ Skip Link", callback_data="skip_free_link")]
+            ])
+            await message.reply_text(
+                "🔗 <b>[sᴛᴇᴘ 8.5/10] External Free Link दर्ज करें:</b>\n\n"
+                "EarnLink / Terabox या कोई भी Free User URL भेजें।\n"
+                "<i>(अगर नहीं देना चाहते तो नीचे <b>Skip Link</b> पर क्लिक करें)</i>",
+                reply_markup=skip_btn
+            )
 
-    elif step == 'FREE_LINK':
-        link_text = message.text.strip()
-        if not (link_text.startswith("http://") or link_text.startswith("https://")):
-            return await message.reply_text("❌ Invalid URL! Valid http/https URL भेजें या 'Skip Link' बटन दबाएं:")
+        elif step == 'FREE_LINK':
+            link_text = message.text.strip()
+            if not (link_text.startswith("http://") or link_text.startswith("https://")):
+                return await message.reply_text("❌ Invalid URL! Valid http/https URL भेजें या 'Skip Link' बटन दबाएं:")
 
-        ADD_STATE[user_id]['free_link'] = link_text
-        ADD_STATE[user_id]['step'] = 'ASK_DEMO'
-        
-        kb = InlineKeyboardMarkup([
-            [
-                InlineKeyboardButton("✅ Yes (Enable Demo)", callback_data="setdemo_yes"),
-                InlineKeyboardButton("❌ No (Disable Demo)", callback_data="setdemo_no")
-            ]
-        ])
-        await message.reply_text("<b>[sᴛᴇᴘ 9/10]</b> क्या आप इस स्टोरी के लिए <b>🎬 View Demo</b> चालू रखना चाहते हैं?", reply_markup=kb)
+            ADD_STATE[user_id]['free_link'] = link_text
+            ADD_STATE[user_id]['step'] = 'ASK_DEMO'
+            
+            kb = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton("✅ Yes (Enable Demo)", callback_data="setdemo_yes"),
+                    InlineKeyboardButton("❌ No (Disable Demo)", callback_data="setdemo_no")
+                ]
+            ])
+            await message.reply_text("<b>[sᴛᴇᴘ 9/10]</b> क्या आप इस स्टोरी के लिए <b>🎬 View Demo</b> चालू रखना चाहते हैं?", reply_markup=kb)
 
-    elif step == 'FIRST_MSG':
-        first_id = extract_msg_id(message.text)
-        if not first_id:
-            return await message.reply_text("❌ Invalid ID/Link! Valid Message ID or Telegram Link enter karein:")
-        
-        ADD_STATE[user_id]['first_msg_id'] = first_id
-        ADD_STATE[user_id]['step'] = 'LAST_MSG'
-        await message.reply_text("<b>[sᴛᴇᴘ 10/10]</b> DB Channel से स्टोरी की <b>LAST Message ID / Link</b> भेजें:", reply_markup=ForceReply(True))
+        elif step == 'FIRST_MSG':
+            first_id = extract_msg_id(message.text)
+            if not first_id:
+                return await message.reply_text("❌ Invalid ID/Link! Valid Message ID or Telegram Link enter karein:")
+            
+            ADD_STATE[user_id]['first_msg_id'] = first_id
+            ADD_STATE[user_id]['step'] = 'LAST_MSG'
+            await message.reply_text("<b>[sᴛᴇᴘ 10/10]</b> DB Channel से स्टोरी की <b>LAST Message ID / Link</b> भेजें:", reply_markup=ForceReply(True))
 
-    elif step == 'LAST_MSG':
-        last_id = extract_msg_id(message.text)
-        if not last_id:
-            return await message.reply_text("❌ Invalid ID/Link! Valid Message ID or Telegram Link enter karein:")
+        elif step == 'LAST_MSG':
+            last_id = extract_msg_id(message.text)
+            if not last_id:
+                return await message.reply_text("❌ Invalid ID/Link! Valid Message ID or Telegram Link enter karein:")
 
-        data = ADD_STATE[user_id]
-        data['last_msg_id'] = last_id
-        
-        if data['last_msg_id'] < data['first_msg_id']:
-            return await message.reply_text("❌ Last Message ID, First Message ID से छोटी नहीं हो सकती। फिर से सही Last ID भेजें:")
+            data = ADD_STATE[user_id]
+            data['last_msg_id'] = last_id
+            
+            if data['last_msg_id'] < data['first_msg_id']:
+                return me.reply_text("❌ Last Message ID, First Message ID से छोटी नहीं हो सकती। फिर से सही Last ID भेजें:")
 
-        total_files = (data['last_msg_id'] - data['first_msg_id']) + 1
+            total_files = (data['last_msg_id'] - data['first_msg_id']) + 1
 
-        data['custom_ranges'] = []
-        kb = InlineKeyboardMarkup([
-            [
-                InlineKeyboardButton("✅ Yes (Custom Buttons)", callback_data="setrange_yes"),
-                InlineKeyboardButton("❌ No (Single Delivery)", callback_data="setrange_no")
-            ]
-        ])
-        return await message.reply_text(
-            f"📦 <b>ᴛᴏᴛᴀʟ ғɪʟᴇs: {total_files}</b>\n\n"
-            f"क्या आप इस स्टोरी के लिए Custom Range Buttons (जैसे Ep 1-50, Ep 51-100) बनाना चाहते हैं?",
-            reply_markup=kb
-        )
+            data['custom_ranges'] = []
+            kb = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton("✅ Yes (Custom Buttons)", callback_data="setrange_yes"),
+                    InlineKeyboardButton("❌ No (Single Delivery)", callback_data="setrange_no")
+                ]
+            ])
+            return await message.reply_text(
+                f"📦 <b>ᴛᴏᴛᴀʟ ғɪʟᴇs: {total_files}</b>\n\n"
+                f"क्या आप इस स्टोरी के लिए Custom Range Buttons (जैसे Ep 1-50, Ep 51-100) बनाना चाहते हैं?",
+                reply_markup=kb
+            )
 
-    # Dynamic Range Steps for Add Story
-    elif step == 'RANGE_NAME':
-        ADD_STATE[user_id]['temp_range_name'] = message.text.strip()
-        ADD_STATE[user_id]['step'] = 'RANGE_FIRST'
-        await message.reply_text("🔢 इस Button के लिए <b>First Message ID / Link</b> भेजें:", reply_markup=ForceReply(True))
+        elif step == 'RANGE_NAME':
+            ADD_STATE[user_id]['temp_range_name'] = message.text.strip()
+            ADD_STATE[user_id]['step'] = 'RANGE_FIRST'
+            await message.reply_text("🔢 इस Button के लिए <b>First Message ID / Link</b> भेजें:", reply_markup=ForceReply(True))
 
-    elif step == 'RANGE_FIRST':
-        f_id = extract_msg_id(message.text)
-        if not f_id:
-            return await message.reply_text("❌ Invalid ID/Link! Valid Link send karein:")
-        
-        ADD_STATE[user_id]['temp_range_first'] = f_id
-        ADD_STATE[user_id]['step'] = 'RANGE_LAST'
-        await message.reply_text("🔢 इस Button के लिए <b>Last Message ID / Link</b> भेजें:", reply_markup=ForceReply(True))
+        elif step == 'RANGE_FIRST':
+            f_id = extract_msg_id(message.text)
+            if not f_id:
+                return await message.reply_text("❌ Invalid ID/Link! Valid Link send karein:")
+            
+            ADD_STATE[user_id]['temp_range_first'] = f_id
+            ADD_STATE[user_id]['step'] = 'RANGE_LAST'
+            await message.reply_text("🔢 इस Button के लिए <b>Last Message ID / Link</b> भेजें:", reply_markup=ForceReply(True))
 
-    elif step == 'RANGE_LAST':
-        l_id = extract_msg_id(message.text)
-        if not l_id:
-            return await message.reply_text("❌ Invalid ID/Link! Valid Link send karein:")
-        
-        f_id = ADD_STATE[user_id]['temp_range_first']
-        name = ADD_STATE[user_id]['temp_range_name']
+        elif step == 'RANGE_LAST':
+            l_id = extract_msg_id(message.text)
+            if not l_id:
+                return await message.reply_text("❌ Invalid ID/Link! Valid Link send karein:")
+            
+            f_id = ADD_STATE[user_id]['temp_range_first']
+            name = ADD_STATE[user_id]['temp_range_name']
 
-        if l_id < f_id:
-            return await message.reply_text("❌ Last Message ID, First ID से छोटी नहीं हो सकती। दोबारा सही Last Link भेजें:")
+            if l_id < f_id:
+                return await message.reply_text("❌ Last Message ID, First ID से छोटी नहीं हो सकती। दोबारा सही Last Link भेजें:")
 
-        ADD_STATE[user_id]['custom_ranges'].append({
-            "name": name,
-            "first_id": f_id,
-            "last_id": l_id
-        })
+            ADD_STATE[user_id]['custom_ranges'].append({
+                "name": name,
+                "first_id": f_id,
+                "last_id": l_id
+            })
 
-        kb = InlineKeyboardMarkup([
-            [
-                InlineKeyboardButton("➕ Add One More Range", callback_data="add_more_range"),
-                InlineKeyboardButton("✅ Done & Save Story", callback_data="finish_ranges")
-            ]
-        ])
-        await message.reply_text(
-            f"✅ <b>Range Added:</b> <code>{name}</code> (Msg {f_id} to {l_id})\n\n"
-            f"क्या आप एक और Button/Range ऐड करना चाहते हैं या सेव करें?",
-            reply_markup=kb
-        )
+            kb = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton("➕ Add One More Range", callback_data="add_more_range"),
+                    InlineKeyboardButton("✅ Done & Save Story", callback_data="finish_ranges")
+                ]
+            ])
+            await message.reply_text(
+                f"✅ <b>Range Added:</b> <code>{name}</code> (Msg {f_id} to {l_id})\n\n"
+                f"क्या आप एक और Button/Range ऐड करना चाहते हैं या सेव करें?",
+                reply_markup=kb
+            )
+        return
+
+    
+    message.continue_propagation()
