@@ -15,7 +15,7 @@ PRATILIPI_FM_CHANNEL = int(os.environ.get("PRATILIPI_FM_CHANNEL", "-100322607408
 CHANNEL = int(os.environ.get("CHANNEL", "-1003226074080"))
 
 
-UPI_ID = os.environ.get("UPI_ID", "paytm.s417pfl@pty")
+UPI_ID = os.environ.get("UPI_ID", "BHARATPE2L0U0G8F4J64101@unitype")
 PORT = int(os.environ.get("PORT", "8080"))
 BOT_USERNAME = os.environ.get("BOT_USERNAME", "YourStorySellerBot")
 MONGO_URL = os.environ.get("MONGO_URL", "mongodb://localhost:27017")
