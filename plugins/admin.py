@@ -22,6 +22,9 @@ DELETE_STATE = {}
 UPDATE_STATE = {}
 ONGOING_STATE = {}
 COMPLETE_STATE = {}
+EDIT_NAME_STATE = {}
+EDIT_EPISODES_STATE = {}
+CHANGE_STATUS_STATE = {}
 
 def extract_msg_id(text: str):
     """Link या Message ID में से Numeric Message ID निकालने का Helper फ़ंक्शन"""
@@ -90,7 +93,7 @@ async def add_money_handler(client, message):
     
     if len(args) < 3:
         usage_text = (
-            "⚠️️ <b>ɪɴᴠᴀʟɪᴅ ᴄᴏᴍᴍᴀɴᴅ ғᴏʀᴍᴀᴛ!</b>\n\n"
+            "⚠ <b>ɪɴᴠᴀʟɪᴅ ᴄᴏᴍᴍᴀɴᴅ ғᴏʀᴍᴀᴛ!</b>\n\n"
             "<b>ᴜsᴀɢᴇ:</b>\n"
             "<code>/addmoney <user_id> <amount></code>\n\n"
             "<b>ᴇxᴀᴍᴘʟᴇs:</b>\n"
@@ -141,12 +144,10 @@ async def add_money_handler(client, message):
 @Client.on_message(filters.command("cancel") & filters.user(ADMIN_ID) & filters.private, group=1)
 async def cancel_action(client, message):
     user_id = message.from_user.id
-    if any(user_id in state for state in [ADD_STATE, DELETE_STATE, UPDATE_STATE, ONGOING_STATE, COMPLETE_STATE]):
-        ADD_STATE.pop(user_id, None)
-        DELETE_STATE.pop(user_id, None)
-        UPDATE_STATE.pop(user_id, None)
-        ONGOING_STATE.pop(user_id, None)
-        COMPLETE_STATE.pop(user_id, None)
+    states = [ADD_STATE, DELETE_STATE, UPDATE_STATE, ONGOING_STATE, COMPLETE_STATE, EDIT_NAME_STATE, EDIT_EPISODES_STATE, CHANGE_STATUS_STATE]
+    if any(user_id in state for state in states):
+        for st in states:
+            st.pop(user_id, None)
         await message.reply_text("❌ <b>ᴘʀᴏᴄᴇss ᴄᴀɴᴄᴇʟʟᴇᴅ!</b>")
     else:
         await message.reply_text("❓ ʏᴏᴜ ʜᴀᴠᴇ ɴᴏ ᴀᴄᴛɪᴠᴇ ᴘʀᴏᴄᴇss.")
@@ -183,12 +184,65 @@ async def list_stories(client, message):
             f"   🔗 <b>sʜᴀʀᴇ ʟɪɴᴋ:</b> <code>{bot_link}</code>\n\n"
         )
     
-    # Message length check for Telegram limits (4096 chars)
     if len(text) > 4000:
         for chunk in [text[i:i+4000] for i in range(0, len(text), 4000)]:
             await message.reply_text(chunk, disable_web_page_preview=True)
     else:
         await message.reply_text(text, disable_web_page_preview=True)
+
+# ------------------ NEW FEATURE 1: EDIT STORY NAME ------------------
+@Client.on_message(filters.command("editname") & filters.user(ADMIN_ID) & filters.private, group=1)
+async def start_edit_name(client, message):
+    EDIT_NAME_STATE[message.from_user.id] = {'step': 'OLD_NAME'}
+    await message.reply_text(
+        "✏️ <b>ᴇᴅɪᴛ sᴛᴏʀʏ ɴᴀᴍᴇ WIZARD:</b>\n\n"
+        "जिस स्टोरी का नाम बदलना है, उसका <b>पुराना (Old) Title</b> दर्ज करें:\n"
+        "<i>(टाइप करें /cancel रद्द करने के लिए)</i>",
+        reply_markup=ForceReply(True)
+    )
+
+# ------------------ NEW FEATURE 2: CHANGE EPISODES / RANGES ------------------
+@Client.on_message(filters.command("setepisodes") & filters.user(ADMIN_ID) & filters.private, group=1)
+async def start_edit_episodes(client, message):
+    EDIT_EPISODES_STATE[message.from_user.id] = {'step': 'STORY_NAME'}
+    await message.reply_text(
+        "🎬 <b>ᴇᴅɪᴛ sᴛᴏʀʏ ᴇᴘɪsᴏᴅᴇs WIZARD:</b>\n\n"
+        "जिस स्टोरी का एपिसोड काउंट/टेक्स्ट अलग से बदलना है, उसका <b>Exact Title</b> दर्ज करें:\n"
+        "<i>(टाइप करें /cancel रद्द करने के लिए)</i>",
+        reply_markup=ForceReply(True)
+    )
+
+# ------------------ NEW FEATURE 3: SWITCH STATUS (Ongoing / Completed) ------------------
+@Client.on_message(filters.command("changestatus") & filters.user(ADMIN_ID) & filters.private, group=1)
+async def start_change_status(client, message):
+    CHANGE_STATUS_STATE[message.from_user.id] = {'step': 'STORY_NAME'}
+    await message.reply_text(
+        "🔄 <b>ᴄʜᴀɴɢᴇ sᴛᴏʀʏ sᴛᴀᴛᴜs WIZARD:</b>\n\n"
+        "जिस स्टोरी का स्टेटस बदलना (Ongoing ↔ Completed) है, उसका <b>Exact Title</b> दर्ज करें:\n"
+        "<i>(टाइप करें /cancel रद्द करने के लिए)</i>",
+        reply_markup=ForceReply(True)
+    )
+
+@Client.on_callback_query(filters.regex("^setstatus_") & filters.user(ADMIN_ID))
+async def status_selected_callback(client, callback):
+    user_id = callback.from_user.id
+    if user_id not in CHANGE_STATUS_STATE:
+        return await callback.answer("Session Expired!", show_alert=True)
+
+    new_status = callback.data.split("setstatus_")[1]
+    story_id = CHANGE_STATUS_STATE[user_id]['story_id']
+    title = CHANGE_STATUS_STATE[user_id]['title']
+
+    await stories_col.update_one({"_id": story_id}, {"$set": {"status": new_status}})
+    CHANGE_STATUS_STATE.pop(user_id, None)
+
+    await callback.message.reply_text(
+        f"✅ <b>sᴛᴀᴛᴜs ᴜᴘᴅᴀᴛᴇᴅ sᴜᴄᴄᴇssғᴜʟʟʏ!</b>\n\n"
+        f"📖 <b>Story:</b> {title}\n"
+        f"🔰 <b>New Status:</b> <code>{new_status}</code>\n\n"
+        f"<i>Mini App और Bot दोनों में स्टेटस अपडेट हो गया है।</i>"
+    )
+    await callback.answer()
 
 # 3. Delete Story Command Start
 @Client.on_message(filters.command("deletestory") & filters.user(ADMIN_ID) & filters.private, group=1)
@@ -196,7 +250,7 @@ async def start_delete(client, message):
     user_id = message.from_user.id
     DELETE_STATE[user_id] = True
     await message.reply_text(
-        "🗑️ <b>ᴅᴇʟᴇᴛᴇ sᴛᴏʀɪᴇs ᴡɪᴢᴀʀᴅ:</b>\n\n"
+        "🗑️️ <b>ᴅᴇʟᴇᴛᴇ sᴛᴏʀɪᴇs ᴡɪᴢᴀʀᴅ:</b>\n\n"
         "ᴇɴᴛᴇʀ ᴛʜᴇ <b>ᴇxᴀᴄᴛ ᴛɪᴛʟᴇ</b> ᴏғ ᴛʜᴇ sᴛᴏʀʏ ʏᴏᴜ ᴡᴀɴᴛ ᴛᴏ ᴅᴇʟᴇᴛᴇ:\n"
         "<i>(ᴛʏᴘᴇ /cancel ᴛᴏ ᴀʙᴏʀᴛ)</i>",
         reply_markup=ForceReply(True)
@@ -311,7 +365,6 @@ async def finalize_add_story(client, message, data):
     last = data['last_msg_id']
     demo_msg_ids = []
 
-    # Automatic Demo Audio Files Fetching
     if data.get('demo_enabled', False):
         middle_range = list(range(first + 1, last))
         if len(middle_range) >= 2:
@@ -327,14 +380,12 @@ async def finalize_add_story(client, message, data):
     clean_title = data['title'].strip().split("\n")[0].replace(" ", "_")
     data['link'] = f"https://t.me/{BOT_USERNAME}?start=get_{clean_title}"
 
-    # Database updates
     await add_story_db(data)
     
-    # Auto-Post Trigger to Channel
     try:
         await send_story_to_channel(client, data)
     except Exception as e:
-        print(f"⚠️️ Auto post failed: {e}")
+        print(f"⚠ Auto post failed: {e}")
 
     bot_share_link = f"https://t.me/{BOT_USERNAME}?start=story_{clean_title}"
     total_files = data['last_msg_id'] - data['first_msg_id'] + 1
@@ -346,7 +397,7 @@ async def finalize_add_story(client, message, data):
         f"<b>➕ ɴᴇᴡ sᴛᴏʀʏ ᴀᴅᴅᴇᴅ!</b>\n\n"
         f"♨️ <b>Story :</b> {data['title']}\n"
         f"🔰 <b>Status :</b> {data.get('status', 'Completed')}\n"
-        f"🖥️ <b>Platform :</b> {data.get('category', 'Pocket FM')}\n"
+        f"🖥️️ <b>Platform :</b> {data.get('category', 'Pocket FM')}\n"
         f"🧩 <b>Genre :</b> {data.get('genre', 'Drama')}\n"
         f"🎬 <b>Episodes :</b> {data.get('episodes', 'N/A')}\n"
         f"🔗 <b>Free Link :</b> {free_link_text}\n\n"
@@ -448,7 +499,6 @@ async def finalize_add_episodes_buttons(client, message, data):
     min_first_id = min(all_first_ids)
     total_files_count = (new_last_id - min_first_id) + 1
 
-    # एपिसोड काउंट का लेबल ऑटो जनरेट या उपयोग
     ep_count_text = data.get('episode_num_input') or f"{total_files_count} Episodes"
 
     update_payload = {
@@ -617,11 +667,130 @@ async def finalize_mark_completed(client, message, data):
 
 # ------------------ MASTER INPUT HANDLER FOR PRIVATE MESSAGES ------------------
 
-@Client.on_message(filters.private & filters.user(ADMIN_ID) & ~filters.command(["start", "addstory", "deletestory", "allstories", "cancel", "addmoney", "refreshstories", "addepisodes", "markcomplete"]), group=1)
+@Client.on_message(filters.private & filters.user(ADMIN_ID) & ~filters.command(["start", "addstory", "deletestory", "allstories", "cancel", "addmoney", "refreshstories", "addepisodes", "markcomplete", "editname", "setepisodes", "changestatus"]), group=1)
 async def master_input_handler(client, message):
     user_id = message.from_user.id
 
-    # 1. DELETE STORY WIZARD INPUT
+    # 1. EDIT STORY NAME INPUT HANDLER
+    if user_id in EDIT_NAME_STATE and 'step' in EDIT_NAME_STATE[user_id]:
+        step = EDIT_NAME_STATE[user_id]['step']
+
+        if step == 'OLD_NAME':
+            old_title = message.text.strip().split("\n")[0]
+            story = await stories_col.find_one({"title": {"$regex": f"^{re.escape(old_title)}$", "$options": "i"}})
+
+            if not story:
+                return await message.reply_text(f"❌ <b>'{old_title}' नाम से कोई स्टोरी नहीं मिली!</b>\nसही स्टोरी नाम दर्ज करें या /cancel करें:")
+
+            EDIT_NAME_STATE[user_id]['story_id'] = story['_id']
+            EDIT_NAME_STATE[user_id]['old_title'] = story['title']
+            EDIT_NAME_STATE[user_id]['step'] = 'NEW_NAME'
+
+            await message.reply_text(
+                f"✅ <b>स्टोरी मिल गई:</b> {story['title']}\n\n"
+                f"✏️ <b>अब इस स्टोरी का नया (New) Title दर्ज करें:</b>",
+                reply_markup=ForceReply(True)
+            )
+
+        elif step == 'NEW_NAME':
+            new_title = message.text.strip().split("\n")[0]
+            story_id = EDIT_NAME_STATE[user_id]['story_id']
+            old_title = EDIT_NAME_STATE[user_id]['old_title']
+
+            clean_title = new_title.replace(" ", "_")
+            new_link = f"https://t.me/{BOT_USERNAME}?start=get_{clean_title}"
+
+            await stories_col.update_one(
+                {"_id": story_id},
+                {"$set": {"title": new_title, "link": new_link}}
+            )
+
+            EDIT_NAME_STATE.pop(user_id, None)
+
+            await message.reply_text(
+                f"✅ <b>sᴛᴏʀʏ ɴᴀᴍᴇ ᴜᴘᴅᴀᴛᴇᴅ!</b>\n\n"
+                f"🔴 <b>Old Name:</b> {old_title}\n"
+                f"🟢 <b>New Name:</b> {new_title}\n"
+                f"🔗 <b>New Share Link:</b> <code>https://t.me/{BOT_USERNAME}?start=story_{clean_title}</code>\n\n"
+                f"<i>Mini App और Bot दोनों जगह नया नाम सिंक हो गया है!</i>"
+            )
+        return
+
+    # 2. EDIT EPISODES ONLY INPUT HANDLER
+    if user_id in EDIT_EPISODES_STATE and 'step' in EDIT_EPISODES_STATE[user_id]:
+        step = EDIT_EPISODES_STATE[user_id]['step']
+
+        if step == 'STORY_NAME':
+            story_title = message.text.strip().split("\n")[0]
+            story = await stories_col.find_one({"title": {"$regex": f"^{re.escape(story_title)}$", "$options": "i"}})
+
+            if not story:
+                return await message.reply_text(f"❌ <b>'{story_title}' नाम से कोई स्टोरी नहीं मिली!</b>\nसही स्टोरी नाम दर्ज करें या /cancel करें:")
+
+            EDIT_EPISODES_STATE[user_id]['story_id'] = story['_id']
+            EDIT_EPISODES_STATE[user_id]['title'] = story['title']
+            EDIT_EPISODES_STATE[user_id]['step'] = 'NEW_EPISODE_TEXT'
+
+            await message.reply_text(
+                f"✅ <b>स्टोरी मिल गई:</b> {story['title']}\n"
+                f"🎬 <b>Current Episodes Text:</b> {story.get('episodes', 'N/A')}\n\n"
+                f"✏️ <b>नया Episodes Text या Range दर्ज करें:</b>\n"
+                f"<i>(उदाहरण: 50 Episodes, 1 to 100 Episodes, या 120+ Episodes)</i>",
+                reply_markup=ForceReply(True)
+            )
+
+        elif step == 'NEW_EPISODE_TEXT':
+            new_ep_text = message.text.strip()
+            story_id = EDIT_EPISODES_STATE[user_id]['story_id']
+            title = EDIT_EPISODES_STATE[user_id]['title']
+
+            final_ep_str = f"{new_ep_text} Episodes" if new_ep_text.isdigit() else new_ep_text
+
+            await stories_col.update_one(
+                {"_id": story_id},
+                {"$set": {"episodes": final_ep_str}}
+            )
+
+            EDIT_EPISODES_STATE.pop(user_id, None)
+
+            await message.reply_text(
+                f"✅ <b>ᴇᴘɪsᴏᴅᴇs ᴜᴘᴅᴀᴛᴇᴅ!</b>\n\n"
+                f"📖 <b>Story:</b> {title}\n"
+                f"🎬 <b>New Episodes Text:</b> <code>{final_ep_str}</code>\n\n"
+                f"<i>Mini App और Bot में एपिसोड टेक्स्ट बदल दिया गया है!</i>"
+            )
+        return
+
+    # 3. CHANGE STATUS INPUT HANDLER
+    if user_id in CHANGE_STATUS_STATE and 'step' in CHANGE_STATUS_STATE[user_id]:
+        step = CHANGE_STATUS_STATE[user_id]['step']
+
+        if step == 'STORY_NAME':
+            story_title = message.text.strip().split("\n")[0]
+            story = await stories_col.find_one({"title": {"$regex": f"^{re.escape(story_title)}$", "$options": "i"}})
+
+            if not story:
+                return await message.reply_text(f"❌ <b>'{story_title}' नाम से कोई स्टोरी नहीं मिली!</b>\nसही स्टोरी नाम दर्ज करें या /cancel करें:")
+
+            CHANGE_STATUS_STATE[user_id]['story_id'] = story['_id']
+            CHANGE_STATUS_STATE[user_id]['title'] = story['title']
+
+            kb = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton("🟡 Ongoing सेट करें", callback_data="setstatus_Ongoing"),
+                    InlineKeyboardButton("🟢 Completed सेट करें", callback_data="setstatus_Completed")
+                ]
+            ])
+
+            await message.reply_text(
+                f"✅ <b>स्टोरी मिल गई:</b> {story['title']}\n"
+                f"🔰 <b>Current Status:</b> {story.get('status', 'Completed')}\n\n"
+                f"<b>आप इसका स्टेटस क्या सेट करना चाहते हैं?</b>",
+                reply_markup=kb
+            )
+        return
+
+    # 4. DELETE STORY WIZARD INPUT
     if user_id in DELETE_STATE:
         story_title = message.text.strip().split("\n")[0]
         deleted = await delete_story_db(story_title)
@@ -637,7 +806,7 @@ async def master_input_handler(client, message):
             await message.reply_text(f"❌ <b>ғᴀɪʟᴇᴅ ᴛᴏ ᴅᴇʟᴇᴛᴇ!</b> Story name <code>{story_title}</code> not found in database.")
         return
 
-    # 2. MARK COMPLETE WIZARD INPUT
+    # 5. MARK COMPLETE WIZARD INPUT
     if user_id in COMPLETE_STATE and 'step' in COMPLETE_STATE[user_id]:
         step = COMPLETE_STATE[user_id]['step']
 
@@ -683,7 +852,7 @@ async def master_input_handler(client, message):
             await finalize_mark_completed(client, message, state_data)
         return
 
-    # 3. ONGOING STORY WIZARD INPUT
+    # 6. ONGOING STORY WIZARD INPUT
     if user_id in ONGOING_STATE and 'step' in ONGOING_STATE[user_id]:
         step = ONGOING_STATE[user_id]['step']
 
@@ -738,7 +907,7 @@ async def master_input_handler(client, message):
 
                 await message.reply_text(
                     f"✅ <b>एपिसोड स्टेटस सेट:</b> {ep_input} Episodes\n"
-                    f"ℹ️️ <b>पुरानी फाइलों की रेंज:</b> Msg {old_f} to {old_l} ({old_count} एपिसोड्स)\n\n"
+                    f"ℹ <b>पुरानी फाइलों की रेंज:</b> Msg {old_f} to {old_l} ({old_count} एपिसोड्स)\n\n"
                     f"⚠️ <i>इस स्टोरी में पहले से कोई Button नहीं बना है।</i>\n\n"
                     f"<b>आप नए एपिसोड किस फॉर्मेट में जोड़ना चाहते हैं?</b>",
                     reply_markup=kb
@@ -827,7 +996,7 @@ async def master_input_handler(client, message):
             )
         return
 
-    # 4. ADD STORY WIZARD INPUT
+    # 7. ADD STORY WIZARD INPUT
     if user_id in ADD_STATE and 'step' in ADD_STATE[user_id]:
         step = ADD_STATE[user_id]['step']
         
@@ -973,5 +1142,4 @@ async def master_input_handler(client, message):
             )
         return
 
-    
     message.continue_propagation()
