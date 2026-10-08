@@ -6,12 +6,16 @@ from bson import ObjectId
 from motor.motor_asyncio import AsyncIOMotorClient
 from config import MONGO_URL, LOG_CHANNEL
 
+# MongoDB Async Client Setup
 client = AsyncIOMotorClient(MONGO_URL)
 db = client["story_seller_db"]
+
+# Collections
 stories_col = db["stories"]
-users_col = db["users"]              # Collection for User Registration, Wallet & Language
-purchases_col = db["purchases"]        # Collection for Purchased Stories
-verified_orders_col = db["verified_orders"]  # Collection for Webhook Auto-Payments
+users_col = db["users"]              # User Registration, Wallet & Language
+purchases_col = db["purchases"]        # Purchased Stories
+verified_orders_col = db["verified_orders"]  # Webhook Auto-Payments
+
 
 # -------------------- LOG HELPER FUNCTION --------------------
 async def send_log(client_bot, text: str):
@@ -21,6 +25,7 @@ async def send_log(client_bot, text: str):
             await client_bot.send_message(chat_id=LOG_CHANNEL, text=text)
         except Exception as e:
             print(f"Log Error: {e}")
+
 
 # -------------------- EPISODE EXTRACTION HELPERS --------------------
 def extract_ep_from_file_or_caption(message) -> int:
@@ -62,6 +67,7 @@ def extract_ep_from_file_or_caption(message) -> int:
 
     return None
 
+
 def get_exact_episode_range(fetched_messages) -> str:
     """
     फ़ाइलों की लिस्ट से Start Episode और End Episode की सटीक रेंज बनाता है (e.g. Episode 1 to 100)
@@ -85,6 +91,7 @@ def get_exact_episode_range(fetched_messages) -> str:
     end_id = getattr(end_msg, 'id', getattr(end_msg, 'message_id', 0))
     return f"Files {start_id} to {end_id}"
 
+
 # -------------------- USER REGISTRATION & LANGUAGE --------------------
 async def is_user_registered(user_id: int) -> bool:
     """चेक करेगा कि यूज़र पहले से रजिस्टर्ड है या नहीं (Returns True or False)"""
@@ -92,6 +99,7 @@ async def is_user_registered(user_id: int) -> bool:
     if user:
         return user.get("is_registered", False)
     return False
+
 
 async def register_user(user_id: int, first_name: str, username: str = None, referred_by: int = None):
     """नए यूज़र को रजिस्टर करेगा और Default Wallet Balance (0.0) सेट करेगा"""
@@ -119,10 +127,12 @@ async def register_user(user_id: int, first_name: str, username: str = None, ref
         upsert=True
     )
 
+
 async def get_all_users():
     """ब्रॉडकास्ट के लिए डेटाबेस से सभी रजिस्टर्ड यूज़र्स की लिस्ट निकालता है"""
     cursor = users_col.find({}, {"user_id": 1, "_id": 0})
     return await cursor.to_list(length=None)
+
 
 async def get_user_lang_db(user_id: int) -> str:
     """यूज़र की सिलेक्टेड भाषा ढूँढता है (Default 'en')"""
@@ -130,6 +140,7 @@ async def get_user_lang_db(user_id: int) -> str:
     if user:
         return user.get("lang_code", "en")
     return "en"
+
 
 async def set_user_lang_db(user_id: int, lang_code: str):
     """यूज़र की भाषा डेटाबेस में अपडेट करता है"""
@@ -139,6 +150,7 @@ async def set_user_lang_db(user_id: int, lang_code: str):
         upsert=True
     )
 
+
 # -------------------- WALLET DATABASE FUNCTIONS --------------------
 async def get_user_wallet(user_id: int) -> float:
     """यूज़र का Wallet Balance निकालता है"""
@@ -147,6 +159,7 @@ async def get_user_wallet(user_id: int) -> float:
         return float(user.get("wallet_balance", 0.0))
     return 0.0
 
+
 async def update_user_wallet(user_id: int, new_balance: float):
     """Wallet Balance को direct update करने के लिए"""
     await users_col.update_one(
@@ -154,6 +167,7 @@ async def update_user_wallet(user_id: int, new_balance: float):
         {"$set": {"wallet_balance": round(float(new_balance), 2)}},
         upsert=True
     )
+
 
 async def add_wallet_balance(user_id: int, amount: float) -> float:
     """Wallet में Balance जोड़ने या घटाने के लिए ($inc)"""
@@ -165,10 +179,12 @@ async def add_wallet_balance(user_id: int, amount: float) -> float:
     )
     return float(user.get("wallet_balance", 0.0))
 
+
 # -------------------- REFERRAL DATABASE FUNCTIONS --------------------
 async def get_referred_users_count(user_id: int) -> int:
     """किसी यूज़र द्वारा रेफर किए गए कुल यूज़र्स की संख्या गिनता है"""
     return await users_col.count_documents({"referred_by": user_id})
+
 
 # -------------------- USER PURCHASES & ACCESS CHECK --------------------
 async def add_user_purchase(user_id: int, story_title: str, story_link: str = "#"):
@@ -196,6 +212,7 @@ async def add_user_purchase(user_id: int, story_title: str, story_link: str = "#
         {"$addToSet": {"purchased_stories": clean_title}}
     )
 
+
 async def is_story_unlocked(user_id: int, story_title: str) -> bool:
     """चेक करता है कि यूज़र ने स्टोरी खरीदी है या नहीं"""
     clean_title = story_title.strip().split("\n")[0]
@@ -203,10 +220,12 @@ async def is_story_unlocked(user_id: int, story_title: str) -> bool:
     purchase = await purchases_col.find_one({"user_id": user_id, "story_title": pattern})
     return bool(purchase)
 
+
 async def get_user_purchases(user_id: int):
     """यूज़र की खरीदी हुई सभी स्टोरीज़ की लिस्ट निकालने के लिए फ़ंक्शन"""
     cursor = purchases_col.find({"user_id": user_id})
     return await cursor.to_list(length=None)
+
 
 # -------------------- STORY DATABASE FUNCTIONS --------------------
 async def get_story_by_id(story_id: str):
@@ -218,6 +237,7 @@ async def get_story_by_id(story_id: str):
         return await stories_col.find_one({"_id": ObjectId(story_id)})
     except Exception:
         return None
+
 
 async def add_story_db(data: dict):
     """
@@ -277,6 +297,7 @@ async def add_story_db(data: dict):
     )
     return True
 
+
 async def update_story_demo_status(title: str, is_enabled: bool) -> bool:
     """किसी स्टोरी के लिए Demo (Yes/No) टॉगल करने का फ़ंक्शन"""
     clean_title = title.strip().split("\n")[0]
@@ -285,6 +306,7 @@ async def update_story_demo_status(title: str, is_enabled: bool) -> bool:
         {"$set": {"demo_enabled": is_enabled}}
     )
     return res.modified_count > 0
+
 
 async def update_story_range(title: str, first_msg_id: int, last_msg_id: int) -> bool:
     """किसी स्टोरी के लिए First और Last Message ID सेट करने का फ़ंक्शन"""
@@ -299,6 +321,7 @@ async def update_story_range(title: str, first_msg_id: int, last_msg_id: int) ->
         }}
     )
     return res.modified_count > 0
+
 
 async def delete_story_db(title: str) -> bool:
     """स्टोरी डिलीट करने का फ़ंक्शन - Main List और Purchase List दोनों से डिलीट करता है"""
@@ -315,14 +338,16 @@ async def delete_story_db(title: str) -> bool:
         return True
     return False
 
+
 async def get_all_stories():
-    """सभी स्टोरीज़ की लिस्ट निकालने के लिए फ़ंक्शन"""
+    """सभी स्टोरीज़ की लिस्ट निकालने के लिए फ़ंक्शन (Auto-Repost में प्रयोग के लिए)"""
     try:
         cursor = stories_col.find({})
         return await cursor.to_list(length=2000)
     except Exception as e:
         print(f"Error in get_all_stories: {e}")
         return []
+
 
 async def get_stories_by_cat(cat_key, page=1, limit=10):
     """
@@ -359,6 +384,7 @@ async def get_stories_by_cat(cat_key, page=1, limit=10):
         print(f"Error in get_stories_by_cat: {e}")
         return [], 0
 
+
 async def search_stories_db(query_str, page=1, limit=10):
     """
     टाइटल या विवरण के आधार पर पेजिनेटेड सर्च परिणाम देता है।
@@ -386,11 +412,13 @@ async def search_stories_db(query_str, page=1, limit=10):
         print(f"Error in search_stories_db: {e}")
         return [], 0
 
+
 async def get_story_by_title(title: str):
     """टाइटल के आधार पर स्टोरी ढूँढता है (Exact Match Case-Insensitive)"""
     clean_title = title.strip().split("\n")[0]
     pattern = re.compile(f"^{re.escape(clean_title)}$", re.IGNORECASE)
     return await stories_col.find_one({"title": pattern})
+
 
 # -------------------- AUTO-PAYMENT & WEBHOOK DB FUNCTIONS --------------------
 async def is_order_verified(order_id: str) -> bool:
@@ -399,6 +427,7 @@ async def is_order_verified(order_id: str) -> bool:
     """
     record = await verified_orders_col.find_one({"order_id": order_id, "status": "PAID"})
     return bool(record)
+
 
 async def get_verified_order_details(order_id: str):
     """
