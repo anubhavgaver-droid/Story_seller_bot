@@ -9,8 +9,8 @@ LOG_CHANNEL = int(os.environ.get("LOG_CHANNEL", "-1001234567890"))
 CHANNEL_ID = int(os.environ.get("CHANNEL_ID", "-1003970824423"))
 
 # Category / Platform-wise Posting Channels
-POCKET_FM_CHANNEL = int(os.environ.get("POCKET_FM_CHANNEL", "-1004330412097"))
-PRATILIPI_FM_CHANNEL = int(os.environ.get("PRATILIPI_FM_CHANNEL", "-1004330412097"))
+POCKET_FM_CHANNEL = int(os.environ.get("POCKET_FM_CHANNEL", "-1003525105249"))
+PRATILIPI_FM_CHANNEL = int(os.environ.get("PRATILIPI_FM_CHANNEL", "-1003226074080"))
 
 CHANNEL = int(os.environ.get("CHANNEL", "-1003226074080"))
 
