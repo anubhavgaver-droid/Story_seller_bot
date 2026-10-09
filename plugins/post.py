@@ -2,6 +2,8 @@ import re
 import asyncio
 from pyrogram import Client, enums, filters
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, Message
+
+# Config file imports
 from config import (
     BOT_USERNAME, 
     CHANNEL, 
@@ -10,7 +12,10 @@ from config import (
     PRATILIPI_FM_CHANNEL,
     ADMIN_ID
 )
+
 from database.db import get_all_stories
+
+REPOST_CANCEL_STATE = {}
 
 
 # ---------------- 1. SINGLE STORY POST FUNCTION ----------------
@@ -116,31 +121,61 @@ async def send_story_to_channel(client: Client, story_data: dict, delay_seconds:
         return None
 
 
-# ---------------- 2. ADMIN AUTO-REPOST HANDLER COMMAND ----------------
+# ---------------- 2. ADMIN REPOST CANCEL COMMAND ----------------
+@Client.on_message(filters.command("cancel") & filters.user(ADMIN_ID) & filters.private, group=2)
+async def cancel_repost_command(client: Client, message: Message):
+    """
+    चल रहे Auto-Repost प्रोसेस को रोकने (Cancel) के लिए कमांड।
+    """
+    user_id = message.from_user.id
+    if REPOST_CANCEL_STATE.get(user_id):
+        REPOST_CANCEL_STATE[user_id] = False
+        await message.reply_text("🛑 <b>Auto-Reposting process stop/cancel कर दिया गया है!</b>")
+    else:
+        # अगर कोई एक्टिव रीपोस्ट नहीं चल रहा तो Pyrogram का अगला प्रोग्रेशन हैंडलर काम करेगा
+        message.continue_propagation()
+
+
+# ---------------- 3. ADMIN AUTO-REPOST HANDLER COMMAND ----------------
 @Client.on_message(filters.command("repost") & filters.user(ADMIN_ID))
 async def handle_repost_command(client: Client, message: Message):
     """
     जब नया बोट टोकन सेट करें, तो एडमिन बोट को /repost कमांड देगा।
     बोट DB से सभी स्टोरीज़ निकाल कर 3 मिनट के टाइम-गैप (180s) में
     नए बोट लिंक्स के साथ ऑटो-रीपोस्ट करेगा।
+    /cancel कमांड से इसे रोका जा सकता है।
     """
+    user_id = message.from_user.id
+    REPOST_CANCEL_STATE[user_id] = True  # Start Reposting Flag Set
+
     status_msg = await message.reply_text("🔎 डेटाबेस से सभी स्टोरीज़ फ़ैच की जा रही हैं...")
     
     # 1. डेटाबेस से सभी स्टोरीज़ निकालें
     all_stories = await get_all_stories()
     
     if not all_stories:
+        REPOST_CANCEL_STATE.pop(user_id, None)
         await status_msg.edit_text("❌ डेटाबेस में कोई स्टोरीज़ नहीं मिलीं!")
         return
 
     total_stories = len(all_stories)
     await status_msg.edit_text(
         f"🔄 कुल **{total_stories}** स्टोरीज़ मिलीं। रीपोस्टिंग शुरू हो रही है...\n"
-        f"⏱️ स्पैम/बैन सुरक्षा के लिए हर पोस्ट के बीच **3 मिनट (180s)** का गैप रहेगा।"
+        f"⏱️ स्पैम/बैन सुरक्षा के लिए हर पोस्ट के बीच **3 मिनट (180s)** का गैप रहेगा।\n\n"
+        f"<i>(रोकने के लिए किसी भी समय /cancel टाइप करें)</i>"
     )
 
-    # 2. Sequential Loop with Sleep Delay
+    # 2. Sequential Loop with Sleep Delay and Cancel Check
     for index, story in enumerate(all_stories, start=1):
+        # चेक करें कि एडमिन ने /cancel तो नहीं दबाया
+        if not REPOST_CANCEL_STATE.get(user_id, True):
+            REPOST_CANCEL_STATE.pop(user_id, None)
+            await status_msg.edit_text(
+                f"🛑 <b>रीपोस्टिंग रोक दी गई!</b>\n"
+                f"📊 `{index - 1}/{total_stories}` स्टोरीज़ पोस्ट होने के बाद प्रोसेस कैंसिल हुआ।"
+            )
+            return
+
         try:
             print(f"[{index}/{total_stories}] Reposting: {story.get('title')}")
             
@@ -150,17 +185,23 @@ async def handle_repost_command(client: Client, message: Message):
             # हर 3 पोस्ट बाद या आखिरी पोस्ट पर स्टेटस मैसेज अपडेट करें
             if index % 3 == 0 or index == total_stories:
                 await status_msg.edit_text(
-                    f"📊 **रीपोस्टिंग प्रोग्रेस:** `{index}/{total_stories}` स्टोरीज़ पोस्ट हो चुकी हैं..."
+                    f"📊 **रीपोस्टिंग प्रोग्रेस:** `{index}/{total_stories}` स्टोरीज़ पोस्ट हो चुकी हैं...\n"
+                    f"<i>(रद्द करने के लिए /cancel टाइप करें)</i>"
                 )
 
             # आखिरी पोस्ट के बाद डिले न लगाएं
             if index < total_stories:
-                await asyncio.sleep(180)  # 3 मिनट (180 सेकंड) का डिले
+                # 3 मिनट के स्लीप को छोटे चंक्स में चेक करेंगे ताकि /cancel दबाते ही तुरंत रुक जाए
+                for _ in range(180):
+                    if not REPOST_CANCEL_STATE.get(user_id, True):
+                        break
+                    await asyncio.sleep(1)
 
         except Exception as e:
             print(f"❌ Error reposting story {story.get('title')}: {e}")
-            await asyncio.sleep(10)  # एरर आने पर 10 सेकंड रुक कर आगे बढ़ें
+            await asyncio.sleep(10)
 
+    REPOST_CANCEL_STATE.pop(user_id, None)
     await status_msg.edit_text(
         f"🎉 **रीपोस्टिंग पूर्ण हुई!**\nसभी **{total_stories}** स्टोरीज़ नए बोट यूज़रनेम के साथ चैनल पर सफलतापूर्वक पोस्ट हो चुकी हैं।"
     )
