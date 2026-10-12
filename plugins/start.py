@@ -1107,7 +1107,7 @@ async def start_handler(client, message):
                 "ᴍʏ ᴡᴀʟʟᴇᴛ", 
                 callback_data="open_wallet_cb", 
                 style=enums.ButtonStyle.PRIMARY,
-                icon_custom_emoji_id=5240241223632954241
+                icon_custom_emoji_id=6305404262776050872
             ),
             InlineKeyboardButton(
                 "ᴍʏ ᴀᴄᴄᴏᴜɴᴛ", 
@@ -1126,16 +1126,16 @@ async def start_handler(client, message):
         ],
         [
             InlineKeyboardButton(
-                "📢 ᴜᴘᴅᴀᴛᴇs", 
+                "ᴜᴘᴅᴀᴛᴇs", 
                 url="https://t.me/freestoryhubMR", 
                 style=enums.ButtonStyle.PRIMARY,
-                icon_custom_emoji_id=5253742260054409879
+                icon_custom_emoji_id=5424818078833715060
             ),
             InlineKeyboardButton(
-                "📞 sᴜᴘᴘᴏʀᴛ", 
+                "sᴜᴘᴘᴏʀᴛ", 
                 url="https://t.me/pratilipifm0900", 
                 style=enums.ButtonStyle.PRIMARY,
-                icon_custom_emoji_id=5240241223632954241
+                icon_custom_emoji_id=6305082483826233985
             )
         ]
     ])
