@@ -14,7 +14,7 @@ from config import (
 )
 
 # Database helper function imports
-from db import get_all_stories, get_story_by_title
+from database.db import get_all_stories, get_story_by_title
 
 # State Trackers for Repost Wizards
 REPOST_CANCEL_STATE = {}
