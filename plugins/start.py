@@ -1113,7 +1113,7 @@ async def start_handler(client, message):
                 "ᴍʏ ᴀᴄᴄᴏᴜɴᴛ", 
                 callback_data="open_account_cb", 
                 style=enums.ButtonStyle.PRIMARY,
-                icon_custom_emoji_id=5368324170671202286
+                icon_custom_emoji_id=6258072469043680391
             )
         ],
         [
