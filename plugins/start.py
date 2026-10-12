@@ -1086,18 +1086,18 @@ async def start_handler(client, message):
             return await message.reply_text("❌ <b>ᴛʜɪs sᴛᴏʀʏ ɪs ɴᴏᴛ ᴀᴠᴀɪʟᴀʙʟᴇ.</b>", reply_markup=MAIN_MENU)
 
     # Normal /start Welcome Message
-sent_msg = await message.reply_text("Pʟᴇᴀsᴇ Wᴀɪᴛ...")
-await asyncio.sleep(0.5)
+    sent_msg = await message.reply_text("Pʟᴇᴀsᴇ Wᴀɪᴛ...")
+    await asyncio.sleep(0.5)
 
-welcome_text = (
-    f"<b>━━━━━━━━━━━━━━━━━━━━━━</b>\n"
-    f"🌟 <b>sᴛᴏʀʏ sᴇʟʟᴇʀ ʙᴏᴛ</b> 🌟\n"
-    f"<b>━━━━━━━━━━━━━━━━━━━━━━</b>\n\n"
-    f"<b>ʜᴇʟʟᴏ {user.first_name}! 👋</b>\n\n"
-    f"ᴡᴇʟᴄᴏᴍᴇ ᴛᴏ ᴏᴜʀ ʙᴏᴛ. ᴄʟɪᴄᴋ ᴛʜᴇ ʙᴜᴛᴛᴏɴs ʙᴇʟᴏᴡ ᴛᴏ ᴏᴘᴇɴ ᴛʜᴇ ᴍᴀʀᴋᴇᴛ, ᴄʜᴇᴄᴋ ʏᴏᴜʀ ᴡᴀʟʟᴇᴛ, ᴏʀ ᴠɪᴇᴡ ʏᴏᴜʀ ᴀᴄᴄᴏᴜɴᴛ:"
+    welcome_text = (
+       f"<b>━━━━━━━━━━━━━━━━━━━━━━</b>\n"
+       f"🌟 <b>sᴛᴏʀʏ sᴇʟʟᴇʀ ʙᴏᴛ</b> 🌟\n"
+       f"<b>━━━━━━━━━━━━━━━━━━━━━━</b>\n\n"
+       f"<b>ʜᴇʟʟᴏ {user.first_name}! 👋</b>\n\n"
+       f"ᴡᴇʟᴄᴏᴍᴇ ᴛᴏ ᴏᴜʀ ʙᴏᴛ. ᴄʟɪᴄᴋ ᴛʜᴇ ʙᴜᴛᴛᴏɴs ʙᴇʟᴏᴡ ᴛᴏ ᴏᴘᴇɴ ᴛʜᴇ ᴍᴀʀᴋᴇᴛ, ᴄʜᴇᴄᴋ ʏᴏᴜʀ ᴡᴀʟʟᴇᴛ, ᴏʀ ᴠɪᴇᴡ ʏᴏᴜʀ ᴀᴄᴄᴏᴜɴᴛ:"
 )
 
-start_inline_kb = InlineKeyboardMarkup([
+   start_inline_kb = InlineKeyboardMarkup([
     [
         InlineKeyboardButton(
             "🛒 ᴏᴘᴇɴ ᴍᴀʀᴋᴇᴛ / sᴛᴏʀᴇ", 
@@ -1144,7 +1144,7 @@ start_inline_kb = InlineKeyboardMarkup([
     ]
 ])
 
-await sent_msg.edit_text(welcome_text, reply_markup=start_inline_kb)
+    await sent_msg.edit_text(welcome_text, reply_markup=start_inline_kb)
 
 # ------------------ Open Market Callback Handler ------------------
 @Client.on_callback_query(filters.regex("^open_market_cb$"))
