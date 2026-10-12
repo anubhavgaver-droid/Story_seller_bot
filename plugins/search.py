@@ -206,7 +206,7 @@ async def back_to_menu_handler(client, message):
         ],
         [
             InlineKeyboardButton("ᴍʏ ᴡᴀʟʟᴇᴛ", callback_data="open_wallet_cb", style=enums.ButtonStyle.PRIMARY, icon_custom_emoji_id=6305404262776050872),
-            InlineKeyboardButton("ᴍʏ ᴀᴄᴄᴏᴜɴᴛ", callback_data="open_account_cb", style=enums.ButtonStyle.PRIMARY, icon_custom_emoji_id=5240241223632954241)
+            InlineKeyboardButton("ᴍʏ ᴀᴄᴄᴏᴜɴᴛ", callback_data="open_account_cb", style=enums.ButtonStyle.PRIMARY, icon_custom_emoji_id=6258072469043680391)
         ],
         [
             InlineKeyboardButton("ʀᴇғᴇʀ & ᴇᴀʀɴ", callback_data="open_refer_cb", style=enums.ButtonStyle.PRIMARY, icon_custom_emoji_id=6305039783261378335)
