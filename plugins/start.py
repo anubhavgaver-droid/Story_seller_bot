@@ -1086,35 +1086,65 @@ async def start_handler(client, message):
             return await message.reply_text("❌ <b>ᴛʜɪs sᴛᴏʀʏ ɪs ɴᴏᴛ ᴀᴠᴀɪʟᴀʙʟᴇ.</b>", reply_markup=MAIN_MENU)
 
     # Normal /start Welcome Message
-    sent_msg = await message.reply_text("Pʟᴇᴀsᴇ Wᴀɪᴛ...")
-    await asyncio.sleep(0.5)
+sent_msg = await message.reply_text("Pʟᴇᴀsᴇ Wᴀɪᴛ...")
+await asyncio.sleep(0.5)
 
-    welcome_text = (
-        f"<b>━━━━━━━━━━━━━━━━━━━━━━</b>\n"
-        f"🌟 <b>sᴛᴏʀʏ sᴇʟʟᴇʀ ʙᴏᴛ</b> 🌟\n"
-        f"<b>━━━━━━━━━━━━━━━━━━━━━━</b>\n\n"
-        f"<b>ʜᴇʟʟᴏ {user.first_name}! 👋</b>\n\n"
-        f"ᴡᴇʟᴄᴏᴍᴇ ᴛᴏ ᴏᴜʀ ʙᴏᴛ. ᴄʟɪᴄᴋ ᴛʜᴇ ʙᴜᴛᴛᴏɴs ʙᴇʟᴏᴡ ᴛᴏ ᴏᴘᴇɴ ᴛʜᴇ ᴍᴀʀᴋᴇᴛ, ᴄʜᴇᴄᴋ ʏᴏᴜʀ ᴡᴀʟʟᴇᴛ, ᴏʀ ᴠɪᴇᴡ ʏᴏᴜʀ ᴀᴄᴄᴏᴜɴᴛ:"
-    )
+welcome_text = (
+    f"<b>━━━━━━━━━━━━━━━━━━━━━━</b>\n"
+    f"🌟 <b>sᴛᴏʀʏ sᴇʟʟᴇʀ ʙᴏᴛ</b> 🌟\n"
+    f"<b>━━━━━━━━━━━━━━━━━━━━━━</b>\n\n"
+    f"<b>ʜᴇʟʟᴏ {user.first_name}! 👋</b>\n\n"
+    f"ᴡᴇʟᴄᴏᴍᴇ ᴛᴏ ᴏᴜʀ ʙᴏᴛ. ᴄʟɪᴄᴋ ᴛʜᴇ ʙᴜᴛᴛᴏɴs ʙᴇʟᴏᴡ ᴛᴏ ᴏᴘᴇɴ ᴛʜᴇ ᴍᴀʀᴋᴇᴛ, ᴄʜᴇᴄᴋ ʏᴏᴜʀ ᴡᴀʟʟᴇᴛ, ᴏʀ ᴠɪᴇᴡ ʏᴏᴜʀ ᴀᴄᴄᴏᴜɴᴛ:"
+)
 
-    start_inline_kb = InlineKeyboardMarkup([
-        [
-            InlineKeyboardButton("🛒 ᴏᴘᴇɴ ᴍᴀʀᴋᴇᴛ / sᴛᴏʀᴇ", callback_data="open_market_cb", style=enums.ButtonStyle.PRIMARY)
-        ],
-        [
-            InlineKeyboardButton("💼 ᴍʏ ᴡᴀʟʟᴇᴛ", callback_data="open_wallet_cb", style=enums.ButtonStyle.PRIMARY),
-            InlineKeyboardButton("👤 ᴍʏ ᴀᴄᴄᴏᴜɴᴛ", callback_data="open_account_cb", style=enums.ButtonStyle.PRIMARY)
-        ],
-        [
-            InlineKeyboardButton("🎁 ʀᴇғᴇʀ & ᴇᴀʀɴ", callback_data="open_refer_cb", style=enums.ButtonStyle.PRIMARY)
-        ],
-        [
-            InlineKeyboardButton("📢 ᴜᴘᴅᴀᴛᴇs", url="https://t.me/freestoryhubMR", style=enums.ButtonStyle.PRIMARY),
-            InlineKeyboardButton("📞 sᴜᴘᴘᴏʀᴛ", url="https://t.me/pratilipifm0900", style=enums.ButtonStyle.PRIMARY)
-        ]
-    ])
+start_inline_kb = InlineKeyboardMarkup([
+    [
+        InlineKeyboardButton(
+            "🛒 ᴏᴘᴇɴ ᴍᴀʀᴋᴇᴛ / sᴛᴏʀᴇ", 
+            callback_data="open_market_cb", 
+            style=enums.ButtonStyle.PRIMARY,
+            icon_custom_emoji_id=5368324170671202286  # Yahan apni custom emoji ID daalein
+        )
+    ],
+    [
+        InlineKeyboardButton(
+            "💼 ᴍʏ ᴡᴀʟʟᴇᴛ", 
+            callback_data="open_wallet_cb", 
+            style=enums.ButtonStyle.PRIMARY,
+            icon_custom_emoji_id=5240241223632954241
+        ),
+        InlineKeyboardButton(
+            "👤 ᴍʏ ᴀᴄᴄᴏᴜɴᴛ", 
+            callback_data="open_account_cb", 
+            style=enums.ButtonStyle.PRIMARY,
+            icon_custom_emoji_id=5368324170671202286
+        )
+    ],
+    [
+        InlineKeyboardButton(
+            "🎁 ʀᴇғᴇʀ & ᴇᴀʀɴ", 
+            callback_data="open_refer_cb", 
+            style=enums.ButtonStyle.PRIMARY,
+            icon_custom_emoji_id=5341715473882955310
+        )
+    ],
+    [
+        InlineKeyboardButton(
+            "📢 ᴜᴘᴅᴀᴛᴇs", 
+            url="https://t.me/freestoryhubMR", 
+            style=enums.ButtonStyle.PRIMARY,
+            icon_custom_emoji_id=5253742260054409879
+        ),
+        InlineKeyboardButton(
+            "📞 sᴜᴘᴘᴏʀᴛ", 
+            url="https://t.me/pratilipifm0900", 
+            style=enums.ButtonStyle.PRIMARY,
+            icon_custom_emoji_id=5240241223632954241
+        )
+    ]
+])
 
-    await sent_msg.edit_text(welcome_text, reply_markup=start_inline_kb)
+await sent_msg.edit_text(welcome_text, reply_markup=start_inline_kb)
 
 # ------------------ Open Market Callback Handler ------------------
 @Client.on_callback_query(filters.regex("^open_market_cb$"))
