@@ -1096,21 +1096,21 @@ async def start_handler(client, message):
     start_inline_kb = InlineKeyboardMarkup([
         [
             InlineKeyboardButton(
-                "🛒 ᴏᴘᴇɴ ᴍᴀʀᴋᴇᴛ / sᴛᴏʀᴇ", 
+                "ᴏᴘᴇɴ ᴍᴀʀᴋᴇᴛ / sᴛᴏʀᴇ", 
                 callback_data="open_market_cb", 
                 style=enums.ButtonStyle.PRIMARY,
-                icon_custom_emoji_id=5368324170671202286
+                icon_custom_emoji_id=6271714414752174368
             )
         ],
         [
             InlineKeyboardButton(
-                "💼 ᴍʏ ᴡᴀʟʟᴇᴛ", 
+                "ᴍʏ ᴡᴀʟʟᴇᴛ", 
                 callback_data="open_wallet_cb", 
                 style=enums.ButtonStyle.PRIMARY,
                 icon_custom_emoji_id=5240241223632954241
             ),
             InlineKeyboardButton(
-                "👤 ᴍʏ ᴀᴄᴄᴏᴜɴᴛ", 
+                "ᴍʏ ᴀᴄᴄᴏᴜɴᴛ", 
                 callback_data="open_account_cb", 
                 style=enums.ButtonStyle.PRIMARY,
                 icon_custom_emoji_id=5368324170671202286
@@ -1118,10 +1118,10 @@ async def start_handler(client, message):
         ],
         [
             InlineKeyboardButton(
-                "🎁 ʀᴇғᴇʀ & ᴇᴀʀɴ", 
+                "ʀᴇғᴇʀ & ᴇᴀʀɴ", 
                 callback_data="open_refer_cb", 
                 style=enums.ButtonStyle.PRIMARY,
-                icon_custom_emoji_id=5341715473882955310
+                icon_custom_emoji_id=6305039783261378335
             )
         ],
         [
