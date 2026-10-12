@@ -619,7 +619,6 @@ async def process_cart_payment(client, callback_query):
     try:
         data_parts = callback_query.data.split("_")
         
-        # 1. डेटा वैलिडेशन
         if len(data_parts) < 3:
             return await callback_query.answer("❌ Your cart is empty or invalid!", show_alert=True)
 
@@ -632,7 +631,6 @@ async def process_cart_payment(client, callback_query):
         user_id = callback_query.from_user.id
         current_balance = await get_user_wallet(user_id)
 
-        # 2. बैलेंस चेक
         if current_balance < total_price:
             return await callback_query.answer(
                 f"❌ Insufficient Balance!\nRequired: ₹{total_price}\nAvailable: ₹{current_balance}\n\nPlease add money to your wallet.",
@@ -642,7 +640,6 @@ async def process_cart_payment(client, callback_query):
         purchased_list_text = ""
         valid_items_count = 0
 
-        # 3. स्टोरीज़ प्रोसेस करना
         for enc_title in story_titles_encoded:
             if not enc_title:
                 continue
@@ -662,7 +659,6 @@ async def process_cart_payment(client, callback_query):
         if valid_items_count == 0:
             return await callback_query.answer("❌ No valid items found in cart!", show_alert=True)
 
-        # 4. वॉलेट अपडेट
         new_balance = current_balance - total_price
         await update_user_wallet(user_id, new_balance)
 
@@ -1090,59 +1086,59 @@ async def start_handler(client, message):
     await asyncio.sleep(0.5)
 
     welcome_text = (
-       f"<b>━━━━━━━━━━━━━━━━━━━━━━</b>\n"
-       f"🌟 <b>sᴛᴏʀʏ sᴇʟʟᴇʀ ʙᴏᴛ</b> 🌟\n"
-       f"<b>━━━━━━━━━━━━━━━━━━━━━━</b>\n\n"
-       f"<b>ʜᴇʟʟᴏ {user.first_name}! 👋</b>\n\n"
-       f"ᴡᴇʟᴄᴏᴍᴇ ᴛᴏ ᴏᴜʀ ʙᴏᴛ. ᴄʟɪᴄᴋ ᴛʜᴇ ʙᴜᴛᴛᴏɴs ʙᴇʟᴏᴡ ᴛᴏ ᴏᴘᴇɴ ᴛʜᴇ ᴍᴀʀᴋᴇᴛ, ᴄʜᴇᴄᴋ ʏᴏᴜʀ ᴡᴀʟʟᴇᴛ, ᴏʀ ᴠɪᴇᴡ ʏᴏᴜʀ ᴀᴄᴄᴏᴜɴᴛ:"
-)
+        f"<b>━━━━━━━━━━━━━━━━━━━━━━</b>\n"
+        f"🌟 <b>sᴛᴏʀʏ sᴇʟʟᴇʀ ʙᴏᴛ</b> 🌟\n"
+        f"<b>━━━━━━━━━━━━━━━━━━━━━━</b>\n\n"
+        f"<b>ʜᴇʟʟᴏ {user.first_name}! 👋</b>\n\n"
+        f"ᴡᴇʟᴄᴏᴍᴇ ᴛᴏ ᴏᴜʀ ʙᴏᴛ. ᴄʟɪᴄᴋ ᴛʜᴇ ʙᴜᴛᴛᴏɴs ʙᴇʟᴏᴡ ᴛᴏ ᴏᴘᴇɴ ᴛʜᴇ ᴍᴀʀᴋᴇᴛ, ᴄʜᴇᴄᴋ ʏᴏᴜʀ ᴡᴀʟʟᴇᴛ, ᴏʀ ᴠɪᴇᴡ ʏᴏᴜʀ ᴀᴄᴄᴏᴜɴᴛ:"
+    )
 
-   start_inline_kb = InlineKeyboardMarkup([
-    [
-        InlineKeyboardButton(
-            "🛒 ᴏᴘᴇɴ ᴍᴀʀᴋᴇᴛ / sᴛᴏʀᴇ", 
-            callback_data="open_market_cb", 
-            style=enums.ButtonStyle.PRIMARY,
-            icon_custom_emoji_id=5368324170671202286  # Yahan apni custom emoji ID daalein
-        )
-    ],
-    [
-        InlineKeyboardButton(
-            "💼 ᴍʏ ᴡᴀʟʟᴇᴛ", 
-            callback_data="open_wallet_cb", 
-            style=enums.ButtonStyle.PRIMARY,
-            icon_custom_emoji_id=5240241223632954241
-        ),
-        InlineKeyboardButton(
-            "👤 ᴍʏ ᴀᴄᴄᴏᴜɴᴛ", 
-            callback_data="open_account_cb", 
-            style=enums.ButtonStyle.PRIMARY,
-            icon_custom_emoji_id=5368324170671202286
-        )
-    ],
-    [
-        InlineKeyboardButton(
-            "🎁 ʀᴇғᴇʀ & ᴇᴀʀɴ", 
-            callback_data="open_refer_cb", 
-            style=enums.ButtonStyle.PRIMARY,
-            icon_custom_emoji_id=5341715473882955310
-        )
-    ],
-    [
-        InlineKeyboardButton(
-            "📢 ᴜᴘᴅᴀᴛᴇs", 
-            url="https://t.me/freestoryhubMR", 
-            style=enums.ButtonStyle.PRIMARY,
-            icon_custom_emoji_id=5253742260054409879
-        ),
-        InlineKeyboardButton(
-            "📞 sᴜᴘᴘᴏʀᴛ", 
-            url="https://t.me/pratilipifm0900", 
-            style=enums.ButtonStyle.PRIMARY,
-            icon_custom_emoji_id=5240241223632954241
-        )
-    ]
-])
+    start_inline_kb = InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton(
+                "🛒 ᴏᴘᴇɴ ᴍᴀʀᴋᴇᴛ / sᴛᴏʀᴇ", 
+                callback_data="open_market_cb", 
+                style=enums.ButtonStyle.PRIMARY,
+                icon_custom_emoji_id=5368324170671202286
+            )
+        ],
+        [
+            InlineKeyboardButton(
+                "💼 ᴍʏ ᴡᴀʟʟᴇᴛ", 
+                callback_data="open_wallet_cb", 
+                style=enums.ButtonStyle.PRIMARY,
+                icon_custom_emoji_id=5240241223632954241
+            ),
+            InlineKeyboardButton(
+                "👤 ᴍʏ ᴀᴄᴄᴏᴜɴᴛ", 
+                callback_data="open_account_cb", 
+                style=enums.ButtonStyle.PRIMARY,
+                icon_custom_emoji_id=5368324170671202286
+            )
+        ],
+        [
+            InlineKeyboardButton(
+                "🎁 ʀᴇғᴇʀ & ᴇᴀʀɴ", 
+                callback_data="open_refer_cb", 
+                style=enums.ButtonStyle.PRIMARY,
+                icon_custom_emoji_id=5341715473882955310
+            )
+        ],
+        [
+            InlineKeyboardButton(
+                "📢 ᴜᴘᴅᴀᴛᴇs", 
+                url="https://t.me/freestoryhubMR", 
+                style=enums.ButtonStyle.PRIMARY,
+                icon_custom_emoji_id=5253742260054409879
+            ),
+            InlineKeyboardButton(
+                "📞 sᴜᴘᴘᴏʀᴛ", 
+                url="https://t.me/pratilipifm0900", 
+                style=enums.ButtonStyle.PRIMARY,
+                icon_custom_emoji_id=5240241223632954241
+            )
+        ]
+    ])
 
     await sent_msg.edit_text(welcome_text, reply_markup=start_inline_kb)
 
