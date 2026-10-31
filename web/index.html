@@ -1053,7 +1053,7 @@
                 return `
                 <div class="item-row">
                     <div>
-                        <div style="font-weight:900; font-size:13px;">${s.title}</div>
+                        <div style="font-weight:900; font-size:13px;">${escHtml(s.title)}</div>
                         <span style="font-size:10px; opacity:0.7;">${s.platform || 'AUDIO'}</span>
                     </div>
                     <button class="chip chip-yellow" onclick="openStoryModal('${encodeURIComponent(sKey)}')">VIEW</button>
@@ -1228,7 +1228,7 @@
             box.innerHTML = userPurchases.map(p => {
                 const title = p.story_title || p.title || 'Untitled Story';
                 const cleanTitle = title.replace(/\s+/g, '_');
-                const deliveryLink = p.link || `https://t.me/${BOT_USERNAME}?start=get_${cleanTitle}`;
+                const deliveryLink = (p.link && p.link !== '#') ? p.link : `https://t.me/${BOT_USERNAME}?start=get_${p.story_id || encodeURIComponent(cleanTitle)}`;
                 
                 let matchedStory = stories.find(s => String(s.title).toLowerCase().trim() === String(title).toLowerCase().trim() || String(s.id) === String(p.story_id));
                 const photo = matchedStory ? getOriginalPhoto(matchedStory) : getOriginalPhoto(p);
@@ -1240,9 +1240,9 @@
                 return `
                 <div class="purchased-card">
                     <div class="purchased-top-content">
-                        <img src="${photo}" class="purchased-img" alt="${title}" onerror="this.src='https://picsum.photos/200'">
+                        <img src="${photo}" class="purchased-img" alt="${escHtml(title)}" onerror="this.src='https://picsum.photos/200'">
                         <div class="purchased-details">
-                            <div class="purchased-title">${title}</div>
+                            <div class="purchased-title">${escHtml(title)}</div>
                             <div class="purchased-meta">${platform}</div>
                             <div class="purchased-tags">
                                 <span class="mini-app-badge">UNLOCKED</span>
@@ -1294,10 +1294,10 @@
                     <div class="card-fav-btn" onclick="toggleWishlist(event, '${encodeURIComponent(sKey)}')">
                         ${isFav ? '❤️' : '🤍'}
                     </div>
-                    <img src="${originalPhoto}" class="card-img" alt="${s.title}" onerror="this.src='https://picsum.photos/200'">
+                    <img src="${originalPhoto}" class="card-img" alt="${escHtml(s.title)}" onerror="this.src='https://picsum.photos/200'">
                     <div class="card-body">
                         <span class="badge">${s.platform || 'AUDIO'}</span>
-                        <h4 class="title">${s.title}</h4>
+                        <h4 class="title">${escHtml(s.title)}</h4>
                         <div class="price-tag">${isPurchased ? 'UNLOCKED' : (s.price == 0 ? 'FREE' : '₹' + s.price)}</div>
                         ${actionBtnHtml}
                     </div>
@@ -1308,6 +1308,12 @@
         function goToOrdersTab() {
             triggerHaptic('light');
             switchTab('orders');
+        }
+
+        function escHtml(v) {
+            return String(v === undefined || v === null ? '' : v)
+                .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
         }
 
         function openStoryModal(storyKeyRaw) {
@@ -1341,15 +1347,15 @@
 
             if (isPurchased) {
                 buyBtn.innerText = 'OPEN IN TELEGRAM';
-                const cleanTitle = encodeURIComponent(story.title.replace(/\s+/g, "_"));
-                const deliveryLink = story.link || `https://t.me/${BOT_USERNAME}?start=get_${cleanTitle}`;
+                const keyForLink = story.story_id || story.id || encodeURIComponent(story.title.replace(/\s+/g, "_"));
+                const deliveryLink = story.link || `https://t.me/${BOT_USERNAME}?start=get_${keyForLink}`;
                 buyBtn.onclick = function() { openStoryLink(deliveryLink); };
             } else if (story.price == 0) {
                 buyBtn.innerText = 'CLAIM NOW (FREE)';
                 buyBtn.onclick = function() { claimFreeStory(story); };
             } else {
                 buyBtn.innerText = 'BUY & UNLOCK';
-                buyBtn.onclick = function() { buyStory(story.title, story.price); };
+                buyBtn.onclick = function() { buyStory(story); };
             }
 
             const demoBtn = document.getElementById('mDemoBtn');
@@ -1372,8 +1378,8 @@
 
         function playDemo(story) {
             triggerHaptic('medium');
-            const cleanTitle = encodeURIComponent(story.title.replace(/\s+/g, "_"));
-            const demoLink = story.demo_link || `https://t.me/${BOT_USERNAME}?start=demo_${cleanTitle}`;
+            const demoKey = story.story_id || story.id || encodeURIComponent(story.title.replace(/\s+/g, "_"));
+            const demoLink = story.demo_link || `https://t.me/${BOT_USERNAME}?start=demo_${demoKey}`;
 
             if (tg && tg.openTelegramLink) {
                 tg.openTelegramLink(demoLink);
@@ -1410,11 +1416,13 @@
             }
         }
 
-        function buyStory(title, price) {
+        function buyStory(story) {
             triggerHaptic('success');
 
-            const cleanTitle = encodeURIComponent(title.replace(/\s+/g, "_"));
-            const deepLink = `https://t.me/${BOT_USERNAME}?start=story_${cleanTitle}`;
+            // Random story id use hota hai (title/emoji se link kabhi invalid nahi hoga)
+            const key = story.story_id || story.id;
+            const param = key ? String(key) : encodeURIComponent(String(story.title).replace(/\s+/g, "_"));
+            const deepLink = `https://t.me/${BOT_USERNAME}?start=story_${param}`;
 
             if (tg && tg.openTelegramLink) {
                 tg.openTelegramLink(deepLink);
