@@ -65,8 +65,14 @@ async def send_story_to_channel(client: Client, story_data: dict, delay_seconds:
 
         clean_title = title.strip().split("\n")[0]
         
-        # Unique Link Parameter setup
-        story_param = story_data.get('story_param') or f"story_{clean_title.replace(' ', '_')}"
+        # Unique Link Parameter setup: random story_id (title se link nahi banta)
+        sid = story_data.get('story_id')
+        if not sid:
+            _doc = await get_story_by_title(clean_title)
+            sid = _doc.get('story_id') if _doc else None
+        story_param = story_data.get('story_param') or (
+            f"story_{sid}" if sid else f"story_{clean_title.replace(' ', '_')[:50]}"
+        )
 
         # Link & Buttons Setup (Uses Active Bot Username)
         miniapp_url = f"https://t.me/{bot_username}/Store?startapp={story_param}"

@@ -19,7 +19,9 @@ from pyrogram.enums import ParseMode
 
 # Required Database functions
 from database.db import (
-    get_story_by_title, 
+    get_story_by_title,
+    get_story_by_key,
+    deduct_wallet_if_enough,
     send_log, 
     is_user_registered, 
     register_user, 
@@ -52,6 +54,20 @@ USER_ACCOUNT_PAGINATION = {}
 
 # Storage Set for Delivery Stop Control
 STOP_DELIVERY_USERS = set()
+
+
+# ------------------ Story key helpers (title kabhi link / button me nahi jaata) ------------------
+def _story_key(story, fallback_title=""):
+    """Link / callback me jaane wali key = random story_id. (Id na ho tabhi purana title-fallback.)"""
+    sid = (story or {}).get("story_id")
+    if sid:
+        return str(sid)
+    title = fallback_title or (story or {}).get("title", "")
+    return title.strip().split("\n")[0].replace(" ", "_")[:40]
+
+
+def _delivery_link_for(story, fallback_title=""):
+    return f"https://t.me/{BOT_USERNAME}?start=get_{_story_key(story, fallback_title)}"
 
 # 1. Main Menu Keyboard Layout
 MAIN_MENU = ReplyKeyboardMarkup(
@@ -285,7 +301,7 @@ async def send_story_files_start(client, user_id, story, first_id, last_id, clea
         if sent_message_ids:
             first_sent_id = sent_message_ids[0]
             last_sent_id = sent_message_ids[-1]
-            encoded_title = clean_title.replace(" ", "_")
+            encoded_title = _story_key(story, clean_title)
             
             clean_kb = InlineKeyboardMarkup([
                 [InlineKeyboardButton("🧹 ᴄʟᴇᴀɴ / ᴅᴇʟᴇᴛᴇ ᴀʟʟ ғɪʟᴇs", style=enums.ButtonStyle.PRIMARY, callback_data=f"rangechatclean_{first_sent_id}_{last_sent_id}")],
@@ -312,7 +328,7 @@ async def send_story_files_start(client, user_id, story, first_id, last_id, clea
         )
 
     ep_range = get_exact_episode_range(sent_messages_obj) if sent_messages_obj else "Files Range"
-    encoded_title = clean_title.replace(" ", "_")
+    encoded_title = _story_key(story, clean_title)
     
     if sent_message_ids:
         first_sent_id = sent_message_ids[0]
@@ -343,9 +359,8 @@ async def regenerate_file_handler(client, callback_query):
     user_id = callback_query.from_user.id
     try:
         encoded_title = callback_query.data.split("regenerate_")[1]
-        story_title = encoded_title.replace("_", " ")
 
-        story = await get_story_by_title(story_title)
+        story = await get_story_by_key(encoded_title)
         if not story:
             return await callback_query.answer("❌ Story not found in database!", show_alert=True)
 
@@ -418,11 +433,11 @@ async def web_app_data_handler(client, message):
     try:
         data = json.loads(message.web_app_data.data)
         action = data.get("action")
-        story_title = data.get("title")
+        story_title = data.get("story_id") or data.get("id") or data.get("title")
         price = float(data.get("price", 0))
         
         if action in ["view_demo", "demo", "get_demo"]:
-            story = await get_story_by_title(story_title)
+            story = await get_story_by_key(story_title)
             if not story or not story.get("demo_enabled"):
                 return await message.reply_text("⚠️ <b>Demo not available for this story!</b>")
 
@@ -467,12 +482,13 @@ async def web_app_data_handler(client, message):
             return
 
         elif action == "buy_story":
-            story = await get_story_by_title(story_title)
+            story = await get_story_by_key(story_title)
             if not story:
                 return await message.reply_text("❌ <b>sᴛᴏʀʏ ɴᴏᴛ ғᴏᴜɴᴅ.</b>")
 
-            clean_title = story_title.strip().split("\n")[0]
-            encoded_title = clean_title.replace(" ", "_")
+            price = float(story.get("price", 0) or 0)  # price database se
+            clean_title = story['title'].strip().split("\n")[0]
+            encoded_title = _story_key(story, clean_title)
             wallet_bal = await get_user_wallet(message.from_user.id)
             
             inline_buttons = []
@@ -481,8 +497,8 @@ async def web_app_data_handler(client, message):
                 inline_buttons.append([InlineKeyboardButton("🎬 ᴅᴇᴍᴏ / ᴘʀᴇᴠɪᴇᴡ", style=enums.ButtonStyle.PRIMARY, callback_data=f"viewdemo_{encoded_title}")])
 
             inline_buttons.extend([
-                [InlineKeyboardButton(f"💳 ᴅɪʀᴇᴄᴛ ᴘᴀʏ (₹{price})", style=enums.ButtonStyle.PRIMARY, callback_data=f"buy_{encoded_title}_{price}")],
-                [InlineKeyboardButton(f"👛 ᴘᴀʏ ᴠɪᴀ ᴡᴀʟʟᴇᴛ (Bal: ₹{wallet_bal})", style=enums.ButtonStyle.PRIMARY, callback_data=f"walletpay_{encoded_title}_{price}")]
+                [InlineKeyboardButton(f"💳 ᴅɪʀᴇᴄᴛ ᴘᴀʏ (₹{price})", style=enums.ButtonStyle.PRIMARY, callback_data=f"buy:{encoded_title}")],
+                [InlineKeyboardButton(f"👛 ᴘᴀʏ ᴠɪᴀ ᴡᴀʟʟᴇᴛ (Bal: ₹{wallet_bal})", style=enums.ButtonStyle.PRIMARY, callback_data=f"walletpay:{encoded_title}")]
             ])
             
             btn = InlineKeyboardMarkup(inline_buttons)
@@ -512,9 +528,8 @@ async def web_app_data_handler(client, message):
 async def view_demo_callback(client: Client, callback_query: CallbackQuery):
     try:
         encoded_title = callback_query.data.split("viewdemo_")[1]
-        story_title = encoded_title.replace("_", " ")
-        
-        story = await get_story_by_title(story_title)
+
+        story = await get_story_by_key(encoded_title)
         if not story or not story.get("demo_enabled"):
             return await callback_query.answer("⚠️ Demo is not available for this story!", show_alert=True)
             
@@ -565,40 +580,60 @@ async def view_demo_callback(client: Client, callback_query: CallbackQuery):
         await callback_query.answer("❌ Failed to send Demo files!", show_alert=True)
 
 # ------------------ Wallet Payment Callback Handler ------------------
-@Client.on_callback_query(filters.regex(r"^walletpay_"))
+@Client.on_callback_query(filters.regex(r"^walletpay[_:]"))
 async def process_wallet_payment(client, callback_query):
     try:
-        data_parts = callback_query.data.split("_")
-        price = float(data_parts[-1])
-        story_title = " ".join(data_parts[1:-1])
+        data = callback_query.data
+        if data.startswith("walletpay:"):
+            key = data[len("walletpay:"):]
+        else:
+            # purana format: walletpay_<title>_<price>
+            parts = data.split("_")
+            key = "_".join(parts[1:-1])
 
-        story = await get_story_by_title(story_title)
+        story = await get_story_by_key(key)
         if not story:
             return await callback_query.answer("❌ Story not found!", show_alert=True)
 
         user_id = callback_query.from_user.id
-        current_balance = await get_user_wallet(user_id)
+        # Price hamesha database se, button me likhe price par bharosa nahi
+        price = float(story.get("price", 0) or 0)
+        if price <= 0:
+            return await callback_query.answer("❌ Is story ka price set nahi hai. Admin se contact karein.", show_alert=True)
 
-        if current_balance < price:
+        clean_title = story['title'].strip().split("\n")[0]
+        story_id = story.get("story_id")
+        delivery_link = _delivery_link_for(story, clean_title)
+
+        # Pehle se kharidi hui story ke paise dobara na katein
+        if await is_story_unlocked(user_id, clean_title, story_id):
             return await callback_query.answer(
-                f"❌ Insufficient Balance!\nRequired: ₹{price}\nAvailable: ₹{current_balance}\n\nPlease top-up your wallet.",
+                "✅ Aap ye story pehle hi kharid chuke hain! 'My Account' se files le sakte hain.",
                 show_alert=True
             )
 
-        clean_title = story['title'].strip().split("\n")[0]
-        encoded_title = clean_title.replace(" ", "_")
-        delivery_link = f"https://t.me/{BOT_USERNAME}?start=get_{encoded_title}"
+        # Atomic deduction: balance kam ho to kuch nahi katta, double-click par double nahi katta
+        new_balance = await deduct_wallet_if_enough(user_id, price)
+        if new_balance is None:
+            current_balance = await get_user_wallet(user_id)
+            return await callback_query.answer(
+                f"❌ Insufficient Balance!\nRequired: ₹{price:g}\nAvailable: ₹{current_balance}\n\nPlease top-up your wallet.",
+                show_alert=True
+            )
 
-        new_balance = current_balance - price
-        await update_user_wallet(user_id, new_balance)
-        await add_user_purchase(user_id, clean_title, story_link=delivery_link)
+        try:
+            await add_user_purchase(user_id, clean_title, story_link=delivery_link, story_id=story_id)
+        except Exception as db_err:
+            await add_wallet_balance(user_id, price)  # purchase save na hui to paise wapas
+            print(f"Wallet purchase save failed, refunded: {db_err}")
+            return await callback_query.answer("❌ Error! Aapke paise wapas wallet me daal diye gaye hain. Dobara try karein.", show_alert=True)
 
         await callback_query.answer("🎉 Purchase successful! Story unlocked.", show_alert=True)
         
         success_text = (
             f"✅ <b>ᴘᴜʀᴄʜᴀsᴇ sᴜᴄᴄᴇssғᴜʟ!</b>\n\n"
             f"📖 <b>sᴛᴏʀʏ:</b> {clean_title}\n"
-            f"💸 <b>ᴅᴇᴅᴜᴄᴛᴇᴅ:</b> ₹{price}\n"
+            f"💸 <b>ᴅᴇᴅᴜᴄᴛᴇᴅ:</b> ₹{price:g}\n"
             f"👛 <b>ʀᴇᴍᴀɪɴɪɴɢ ʙᴀʟᴀɴᴄᴇ:</b> ₹{new_balance}\n\n"
             f"👇 Click below to access your story files:"
         )
@@ -607,13 +642,20 @@ async def process_wallet_payment(client, callback_query):
             [InlineKeyboardButton("📂 ɢᴇᴛ ғɪʟᴇs (Unlocked)", style=enums.ButtonStyle.PRIMARY, url=delivery_link)]
         ])
         
-        await callback_query.message.edit_text(success_text, reply_markup=access_btn)
+        try:
+            await callback_query.message.edit_text(success_text, reply_markup=access_btn)
+        except Exception:
+            # photo message ho to caption edit karo
+            try:
+                await callback_query.message.edit_caption(success_text, reply_markup=access_btn)
+            except Exception:
+                await callback_query.message.reply_text(success_text, reply_markup=access_btn)
 
     except Exception as e:
         print(f"Error processing wallet payment: {e}")
         await callback_query.answer("❌ Error processing wallet payment!", show_alert=True)
 
-# ------------------ Cart Checkout & Payment Handler (FIXED REGEX) ------------------
+# ------------------ Cart Checkout & Payment Handler ------------------
 @Client.on_callback_query(filters.regex(r"^cartpay_(.*)"))
 async def process_cart_payment(client, callback_query):
     try:
@@ -622,52 +664,58 @@ async def process_cart_payment(client, callback_query):
         if len(data_parts) < 3:
             return await callback_query.answer("❌ Your cart is empty or invalid!", show_alert=True)
 
-        total_price = float(data_parts[1])
-        story_titles_encoded = data_parts[2:]
-        
-        if not story_titles_encoded or story_titles_encoded == ['']:
+        keys = [k for k in data_parts[2:] if k]
+        if not keys:
             return await callback_query.answer("❌ Your cart is empty!", show_alert=True)
 
         user_id = callback_query.from_user.id
-        current_balance = await get_user_wallet(user_id)
 
-        if current_balance < total_price:
+        # Stories + total price database se (button ke total par bharosa nahi)
+        to_buy = []
+        seen_ids = set()
+        for key in keys:
+            story = await get_story_by_key(key)
+            if not story or str(story["_id"]) in seen_ids:
+                continue
+            seen_ids.add(str(story["_id"]))
+            clean_title = story['title'].strip().split("\n")[0]
+            if await is_story_unlocked(user_id, clean_title, story.get("story_id")):
+                continue  # pehle se kharidi hui ke paise nahi katenge
+            to_buy.append((story, clean_title))
+
+        if not to_buy:
+            return await callback_query.answer("❌ No new stories to buy in this cart!", show_alert=True)
+
+        total_price = round(sum(float(s.get("price", 0) or 0) for s, _ in to_buy), 2)
+
+        new_balance = await deduct_wallet_if_enough(user_id, total_price)
+        if new_balance is None:
+            current_balance = await get_user_wallet(user_id)
             return await callback_query.answer(
-                f"❌ Insufficient Balance!\nRequired: ₹{total_price}\nAvailable: ₹{current_balance}\n\nPlease add money to your wallet.",
+                f"❌ Insufficient Balance!\nRequired: ₹{total_price:g}\nAvailable: ₹{current_balance}\n\nPlease add money to your wallet.",
                 show_alert=True
             )
 
         purchased_list_text = ""
-        valid_items_count = 0
-
-        for enc_title in story_titles_encoded:
-            if not enc_title:
-                continue
-                
-            st_title = enc_title.replace("__", " ")
-            story = await get_story_by_title(st_title)
-            
-            if story:
-                clean_title = story['title'].strip().split("\n")[0]
-                encoded_title = clean_title.replace(" ", "_")
-                delivery_link = f"https://t.me/{BOT_USERNAME}?start=get_{encoded_title}"
-                
-                await add_user_purchase(user_id, clean_title, story_link=delivery_link)
+        try:
+            for story, clean_title in to_buy:
+                await add_user_purchase(
+                    user_id, clean_title,
+                    story_link=_delivery_link_for(story, clean_title),
+                    story_id=story.get("story_id")
+                )
                 purchased_list_text += f"• {clean_title}\n"
-                valid_items_count += 1
-
-        if valid_items_count == 0:
-            return await callback_query.answer("❌ No valid items found in cart!", show_alert=True)
-
-        new_balance = current_balance - total_price
-        await update_user_wallet(user_id, new_balance)
+        except Exception as db_err:
+            await add_wallet_balance(user_id, total_price)  # paise wapas
+            print(f"Cart purchase save failed, refunded: {db_err}")
+            return await callback_query.answer("❌ Error! Aapke paise wapas wallet me daal diye gaye hain. Dobara try karein.", show_alert=True)
 
         await callback_query.answer("🎉 Cart checkout successful! All stories unlocked.", show_alert=True)
         
         success_text = (
             f"✅ <b>ᴄᴀʀᴛ ᴄʜᴇᴄᴋᴏᴜᴛ sᴜᴄᴄᴇssғᴜʟ!</b>\n\n"
             f"📚 <b>Unlocked Stories:</b>\n{purchased_list_text}\n"
-            f"💸 <b>Total Deducted:</b> ₹{total_price}\n"
+            f"💸 <b>Total Deducted:</b> ₹{total_price:g}\n"
             f"👛 <b>Remaining Balance:</b> ₹{new_balance}\n\n"
             f"👇 Click below to view your account/purchases and get files:"
         )
@@ -873,11 +921,11 @@ async def start_handler(client, message):
     if len(args) > 1 and args[1].startswith("demo_"):
         raw_param = args[1]
         try:
-            demo_target = raw_param.replace("demo_", "").replace("_", " ")
+            demo_target = raw_param[len("demo_"):]
         except Exception:
             return await message.reply_text("❌ <b>ɪɴᴠᴀʟɪᴅ ᴏʀ ᴄᴏʀʀᴜᴘᴛᴇᴅ ᴅᴇᴍᴏ ʟɪɴᴋ!</b>")
 
-        story = await get_story_by_title(demo_target)
+        story = await get_story_by_key(demo_target)
         if not story or not story.get("demo_enabled"):
             return await message.reply_text("⚠️ <b>Demo is not available for this story!</b>")
 
@@ -932,14 +980,14 @@ async def start_handler(client, message):
             total_price = 0.0
 
             for raw_t in raw_titles:
-                clean_t = raw_t.replace("_", " ").strip()
+                clean_t = raw_t.strip()
                 if clean_t:
-                    story = await get_story_by_title(clean_t)
+                    story = await get_story_by_key(clean_t)
                     if story:
                         story_title = story.get("title", "").strip().splitlines()[0]
                         price = float(story.get('price', 0))
                         total_price += price
-                        enc_t = story_title.replace(" ", "__")
+                        enc_t = _story_key(story, story_title)
                         valid_encoded_list.append(enc_t)
                         cart_summary_text += f"• <b>{story_title}</b> — ₹{price}\n"
 
@@ -977,21 +1025,22 @@ async def start_handler(client, message):
     if len(args) > 1 and args[1].startswith("get_"):
         raw_param = args[1]
         try:
-            encoded_title = raw_param.replace("get_", "")
-            story_title = encoded_title.replace("_", " ")
+            encoded_title = raw_param[len("get_"):]
+            story_title = encoded_title
         except Exception:
             return await message.reply_text("❌ <b>ɪɴᴠᴀʟɪᴅ ᴏʀ ᴄᴏʀʀᴜᴘᴛᴇᴅ ʟɪɴᴋ!</b>")
 
-        story = await get_story_by_title(story_title)
+        story = await get_story_by_key(story_title)
         if not story:
             return await message.reply_text("❌ <b>sᴛᴏʀʏ ɴᴏᴛ ғᴏᴜɴᴅ ɪɴ ᴅᴀᴛᴀʙᴀsᴇ!</b>")
 
         clean_title = story['title'].strip().split("\n")[0]
+        encoded_title = _story_key(story, clean_title)
 
-        unlocked = await is_story_unlocked(user.id, clean_title)
+        unlocked = await is_story_unlocked(user.id, clean_title, story.get("story_id"))
         if not unlocked:
             buy_btn = InlineKeyboardMarkup([
-                [InlineKeyboardButton("🛒 ʙᴜʏ ɴᴏᴡ", callback_data=f"buy_{encoded_title}_{story['price']}")]
+                [InlineKeyboardButton("🛒 ʙᴜʏ ɴᴏᴡ", callback_data=f"buy:{encoded_title}")]
             ])
             return await message.reply_text(
                 f"🔒 <b>ᴀᴄᴄᴇss ᴅᴇɴɪᴇᴅ!</b>\n\n"
@@ -1025,12 +1074,12 @@ async def start_handler(client, message):
 
     if len(args) > 1 and args[1].startswith("story_"):
         raw_param = args[1]
-        story_title = raw_param.replace("story_", "").replace("_", " ")
-        story = await get_story_by_title(story_title)
+        story_title = raw_param[len("story_"):]
+        story = await get_story_by_key(story_title)
         
         if story:
             clean_title = story['title'].strip().split("\n")[0]
-            encoded_title = clean_title.replace(" ", "_")
+            encoded_title = _story_key(story, clean_title)
             photo_url = story.get('photo', 'https://picsum.photos/400/200')
             wallet_bal = await get_user_wallet(user.id)
             
@@ -1051,13 +1100,13 @@ async def start_handler(client, message):
             buttons.append([
                 InlineKeyboardButton(
                     f"🛒 ʙᴜʏ ɴᴏᴡ (₹{story['price']})", style=enums.ButtonStyle.PRIMARY,
-                    callback_data=f"buy_{encoded_title}_{story['price']}"
+                    callback_data=f"buy:{encoded_title}"
                 )
             ])
             buttons.append([
                 InlineKeyboardButton(
                     f"👛 ᴘᴀʏ ᴠɪᴀ ᴡᴀʟʟᴇᴛ (Bal: ₹{wallet_bal})", style=enums.ButtonStyle.PRIMARY,
-                    callback_data=f"walletpay_{encoded_title}_{story['price']}"
+                    callback_data=f"walletpay:{encoded_title}"
                 )
             ])
             
@@ -1197,8 +1246,14 @@ async def send_or_edit_account_details(client, user, message_or_cb, page=0, is_c
         for item in current_page_items:
             story_title = item.get('story_title', '')
             clean_title = story_title.strip().split("\n")[0]
-            encoded_title = clean_title.replace(" ", "_")
-            delivery_link = f"https://t.me/{BOT_USERNAME}?start=get_{encoded_title}"
+            sid = item.get('story_id')
+            if not sid:
+                _doc = await get_story_by_title(clean_title)
+                sid = _doc.get('story_id') if _doc else None
+            delivery_link = (
+                f"https://t.me/{BOT_USERNAME}?start=get_{sid}" if sid
+                else f"https://t.me/{BOT_USERNAME}?start=get_{clean_title.replace(' ', '_')[:40]}"
+            )
             
             acc_text += f"• <b>{clean_title}</b>\n"
             buttons.append([InlineKeyboardButton(f"🚀 ᴀᴄᴄᴇss {clean_title}", url=delivery_link)])

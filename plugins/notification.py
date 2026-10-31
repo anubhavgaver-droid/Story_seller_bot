@@ -3,21 +3,28 @@ from pyrogram import Client, filters
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from pyrogram.errors import FloodWait, UserIsBlocked, InputUserDeactivated
 from config import ADMIN_ID, BOT_USERNAME
-from database.db import purchases_col, users_col, send_log
+from database.db import purchases_col, users_col, send_log, get_story_by_title, delivery_link
 
 # -------------------- HELPER: GET STORY BUYERS --------------------
-async def get_story_buyers(story_title: str):
+async def get_story_buyers(story_title: str, story_id: str = None):
     """
     किसी स्टोरी के सभी खरीदार (Buyers) यूज़र्स की unique user_id लिस्ट निकालता है।
+    story_id (naye purchases) aur title (purane purchases) dono se dhundhta hai.
     """
     clean_title = story_title.strip().split("\n")[0]
-    
+
+    purchase_query = {"$or": [{"story_title": clean_title}]}
+    users_query = {"$or": [{"purchased_stories": clean_title}]}
+    if story_id:
+        purchase_query["$or"].append({"story_id": story_id})
+        users_query["$or"].append({"purchased_story_ids": story_id})
+
     # 1. Purchases collection से Buyers निकालना
-    cursor = purchases_col.find({"story_title": clean_title}, {"user_id": 1, "_id": 0})
+    cursor = purchases_col.find(purchase_query, {"user_id": 1, "_id": 0})
     buyers_from_purchases = [doc["user_id"] async for doc in cursor if "user_id" in doc]
 
     # 2. Users collection से भी Check करना (Backup Sync)
-    cursor_users = users_col.find({"purchased_stories": clean_title}, {"user_id": 1, "_id": 0})
+    cursor_users = users_col.find(users_query, {"user_id": 1, "_id": 0})
     buyers_from_users = [doc["user_id"] async for doc in cursor_users if "user_id" in doc]
 
     # Duplicates हटाने के लिए Set का प्रयोग
@@ -30,15 +37,19 @@ async def notify_story_buyers(client: Client, story_title: str, ep_info: str = "
     स्टोरी में नया एपिसोड/फाइल ऐड होने पर बायर्स को ऑटोमेटिक नोटिफिकेशन बटन के साथ भेजने का फ़ंक्शन।
     """
     clean_title = story_title.strip().split("\n")[0]
-    buyers = await get_story_buyers(clean_title)
+    story_doc = await get_story_by_title(clean_title)
+    story_id = story_doc.get("story_id") if story_doc else None
+    buyers = await get_story_buyers(clean_title, story_id)
 
     if not buyers:
         print(f"[Notification] No buyers found for story: {clean_title}")
         return
 
-    # Deep Link Generate (e.g. https://t.me/botusername?start=get_Story_Name)
-    formatted_title = clean_title.replace(" ", "_")
-    story_link = f"https://t.me/{BOT_USERNAME}?start=get_{formatted_title}"
+    # Deep Link Generate (e.g. https://t.me/botusername?start=get_a8xk29qp) - random ID, title nahi
+    if story_id:
+        story_link = delivery_link(story_id)
+    else:
+        story_link = f"https://t.me/{BOT_USERNAME}?start=get_{clean_title.replace(' ', '_')[:50]}"
 
     notification_text = (
         f"🎉 <b>New Episode Alert!</b> 🎉\n\n"

@@ -6,6 +6,7 @@ from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ForceRepl
 from config import ADMIN_ID, BOT_USERNAME, WEB_APP_URL, CHANNEL_ID
 from database.db import (
     add_story_db, 
+    rename_story_db,
     delete_story_db, 
     get_all_stories, 
     send_log,
@@ -162,7 +163,7 @@ async def list_stories(client, message):
     text = "<b>📚 sᴀᴠᴇᴅ sᴛᴏʀɪᴇs ʟɪsᴛ:</b>\n\n"
     for idx, s in enumerate(stories, start=1):
         clean_title = s['title'].strip().split("\n")[0].replace(" ", "_")
-        bot_link = f"https://t.me/{BOT_USERNAME}?start=story_{clean_title}"
+        bot_link = f"https://t.me/{BOT_USERNAME}?start=story_{s.get('story_id') or clean_title}"
         f_id = s.get('first_msg_id', 'N/A')
         l_id = s.get('last_msg_id', 'N/A')
         episodes = s.get('episodes', 'N/A')
@@ -377,9 +378,7 @@ async def finalize_add_story(client, message, data):
     data['demo_enabled'] = data.get('demo_enabled', False)
     data['demo_msg_ids'] = demo_msg_ids
 
-    clean_title = data['title'].strip().split("\n")[0].replace(" ", "_")
-    data['link'] = f"https://t.me/{BOT_USERNAME}?start=get_{clean_title}"
-
+    # add_story_db random story_id banata hai aur data['story_id'] / data['link'] bhar deta hai
     await add_story_db(data)
     
     try:
@@ -387,7 +386,7 @@ async def finalize_add_story(client, message, data):
     except Exception as e:
         print(f"⚠ Auto post failed: {e}")
 
-    bot_share_link = f"https://t.me/{BOT_USERNAME}?start=story_{clean_title}"
+    bot_share_link = f"https://t.me/{BOT_USERNAME}?start=story_{data['story_id']}"
     total_files = data['last_msg_id'] - data['first_msg_id'] + 1
     demo_status = "✅ Enabled (Auto Synced to Mini App)" if data.get('demo_enabled', False) else "❌ Disabled"
     ranges_count = len(data.get('custom_ranges', []))
@@ -697,13 +696,13 @@ async def master_input_handler(client, message):
             story_id = EDIT_NAME_STATE[user_id]['story_id']
             old_title = EDIT_NAME_STATE[user_id]['old_title']
 
-            clean_title = new_title.replace(" ", "_")
-            new_link = f"https://t.me/{BOT_USERNAME}?start=get_{clean_title}"
+            story_doc = await stories_col.find_one({"_id": story_id})
+            if not story_doc:
+                EDIT_NAME_STATE.pop(user_id, None)
+                return await message.reply_text("❌ <b>Story database me nahi mili.</b>")
 
-            await stories_col.update_one(
-                {"_id": story_id},
-                {"$set": {"title": new_title, "link": new_link}}
-            )
+            # Naam badalne par story_id wahi rehti hai; kharidne walon ka access bhi saath update hota hai
+            new_sid = await rename_story_db(story_doc, new_title)
 
             EDIT_NAME_STATE.pop(user_id, None)
 
@@ -711,7 +710,7 @@ async def master_input_handler(client, message):
                 f"✅ <b>sᴛᴏʀʏ ɴᴀᴍᴇ ᴜᴘᴅᴀᴛᴇᴅ!</b>\n\n"
                 f"🔴 <b>Old Name:</b> {old_title}\n"
                 f"🟢 <b>New Name:</b> {new_title}\n"
-                f"🔗 <b>New Share Link:</b> <code>https://t.me/{BOT_USERNAME}?start=story_{clean_title}</code>\n\n"
+                f"🔗 <b>New Share Link:</b> <code>https://t.me/{BOT_USERNAME}?start=story_{new_sid}</code>\n\n"
                 f"<i>Mini App और Bot दोनों जगह नया नाम सिंक हो गया है!</i>"
             )
         return
@@ -1081,7 +1080,7 @@ async def master_input_handler(client, message):
             data['last_msg_id'] = last_id
             
             if data['last_msg_id'] < data['first_msg_id']:
-                return me.reply_text("❌ Last Message ID, First Message ID से छोटी नहीं हो सकती। फिर से सही Last ID भेजें:")
+                return await message.reply_text("❌ Last Message ID, First Message ID से छोटी नहीं हो सकती। फिर से सही Last ID भेजें:")
 
             total_files = (data['last_msg_id'] - data['first_msg_id']) + 1
 

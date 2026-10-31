@@ -248,7 +248,8 @@ async def story_selected_handler(client, message):
         return await message.reply_text("❌ <b>ᴛʜɪs sᴛᴏʀʏ ɪs ᴄᴜʀʀᴇɴᴛʟʏ ᴜɴᴀᴠᴀɪʟᴀʙʟᴇ.</b>", quote=True)
         
     clean_title = story['title'].strip().splitlines()[0]
-    encoded_title = clean_title.replace(" ", "_")
+    # Button me title nahi, random story_id (64-byte callback limit + emoji safe)
+    encoded_title = str(story.get("story_id") or clean_title.replace(" ", "_")[:40])
     wallet_bal = await get_user_wallet(user_id)
     
     inline_buttons = []
@@ -259,8 +260,8 @@ async def story_selected_handler(client, message):
         ])
         
     inline_buttons.extend([
-        [InlineKeyboardButton(f"💳 ᴅɪʀᴇᴄᴛ ᴘᴀʏ (₹{story['price']})", style=enums.ButtonStyle.PRIMARY, callback_data=f"buy_{encoded_title}_{story['price']}")],
-        [InlineKeyboardButton(f"👛 ᴘᴀʏ ᴠɪᴀ ᴡᴀʟʟᴇᴛ (ʙᴀʟ: ₹{wallet_bal})", style=enums.ButtonStyle.PRIMARY, callback_data=f"walletpay_{encoded_title}_{story['price']}")]
+        [InlineKeyboardButton(f"💳 ᴅɪʀᴇᴄᴛ ᴘᴀʏ (₹{story['price']})", style=enums.ButtonStyle.PRIMARY, callback_data=f"buy:{encoded_title}")],
+        [InlineKeyboardButton(f"👛 ᴘᴀʏ ᴠɪᴀ ᴡᴀʟʟᴇᴛ (ʙᴀʟ: ₹{wallet_bal})", style=enums.ButtonStyle.PRIMARY, callback_data=f"walletpay:{encoded_title}")]
     ])
     
     btn = InlineKeyboardMarkup(inline_buttons)
@@ -294,112 +295,7 @@ async def story_selected_handler(client, message):
             await message.reply_text(caption_text, reply_markup=btn, quote=True)
 
 
-# 7. View Demo Callback Handler
-@Client.on_callback_query(filters.regex(r"^viewdemo_"))
-async def view_demo_callback(client: Client, callback_query: CallbackQuery):
-    try:
-        encoded_title = callback_query.data.split("viewdemo_")[1]
-        story_title = encoded_title.replace("_", " ")
-        
-        story = await get_story_by_title(story_title)
-        if not story or not story.get("demo_enabled"):
-            return await callback_query.answer("⚠️ Demo is not available for this story!", show_alert=True)
-            
-        demo_ids = story.get("demo_msg_ids", [])
-        if not demo_ids:
-            return await callback_query.answer("❌ No demo files found!", show_alert=True)
-            
-        await callback_query.answer("🎬 Sending demo preview...")
-        user_id = callback_query.from_user.id
-        sent_messages = []
-        
-        header_msg = await client.send_message(
-            chat_id=user_id,
-            text=f"🎬 <b>ᴅᴇᴍᴏ ᴘʀᴇᴠɪᴇᴡ ғᴏʀ:</b> <code>{story['title'].strip().splitlines()[0]}</code>\n\n"
-                 f"⏰ <i>Auto-delete in 10 minutes!</i>",
-            link_preview_options=LinkPreviewOptions(is_disabled=True)
-        )
-        sent_messages.append(header_msg)
-        
-        for msg_id in demo_ids:
-            try:
-                copied_msg = await client.copy_message(
-                    chat_id=user_id,
-                    from_chat_id=CHANNEL_ID,
-                    message_id=msg_id,
-                    caption=f"🎧 <b>ᴅᴇᴍᴏ sᴀᴍᴘʟᴇ</b> - {story['title'].strip().splitlines()[0]}"
-                )
-                sent_messages.append(copied_msg)
-            except Exception as e:
-                print(f"Error copying demo msg {msg_id}: {e}")
-
-        async def auto_delete_task(messages_list):
-            await asyncio.sleep(600)
-            for msg in messages_list:
-                try:
-                    await msg.delete()
-                except Exception:
-                    pass
-                    
-        asyncio.create_task(auto_delete_task(sent_messages))
-
-    except Exception as e:
-        print(f"Error in view_demo_callback: {e}")
-        await callback_query.answer("❌ Failed to send demo preview!", show_alert=True)
-
-
-# 8. Wallet Payment Callback Handler
-@Client.on_callback_query(filters.regex(r"^walletpay_"))
-async def process_wallet_payment(client, callback_query):
-    try:
-        data_parts = callback_query.data.split("_")
-        price = float(data_parts[-1])
-        story_title = " ".join(data_parts[1:-1])
-
-        story = await get_story_by_title(story_title)
-        if not story:
-            return await callback_query.answer("❌ Story not found!", show_alert=True)
-
-        user_id = callback_query.from_user.id
-        current_balance = await get_user_wallet(user_id)
-
-        if current_balance < price:
-            return await callback_query.answer(
-                f"❌ Insufficient Balance!\n\nRequired: ₹{price}\nAvailable: ₹{current_balance}\n\nPlease add money to your wallet.",
-                show_alert=True
-            )
-
-        clean_title = story['title'].strip().splitlines()[0]
-        encoded_title = clean_title.replace(" ", "_")
-        delivery_link = f"https://t.me/{BOT_USERNAME}?start=get_{encoded_title}"
-
-        new_balance = current_balance - price
-        await update_user_wallet(user_id, new_balance)
-        await add_user_purchase(user_id, clean_title, story_link=delivery_link)
-
-        await callback_query.answer("🎉 Purchase successful!", show_alert=True)
-        
-        success_text = (
-            f"✅ <b>ᴘᴜʀᴄʜᴀsᴇ sᴜᴄᴄᴇssғᴜʟ!</b>\n\n"
-            f"📖 <b>sᴛᴏʀʏ :</b> {clean_title}\n"
-            f"💸 <b>ᴅᴇᴅᴜᴄᴛᴇᴅ :</b> ₹{price}\n"
-            f"👛 <b>ʀᴇᴍᴀɪɴɪɴɢ ʙᴀʟᴀɴᴄᴇ :</b> ₹{new_balance}\n\n"
-            f"👇 <i>ᴄʟɪᴄᴋ ʙᴇʟᴏᴡ ᴛᴏ ᴜɴʟᴏᴄᴋ ᴀɴᴅ ᴀᴄᴄᴇss ʏᴏᴜʀ sᴛᴏʀʏ ғɪʟᴇs:</i>"
-        )
-        
-        access_btn = InlineKeyboardMarkup([
-            [InlineKeyboardButton("📂 ɢᴇᴛ ғɪʟᴇs (ᴜɴʟᴏᴄᴋᴇᴅ)", style=enums.ButtonStyle.PRIMARY, url=delivery_link)]
-        ])
-        
-        await callback_query.message.edit_text(
-            success_text, 
-            reply_markup=access_btn,
-            link_preview_options=LinkPreviewOptions(is_disabled=True)
-        )
-
-    except Exception as e:
-        print(f"Error in process_wallet_payment: {e}")
-        await callback_query.answer("❌ Error processing wallet payment!", show_alert=True)
+# (View Demo / Wallet Payment callbacks ab sirf plugins/start.py me hain - duplicate hata diya gaya)
 
 
 # 9. Search Prompt Handler
