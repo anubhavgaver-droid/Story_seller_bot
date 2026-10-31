@@ -22,6 +22,9 @@ MONGO_URL = os.environ.get("MONGO_URL", "mongodb://localhost:27017")
 
 WEB_APP_URL = os.environ.get("WEB_APP_URL", "https://story-seller-bot-0jtb.onrender.com")
 
+# Gateway server-to-server webhook (main.py me /paytm route). Gateway dashboard me bhi yahi URL rakhein.
+PAYMENT_CALLBACK_URL = os.environ.get("PAYMENT_CALLBACK_URL", WEB_APP_URL.rstrip("/") + "/paytm")
+
 # Auto-Post Tutorial Button Link
 TUTORIAL_VIDEO_URL = os.environ.get("TUTORIAL_VIDEO_URL", "https://t.me/howanubhav/23")
 

@@ -5,7 +5,12 @@ from aiohttp import web
 import aiofiles
 from pyrogram import Client, idle
 from config import API_ID, API_HASH, BOT_TOKEN, PORT, BOT_USERNAME, LOG_CHANNEL
-from database.db import stories_col, get_user_purchases, get_story_by_title, verified_orders_col
+from database.db import (
+    stories_col, get_user_purchases, get_story_by_title, verified_orders_col,
+    init_db, get_payment_order, delivery_link, demo_link
+)
+from gateway import check_order_status
+from fulfill import fulfill_order
 
 
 # Plugins setup
@@ -44,45 +49,66 @@ async def handle_miniapp(request):
     return web.Response(text="<h3>index.html not found in web/ folder!</h3>", content_type="text/html", status=404)
 
 # ------------------ 3. Webhook Handler for demotry.shop (/paytm) ------------------
+async def _process_webhook_order(order_id: str):
+    """Background me: provider API se status confirm karke order poora karo."""
+    try:
+        order = await get_payment_order(order_id)
+        if not order or order.get("status") == "PAID":
+            return
+
+        is_paid, paid_amt, msg = await check_order_status(order_id)
+        if not is_paid:
+            print(f"ℹ️ Webhook for {order_id}: provider says not paid yet ({msg})")
+            return
+
+        await verified_orders_col.update_one(
+            {"order_id": order_id},
+            {"$set": {
+                "order_id": order_id,
+                "amount": paid_amt,
+                "status": "PAID",
+                "timestamp": datetime.now(timezone.utc)
+            }},
+            upsert=True
+        )
+
+        if bot_instance is None:
+            print(f"⚠️ Webhook: bot abhi ready nahi, {order_id} Verify button se poora hoga")
+            return
+
+        result = await fulfill_order(bot_instance, order, paid_amt, "WEBHOOK")
+        print(f"✅ Webhook order {order_id} -> {result}")
+    except Exception as e:
+        print(f"❌ Webhook processing error for {order_id}: {e}")
+
+
 async def handle_paytm_webhook(request):
     try:
         # Handle CORS OPTIONS request
         if request.method == 'OPTIONS':
             return web.Response(status=200)
 
-        # Parse JSON payload from Webhook
         data = await request.json()
         print(f"📩 Paytm Webhook Received Payload: {data}")
 
-        # Extract Event and Order Details
-        event = data.get("event") or data.get("type") or data.get("status")
-        payload_data = data.get("data", data)
-        
+        payload_data = data.get("data", data) if isinstance(data.get("data"), dict) else data
         order_id = payload_data.get("order_id") or payload_data.get("ORDERID") or payload_data.get("note")
-        amount = float(payload_data.get("amount") or payload_data.get("TXNAMOUNT") or 0.0)
 
-        # Process payment success event
-        if event in ["payment.success", "SUCCESS", "TXN_SUCCESS"] or order_id:
-            if order_id:
-                await verified_orders_col.update_one(
-                    {"order_id": order_id},
-                    {"$set": {
-                        "order_id": order_id,
-                        "amount": amount,
-                        "status": "PAID",
-                        "raw_payload": data,
-                        "timestamp": datetime.now(timezone.utc)
-                    }},
-                    upsert=True
-                )
-                print(f"✅ Website Webhook Payment Verified for Order ID: {order_id}")
-                return web.json_response({"status": "success", "order_id": order_id}, status=200)
+        if not order_id:
+            return web.json_response({"status": "ignored", "reason": "missing order_id"}, status=200)
 
-        return web.json_response({"status": "ignored", "reason": "Event not payment.success or missing order_id"}, status=200)
+        # SECURITY: webhook body par bharosa nahi. Sirf wahi order_id chalega jo hamare bot ne banaya hai,
+        # aur PAID tabhi mana jayega jab gateway ki apni API (hamari key ke saath) bhi paid bataye.
+        order = await get_payment_order(str(order_id))
+        if not order:
+            return web.json_response({"status": "ignored", "reason": "unknown order"}, status=200)
+
+        asyncio.create_task(_process_webhook_order(str(order_id)))
+        return web.json_response({"status": "accepted", "order_id": str(order_id)}, status=200)
 
     except Exception as e:
         print(f"❌ Website Webhook Error: {e}")
-        return web.json_response({"error": str(e)}, status=500)
+        return web.json_response({"error": "bad request"}, status=400)
 
 # ------------------ 4. API Endpoint: Fetch Stories ------------------
 async def handle_get_stories(request):
@@ -91,7 +117,7 @@ async def handle_get_stories(request):
         async for story in stories_col.find():
             raw_title = story.get("title", "Untitled")
             clean_title = raw_title.strip().splitlines()[0] if raw_title else "Untitled"
-            url_clean_title = clean_title.replace(" ", "_")
+            story_id = str(story.get("story_id") or story.get("_id", ""))
             
             first_id = story.get("first_msg_id")
             last_id = story.get("last_msg_id")
@@ -101,7 +127,8 @@ async def handle_get_stories(request):
                 total_files_count = len(story.get("custom_ranges", [])) * 50 or 24
 
             stories.append({
-                "id": str(story.get("_id", "")),
+                "id": story_id,
+                "story_id": story_id,
                 "title": clean_title,
                 "price": story.get("price", 0),
                 "platform": story.get("platform", story.get("category", "PRATILIPI FM")),
@@ -111,7 +138,8 @@ async def handle_get_stories(request):
                 "photo": story.get("photo", "https://picsum.photos/200"),
                 "demo_enabled": story.get("demo_enabled", False),
                 "demo_msg_ids": story.get("demo_msg_ids", []),
-                "demo_link": f"https://t.me/{BOT_USERNAME}?start=demo_{url_clean_title}"
+                "demo_link": demo_link(story_id),
+                "link": delivery_link(story_id)
             })
         return web.json_response(stories)
     except Exception as e:
@@ -127,9 +155,11 @@ async def handle_get_user_purchases(request):
             purchases = await get_user_purchases(int(user_id))
             for item in purchases:
                 story = await get_story_by_title(item.get('story_title', ''))
+                sid = item.get("story_id") or (story.get("story_id") if story else None)
                 purchases_data.append({
                     "story_title": item.get('story_title', 'Untitled'),
-                    "link": story.get("link", "#") if story else "#"
+                    "story_id": str(sid) if sid else None,
+                    "link": delivery_link(sid) if sid else "#"
                 })
         except Exception as e:
             print(f"Error fetching purchases for web app: {e}")
@@ -164,6 +194,7 @@ async def start_web_server():
 # ------------------ Main Execution ------------------
 async def main():
     global bot_instance
+    await init_db()
     await start_web_server()
 
     bot_instance = Client(
