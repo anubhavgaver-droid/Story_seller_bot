@@ -2,9 +2,14 @@ import re
 import sys
 import os
 import time
+import secrets
+import string
+from urllib.parse import unquote
 from bson import ObjectId
+from pymongo import ReturnDocument
+from pymongo.errors import DuplicateKeyError
 from motor.motor_asyncio import AsyncIOMotorClient
-from config import MONGO_URL, LOG_CHANNEL
+from config import MONGO_URL, LOG_CHANNEL, BOT_USERNAME
 
 # MongoDB Async Client Setup
 client = AsyncIOMotorClient(MONGO_URL)
@@ -15,6 +20,7 @@ stories_col = db["stories"]
 users_col = db["users"]              # User Registration, Wallet & Language
 purchases_col = db["purchases"]        # Purchased Stories
 verified_orders_col = db["verified_orders"]  # Webhook Auto-Payments
+payment_orders_col = db["payment_orders"]    # Every payment order the bot creates (survives restarts)
 
 
 # -------------------- LOG HELPER FUNCTION --------------------
@@ -25,6 +31,37 @@ async def send_log(client_bot, text: str):
             await client_bot.send_message(chat_id=LOG_CHANNEL, text=text)
         except Exception as e:
             print(f"Log Error: {e}")
+
+
+# -------------------- STORY ID / LINK HELPERS --------------------
+# IDs sirf a-z aur 0-9 se bante hain: Telegram deep-link (start / startapp) me valid,
+# callback_data me chhote (64 byte limit), aur "_" na hone se parsing safe.
+_ID_ALPHABET = string.ascii_lowercase + string.digits
+
+
+def _random_id(length: int = 8) -> str:
+    return "".join(secrets.choice(_ID_ALPHABET) for _ in range(length))
+
+
+async def generate_story_id() -> str:
+    """Naya random, unique story_id (title se koi lena-dena nahi)."""
+    for _ in range(25):
+        sid = _random_id(8)
+        if not await stories_col.find_one({"story_id": sid}, {"_id": 1}):
+            return sid
+    return _random_id(12)
+
+
+def delivery_link(story_id) -> str:
+    return f"https://t.me/{BOT_USERNAME}?start=get_{story_id}"
+
+
+def share_link(story_id) -> str:
+    return f"https://t.me/{BOT_USERNAME}?start=story_{story_id}"
+
+
+def demo_link(story_id) -> str:
+    return f"https://t.me/{BOT_USERNAME}?start=demo_{story_id}"
 
 
 # -------------------- EPISODE EXTRACTION HELPERS --------------------
@@ -175,9 +212,29 @@ async def add_wallet_balance(user_id: int, amount: float) -> float:
         {"user_id": user_id},
         {"$inc": {"wallet_balance": round(float(amount), 2)}},
         upsert=True,
-        return_document=True
+        return_document=ReturnDocument.AFTER
     )
     return float(user.get("wallet_balance", 0.0))
+
+
+async def deduct_wallet_if_enough(user_id: int, amount: float):
+    """
+    Atomic deduction: balance kam ho to kuch nahi katta aur None lautata hai.
+    Double-click / ek saath do request aane par bhi balance minus me nahi jaata.
+    Success par naya balance (float) lautata hai.
+    """
+    amount = round(float(amount), 2)
+    if amount <= 0:
+        return await get_user_wallet(user_id)
+
+    doc = await users_col.find_one_and_update(
+        {"user_id": user_id, "wallet_balance": {"$gte": amount - 0.005}},
+        {"$inc": {"wallet_balance": -amount}},
+        return_document=ReturnDocument.AFTER
+    )
+    if not doc:
+        return None
+    return round(float(doc.get("wallet_balance", 0.0)), 2)
 
 
 # -------------------- REFERRAL DATABASE FUNCTIONS --------------------
@@ -187,34 +244,50 @@ async def get_referred_users_count(user_id: int) -> int:
 
 
 # -------------------- USER PURCHASES & ACCESS CHECK --------------------
-async def add_user_purchase(user_id: int, story_title: str, story_link: str = "#"):
-    """ऑटो-पेमेंट या Wallet deduction कन्फर्म होने पर खरीदे गए टाइटल की पहली लाइन और खरीदे गए टाइटल का रिकॉर्ड सेव करेगा"""
+async def add_user_purchase(user_id: int, story_title: str, story_link: str = "#", story_id: str = None):
+    """
+    Purchase save karta hai. Ab story_id ke saath save hota hai, isliye baad me
+    title badalne / emoji hone par bhi access chalta rehta hai.
+    Purani purchase (sirf title wali) mil jaye to usme story_id jud jaati hai.
+    """
     clean_title = story_title.strip().split("\n")[0]
-    
-    # Purchases Collection में रिकॉर्ड जोड़ना
-    await purchases_col.update_one(
-        {"user_id": user_id, "story_title": clean_title},
-        {
-            "$set": {
-                "user_id": user_id, 
-                "story_title": clean_title, 
-                "story_link": story_link,
-                "link": story_link,
-                "timestamp": time.time()
-            }
-        },
-        upsert=True
-    )
+
+    if not story_id:
+        story_doc = await get_story_by_title(clean_title)
+        story_id = story_doc.get("story_id") if story_doc else None
+
+    if story_id:
+        story_id = str(story_id)
+        story_link = delivery_link(story_id)
+
+    set_fields = {
+        "user_id": user_id,
+        "story_title": clean_title,
+        "story_link": story_link,
+        "link": story_link,
+        "timestamp": time.time()
+    }
+    if story_id:
+        set_fields["story_id"] = story_id
+        query = {"user_id": user_id, "$or": [{"story_id": story_id}, {"story_title": clean_title}]}
+    else:
+        query = {"user_id": user_id, "story_title": clean_title}
+
+    await purchases_col.update_one(query, {"$set": set_fields}, upsert=True)
 
     # Users Collection में भी purchased_stories की लिस्ट में जोड़ना ताकि /addepisodes नोटिफिकेशन काम कर सके
-    await users_col.update_one(
-        {"user_id": user_id},
-        {"$addToSet": {"purchased_stories": clean_title}}
-    )
+    add_to_set = {"purchased_stories": clean_title}
+    if story_id:
+        add_to_set["purchased_story_ids"] = story_id
+    await users_col.update_one({"user_id": user_id}, {"$addToSet": add_to_set})
 
 
-async def is_story_unlocked(user_id: int, story_title: str) -> bool:
-    """चेक करता है कि यूज़र ने स्टोरी खरीदी है या नहीं"""
+async def is_story_unlocked(user_id: int, story_title: str, story_id: str = None) -> bool:
+    """चेक करता है कि यूज़र ने स्टोरी खरीदी है या नहीं (pehle story_id se, phir title se)"""
+    if story_id:
+        if await purchases_col.find_one({"user_id": user_id, "story_id": str(story_id)}, {"_id": 1}):
+            return True
+
     clean_title = story_title.strip().split("\n")[0]
     pattern = re.compile(f"^{re.escape(clean_title)}$", re.IGNORECASE)
     purchase = await purchases_col.find_one({"user_id": user_id, "story_title": pattern})
@@ -239,10 +312,71 @@ async def get_story_by_id(story_id: str):
         return None
 
 
+def _legacy_title_pattern(key: str):
+    """
+    Purane links me title ke space "_" bane the. Isliye "_" ko space ya "_" dono se match karte hain
+    (title me asli "_" ho to bhi chalta hai).
+    """
+    parts = []
+    for ch in key:
+        parts.append("[ _]" if ch in " _" else re.escape(ch))
+    return re.compile("^" + "".join(parts) + "$", re.IGNORECASE)
+
+
+async def get_story_by_title(title: str):
+    """टाइटल के आधार पर स्टोरी ढूँढता है (Exact Match Case-Insensitive)"""
+    clean_title = title.strip().split("\n")[0]
+    pattern = re.compile(f"^{re.escape(clean_title)}$", re.IGNORECASE)
+    return await stories_col.find_one({"title": pattern})
+
+
+async def get_story_by_key(key: str):
+    """
+    Link / button se aayi key se story dhundhta hai.
+      1. Naya tareeka: random story_id
+      2. Purana tareeka: title (space -> "_") - taaki purane links na tootein
+    """
+    if not key:
+        return None
+    key = str(key).strip()
+    if not key:
+        return None
+
+    story = await stories_col.find_one({"story_id": key})
+    if story:
+        return story
+
+    candidates = [key]
+    decoded = unquote(key)
+    if decoded != key:
+        candidates.append(decoded)
+
+    for cand in candidates:
+        story = await get_story_by_title(cand)
+        if story:
+            return story
+        story = await stories_col.find_one({"title": _legacy_title_pattern(cand)})
+        if story:
+            return story
+    return None
+
+
+async def _find_story_exact(key: str):
+    """Admin ke liye: story_id ya bilkul exact title (loose '_' matching nahi)."""
+    if not key:
+        return None
+    story = await stories_col.find_one({"story_id": str(key).strip()})
+    if story:
+        return story
+    return await get_story_by_title(key)
+
+
 async def add_story_db(data: dict):
     """
     स्टोरी जोड़ते या अपडेट करते समय Title की केवल पहली लाइन को ही Clean Title बनाएगा।
-    हर स्टोरी के लिए एक सिंपल story_id, free_link और custom_ranges बिना किसी लिमिट के सेट होगी।
+    नई स्टोरी को random story_id मिलती है (title से लिंक नहीं बनता).
+    पहले से मौजूद स्टोरी की story_id कभी नहीं बदलती, इसलिए पुराने लिंक चलते रहते हैं।
+    data me 'story_id' aur 'link' bhar diye jaate hain taaki caller use kar sake.
     """
     if "title" in data:
         data["title"] = data["title"].strip().split("\n")[0]
@@ -265,12 +399,15 @@ async def add_story_db(data: dict):
     elif not episodes:
         episodes = "N/A"
 
-    # पहले से मौजूद ID या नई ID सेट करना
+    # पहले से मौजूद ID या नई random ID सेट करना
     existing_story = await stories_col.find_one({"title": clean_title})
-    story_id = existing_story.get("story_id") if existing_story else data.get("story_id", str(int(time.time())))
+    story_id = existing_story.get("story_id") if existing_story else None
+    if not story_id:
+        story_id = data.get("story_id") or await generate_story_id()
+    story_id = str(story_id)
 
     story_doc = {
-        "story_id": str(story_id),
+        "story_id": story_id,
         "title": clean_title,
         "category": data.get("category", "Pocket FM"),
         "platform": data.get("platform", data.get("category", "Pocket FM")),
@@ -287,7 +424,7 @@ async def add_story_db(data: dict):
         "first_msg_id": first_msg_id,
         "last_msg_id": last_msg_id,
         "custom_ranges": custom_ranges,
-        "link": data.get("link", "")
+        "link": delivery_link(story_id)
     }
 
     await stories_col.update_one(
@@ -295,46 +432,83 @@ async def add_story_db(data: dict):
         {"$set": story_doc},
         upsert=True
     )
+
+    data["story_id"] = story_id
+    data["link"] = story_doc["link"]
     return True
+
+
+async def rename_story_db(story: dict, new_title: str) -> str:
+    """
+    Story ka naam badalta hai. Purchases / buyers list bhi naye naam par le aata hai,
+    taaki rename ke baad kharidne wale ka access na toote. story_id wahi rehti hai.
+    """
+    new_title = new_title.strip().split("\n")[0]
+    old_title = story.get("title", "")
+    story_id = story.get("story_id")
+    if not story_id:
+        story_id = await generate_story_id()
+    story_id = str(story_id)
+    link = delivery_link(story_id)
+
+    await stories_col.update_one(
+        {"_id": story["_id"]},
+        {"$set": {"title": new_title, "story_id": story_id, "link": link}}
+    )
+
+    await purchases_col.update_many(
+        {"$or": [{"story_id": story_id}, {"story_title": old_title}]},
+        {"$set": {"story_title": new_title, "story_id": story_id, "story_link": link, "link": link}}
+    )
+
+    if old_title and old_title != new_title:
+        await users_col.update_many({"purchased_stories": old_title}, {"$addToSet": {"purchased_stories": new_title}})
+        await users_col.update_many({"purchased_stories": old_title}, {"$pull": {"purchased_stories": old_title}})
+
+    return story_id
 
 
 async def update_story_demo_status(title: str, is_enabled: bool) -> bool:
     """किसी स्टोरी के लिए Demo (Yes/No) टॉगल करने का फ़ंक्शन"""
-    clean_title = title.strip().split("\n")[0]
-    res = await stories_col.update_one(
-        {"title": clean_title},
-        {"$set": {"demo_enabled": is_enabled}}
-    )
-    return res.modified_count > 0
+    story = await _find_story_exact(title)
+    if not story:
+        return False
+    await stories_col.update_one({"_id": story["_id"]}, {"$set": {"demo_enabled": is_enabled}})
+    return True
 
 
 async def update_story_range(title: str, first_msg_id: int, last_msg_id: int) -> bool:
     """किसी स्टोरी के लिए First और Last Message ID सेट करने का फ़ंक्शन"""
-    clean_title = title.strip().split("\n")[0]
+    story = await _find_story_exact(title)
+    if not story:
+        return False
     calc_files = (int(last_msg_id) - int(first_msg_id)) + 1
-    res = await stories_col.update_one(
-        {"title": clean_title},
+    await stories_col.update_one(
+        {"_id": story["_id"]},
         {"$set": {
             "first_msg_id": int(first_msg_id), 
             "last_msg_id": int(last_msg_id),
             "total_files": f"{calc_files} files"
         }}
     )
-    return res.modified_count > 0
+    return True
 
 
 async def delete_story_db(title: str) -> bool:
     """स्टोरी डिलीट करने का फ़ंक्शन - Main List और Purchase List दोनों से डिलीट करता है"""
-    clean_title = title.strip().split("\n")[0]
-    res = await stories_col.delete_one({"title": clean_title})
-    
+    story = await _find_story_exact(title)
+    if not story:
+        return False
+
+    clean_title = story.get("title", "")
+    story_id = story.get("story_id")
+
+    res = await stories_col.delete_one({"_id": story["_id"]})
     if res.deleted_count > 0:
-        await purchases_col.delete_many({
-            "$or": [
-                {"story_title": clean_title},
-                {"title": clean_title}
-            ]
-        })
+        conditions = [{"story_title": clean_title}, {"title": clean_title}]
+        if story_id:
+            conditions.append({"story_id": story_id})
+        await purchases_col.delete_many({"$or": conditions})
         return True
     return False
 
@@ -413,13 +587,6 @@ async def search_stories_db(query_str, page=1, limit=10):
         return [], 0
 
 
-async def get_story_by_title(title: str):
-    """टाइटल के आधार पर स्टोरी ढूँढता है (Exact Match Case-Insensitive)"""
-    clean_title = title.strip().split("\n")[0]
-    pattern = re.compile(f"^{re.escape(clean_title)}$", re.IGNORECASE)
-    return await stories_col.find_one({"title": pattern})
-
-
 # -------------------- AUTO-PAYMENT & WEBHOOK DB FUNCTIONS --------------------
 async def is_order_verified(order_id: str) -> bool:
     """
@@ -434,3 +601,105 @@ async def get_verified_order_details(order_id: str):
     Order ID की सारी details (Amount, Txn ID, Time) fetch करने के लिए।
     """
     return await verified_orders_col.find_one({"order_id": order_id})
+
+
+# -------------------- PAYMENT ORDERS (restart-safe, one-time fulfilment) --------------------
+async def create_payment_order(order_id: str, user_id: int, amount: float, kind: str,
+                               story_id: str = None, title: str = None, pay_url: str = None):
+    """Har gateway order ka record. kind = 'STORY' ya 'WALLET'."""
+    await payment_orders_col.insert_one({
+        "order_id": order_id,
+        "user_id": user_id,
+        "amount": round(float(amount), 2),
+        "kind": kind,
+        "story_id": story_id,
+        "title": title,
+        "pay_url": pay_url,
+        "status": "CREATED",
+        "created_at": time.time()
+    })
+
+
+async def get_payment_order(order_id: str):
+    return await payment_orders_col.find_one({"order_id": order_id})
+
+
+async def get_latest_open_order(user_id: int):
+    """Purane 'auto_check_payment_<user>' buttons ke liye: user ka sabse naya unpaid order."""
+    return await payment_orders_col.find_one(
+        {"user_id": user_id, "status": "CREATED"},
+        sort=[("created_at", -1)]
+    )
+
+
+async def claim_payment_order(order_id: str, paid_amount: float):
+    """
+    Order ko atomic tareeke se PAID mark karta hai. Sirf EK caller ko order doc milta hai,
+    baaki ko None -> isse wallet/story do baar nahi milta (double-click, webhook + verify dono).
+    """
+    return await payment_orders_col.find_one_and_update(
+        {"order_id": order_id, "status": {"$ne": "PAID"}},
+        {"$set": {"status": "PAID", "paid_amount": round(float(paid_amount), 2), "paid_at": time.time()}},
+        return_document=ReturnDocument.AFTER
+    )
+
+
+async def release_payment_order(order_id: str):
+    """Fulfilment beech me fail ho jaye to order wapas CREATED kar do taaki user dobara Verify dabaye."""
+    await payment_orders_col.update_one({"order_id": order_id}, {"$set": {"status": "CREATED"}})
+
+
+# -------------------- STARTUP: ID REPAIR + INDEXES --------------------
+async def init_db():
+    """
+    Bot start hone par ek baar chalta hai:
+      - jis story me story_id nahi (ya duplicate hai) use naya random ID deta hai
+      - purani purchases me story_id jodta hai (taaki baad me rename par bhi access rahe)
+      - zaroori indexes banata hai
+    Purani stories ki maujooda story_id kabhi nahi badalti (duplicate ko chhodkar).
+    """
+    try:
+        seen = set()
+        fixed = 0
+        async for s in stories_col.find({}, {"story_id": 1, "title": 1}):
+            sid = s.get("story_id")
+            sid = str(sid) if sid not in (None, "") else None
+
+            if (not sid) or (sid in seen):
+                new_id = _random_id(8)
+                while new_id in seen or await stories_col.find_one({"story_id": new_id}, {"_id": 1}):
+                    new_id = _random_id(8)
+                await stories_col.update_one(
+                    {"_id": s["_id"]},
+                    {"$set": {"story_id": new_id, "link": delivery_link(new_id)}}
+                )
+                sid = new_id
+                fixed += 1
+            elif s.get("story_id") != sid:
+                await stories_col.update_one({"_id": s["_id"]}, {"$set": {"story_id": sid}})
+
+            seen.add(sid)
+
+            title = s.get("title")
+            if title:
+                await purchases_col.update_many(
+                    {"story_title": title, "story_id": {"$exists": False}},
+                    {"$set": {"story_id": sid}}
+                )
+        if fixed:
+            print(f"🔧 init_db: {fixed} stories ko story_id mil gayi")
+    except Exception as e:
+        print(f"⚠ init_db story-id repair error: {e}")
+
+    index_jobs = [
+        (stories_col, [("story_id", 1)], {"unique": True, "sparse": True}),
+        (purchases_col, [("user_id", 1), ("story_id", 1)], {}),
+        (purchases_col, [("user_id", 1), ("story_title", 1)], {}),
+        (payment_orders_col, [("order_id", 1)], {"unique": True}),
+        (payment_orders_col, [("user_id", 1), ("status", 1)], {}),
+    ]
+    for col, keys, opts in index_jobs:
+        try:
+            await col.create_index(keys, **opts)
+        except Exception as e:
+            print(f"⚠ index warning on {col.name} {keys}: {e}")
