@@ -32,8 +32,19 @@
 - `/dbchannels`: सारे चैनल, बोट का एक्सेस, हर चैनल में स्टोरीज़ की गिनती, और "Active" बदलने के बटन।
 - एक स्टोरी की सारी फ़ाइलें एक ही चैनल में होनी चाहिए। `/addepisodes` और `/markcomplete` में दूसरे चैनल का लिंक देने पर बोट मना कर देता है।
 
+## 6. /setup: पेमेंट का सारा सेटअप बोट के अंदर से
+- एडमिन कमांड `/setup` (या `/payments`) से पैनल खुलता है। Render में जाकर variable बदलने की ज़रूरत नहीं।
+- **गेटवे:** Demotry.shop, Razorpay, Cashfree। हर एक की API Key / Secret / Mode बटन दबाकर डालें। "Active banayein" से गेटवे बदल जाता है।
+- **UPI ID** (Manual payment वाली) भी यहीं से बदलती है।
+- **Auto Pay ON / Maintenance** का टॉगल, और हर गेटवे का **Test** बटन (बिना ऑर्डर बनाए keys जाँचता है, इसलिए ऑर्डर लिमिट नहीं खाता)।
+- डाला हुआ secret मैसेज सेव होते ही चैट से डिलीट हो जाता है। सब कुछ डेटाबेस में रहता है, और पुराने env वेरिएबल fallback की तरह चलते रहते हैं।
+- हर ऑर्डर के साथ उसका गेटवे सेव होता है, इसलिए गेटवे बदलने के बाद भी पुराने ऑर्डर अपने ही गेटवे से verify होते हैं।
+- Razorpay और Cashfree पर यूज़र को "Open Payment Page" बटन मिलता है (QR सिर्फ़ Demotry पर बनता है)।
+- Webhook: `/paytm`, `/webhook/razorpay`, `/webhook/cashfree`। तीनों में पेमेंट गेटवे की API से दोबारा कन्फ़र्म होने पर ही माना जाता है।
+- **Razorpay और Cashfree का कोड मैंने उनके आधिकारिक डॉक्स के हिसाब से लिखा है, पर असली अकाउंट पर टेस्ट नहीं हुआ।** पहले `/setup` में Test, फिर ₹10 की खरीद करके देखें।
+
 ## फाइलें
-- नई: `gateway.py`, `fulfill.py`, `plugins/settings.py`
+- नई: `gateway.py`, `fulfill.py`, `plugins/settings.py`, `plugins/setup.py`
 - बदली: `database/db.py`, `main.py`, `app.py`, `config.py`, `web/index.html`, `plugins/start.py`, `payment.py`, `search.py`, `admin.py`, `post.py`, `notification.py`
 - `search.py` से डुप्लिकेट `viewdemo_` और `walletpay_` हैंडलर हटाए (असल में वही चल रहे थे)। अब सिर्फ़ `start.py` में हैं।
 - `admin.py` में पुराना टाइपो `me.reply_text` भी ठीक किया।

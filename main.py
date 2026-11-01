@@ -1,5 +1,7 @@
 import asyncio
+import json
 import os
+import re
 from datetime import datetime, timezone, timedelta
 from aiohttp import web
 import aiofiles
@@ -82,29 +84,53 @@ async def _process_webhook_order(order_id: str):
         print(f"❌ Webhook processing error for {order_id}: {e}")
 
 
+_ORDER_ID_RE = re.compile(r"ORD_\d+_\d+_[0-9a-f]{6}")
+
+
+def _collect_order_ids(obj, found: set):
+    """Webhook JSON me kahin bhi hamara order_id ho to nikaal lo (Demotry / Razorpay / Cashfree ka format alag hai)."""
+    if isinstance(obj, dict):
+        for v in obj.values():
+            _collect_order_ids(v, found)
+    elif isinstance(obj, list):
+        for v in obj:
+            _collect_order_ids(v, found)
+    elif isinstance(obj, str):
+        found.update(_ORDER_ID_RE.findall(obj))
+
+
 async def handle_paytm_webhook(request):
+    """
+    /paytm, /webhook/razorpay, /webhook/cashfree - teeno yahin aate hain.
+    SECURITY: webhook body par bharosa nahi. Sirf wahi order_id chalega jo hamare bot ne banaya hai,
+    aur PAID tabhi mana jayega jab gateway ki apni API (hamari key ke saath) bhi paid bataye.
+    """
     try:
         # Handle CORS OPTIONS request
         if request.method == 'OPTIONS':
             return web.Response(status=200)
 
-        data = await request.json()
-        print(f"📩 Paytm Webhook Received Payload: {data}")
+        raw = await request.read()
+        try:
+            data = json.loads(raw.decode("utf-8", errors="ignore"))
+        except Exception:
+            data = {}
+        print(f"📩 Webhook ({request.path}) payload: {str(data)[:500]}")
 
-        payload_data = data.get("data", data) if isinstance(data.get("data"), dict) else data
-        order_id = payload_data.get("order_id") or payload_data.get("ORDERID") or payload_data.get("note")
+        found = set()
+        _collect_order_ids(data, found)
+        if not found:
+            return web.json_response({"status": "ignored", "reason": "no order id"}, status=200)
 
-        if not order_id:
-            return web.json_response({"status": "ignored", "reason": "missing order_id"}, status=200)
+        accepted = []
+        for oid in found:
+            if await get_payment_order(oid):
+                asyncio.create_task(_process_webhook_order(oid))
+                accepted.append(oid)
 
-        # SECURITY: webhook body par bharosa nahi. Sirf wahi order_id chalega jo hamare bot ne banaya hai,
-        # aur PAID tabhi mana jayega jab gateway ki apni API (hamari key ke saath) bhi paid bataye.
-        order = await get_payment_order(str(order_id))
-        if not order:
+        if not accepted:
             return web.json_response({"status": "ignored", "reason": "unknown order"}, status=200)
-
-        asyncio.create_task(_process_webhook_order(str(order_id)))
-        return web.json_response({"status": "accepted", "order_id": str(order_id)}, status=200)
+        return web.json_response({"status": "accepted", "orders": accepted}, status=200)
 
     except Exception as e:
         print(f"❌ Website Webhook Error: {e}")
@@ -176,6 +202,11 @@ async def start_web_server():
     # 🎯 Only Website Webhook Route (/paytm)
     app_web.router.add_post("/paytm", handle_paytm_webhook)
     app_web.router.add_options("/paytm", handle_paytm_webhook)
+
+    # Razorpay / Cashfree webhooks (same secure handler)
+    for _p in ("/webhook/razorpay", "/webhook/cashfree", "/webhook/demotry"):
+        app_web.router.add_post(_p, handle_paytm_webhook)
+        app_web.router.add_options(_p, handle_paytm_webhook)
     
     app_web.router.add_get("/api/stories", handle_get_stories)
     app_web.router.add_get("/api/user_purchases", handle_get_user_purchases)
