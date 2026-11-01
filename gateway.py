@@ -24,15 +24,42 @@ _BROWSER_UA = (
 )
 
 # In HTTP codes par dobara try karna bekaar hai (key/request galat hai)
-_NO_RETRY_STATUS = {400, 401, 403, 404, 422}
+_NO_RETRY_STATUS = {400, 401, 403, 404, 422, 429}
 
 
 def _headers() -> dict:
     return {
         "Content-Type": "application/json",
+        "Accept": "application/json, text/plain, */*",
+        "Accept-Language": "en-US,en;q=0.9",
+        "User-Agent": _BROWSER_UA,
         "X-API-Key": API_KEY_VALUE.strip(),
         "X-API-Secret": API_SECRET_VALUE.strip(),
     }
+
+
+def _short(body: str, limit: int = 160) -> str:
+    """HTML error page ko chhote saaf text me badalta hai (logs me poora HTML na aaye)."""
+    body = body or ""
+    if "<" in body and ">" in body:
+        m = re.search(r"<title[^>]*>(.*?)</title>", body, re.I | re.S)
+        text = m.group(1) if m else re.sub(r"<[^>]+>", " ", body)
+        text = "HTML page: " + text
+    else:
+        text = body
+    return re.sub(r"\s+", " ", text).strip()[:limit]
+
+
+def is_blocked_error(err) -> bool:
+    """Gateway ki bot-protection / firewall ne request roki (403, 'Bot Verification', Cloudflare)?"""
+    e = str(err or "").lower()
+    return ("403" in e) or ("bot verification" in e) or ("cloudflare" in e) or ("just a moment" in e)
+
+
+def is_quota_error(err) -> bool:
+    """Gateway ki monthly order limit / plan limit wala error?"""
+    e = str(err or "").lower()
+    return ("429" in e) or ("limit" in e) or ("upgrade" in e)
 
 
 def new_order_id(user_id: int) -> str:
@@ -55,7 +82,7 @@ def _pick_url(data) -> str:
     return None
 
 
-async def create_order(user_id: int, user_name: str, amount: float, attempts: int = 3):
+async def create_order(user_id: int, user_name: str, amount: float, attempts: int = 2):
     """
     Returns (pay_url, order_id, error_text).
     pay_url None ho to error_text me wajah hoti hai (logs me bhi print hota hai).
@@ -66,7 +93,7 @@ async def create_order(user_id: int, user_name: str, amount: float, attempts: in
     for attempt in range(1, attempts + 1):
         order_id = new_order_id(user_id)  # har attempt par naya id: timeout ke baad duplicate-order error nahi aayega
         payload = {
-            "amount": float(amount),
+            "amount": f"{float(amount):.2f}",   # docs: amount string, jaise "100.00"
             "order_id": order_id,
             "customer_name": user_name or "Telegram User",
             "customer_mobile": "9999999999",
@@ -87,9 +114,9 @@ async def create_order(user_id: int, user_name: str, amount: float, attempts: in
                         pay_url = _pick_url(data)
                         if pay_url:
                             return pay_url, order_id, None
-                        last_err = f"HTTP {resp.status} but no payment url in reply: {body[:300]}"
+                        last_err = f"HTTP {resp.status} but no payment url in reply: {_short(body)}"
                     else:
-                        last_err = f"HTTP {resp.status}: {body[:300]}"
+                        last_err = f"HTTP {resp.status}: {_short(body)}"
                         if resp.status in _NO_RETRY_STATUS:
                             print(f"❌ create_order failed (no retry): {last_err}")
                             return None, order_id, last_err
@@ -136,7 +163,7 @@ async def check_order_status(order_id: str, attempts: int = 2):
                             return True, paid_amt, "Payment Verified Successfully"
                         return False, 0.0, f"Status: {status if status else 'PENDING'}"
 
-                    last_msg = f"Server Error (HTTP {resp.status}): {body[:200]}"
+                    last_msg = f"Server Error (HTTP {resp.status}): {_short(body)}"
         except Exception as e:
             last_msg = f"Connection Error: {type(e).__name__}: {e}"
 

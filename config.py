@@ -8,6 +8,24 @@ LOG_CHANNEL = int(os.environ.get("LOG_CHANNEL", "-1001234567890"))
 
 CHANNEL_ID = int(os.environ.get("CHANNEL_ID", "-1003970824423"))
 
+# Multiple DB (database) channels: comma-separated IDs, jaise  -1001111111111,-1002222222222
+# CHANNEL_ID hamesha list me pehle rehta hai (purani stories isi se chalti hain).
+# Naya channel bas yahan jodein aur bot ko us channel me admin banayein.
+def _parse_db_channels():
+    ids = [CHANNEL_ID]
+    for part in os.environ.get("DB_CHANNELS", "").replace(" ", "").split(","):
+        if not part:
+            continue
+        try:
+            val = int(part)
+        except ValueError:
+            continue
+        if val not in ids:
+            ids.append(val)
+    return ids
+
+DB_CHANNEL_IDS = _parse_db_channels()
+
 # Category / Platform-wise Posting Channels
 POCKET_FM_CHANNEL = int(os.environ.get("POCKET_FM_CHANNEL", "-1003525105249"))
 PRATILIPI_FM_CHANNEL = int(os.environ.get("PRATILIPI_FM_CHANNEL", "-1003226074080"))
