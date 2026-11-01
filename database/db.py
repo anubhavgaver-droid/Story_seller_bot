@@ -636,7 +636,8 @@ async def get_verified_order_details(order_id: str):
 
 # -------------------- PAYMENT ORDERS (restart-safe, one-time fulfilment) --------------------
 async def create_payment_order(order_id: str, user_id: int, amount: float, kind: str,
-                               story_id: str = None, title: str = None, pay_url: str = None):
+                               story_id: str = None, title: str = None, pay_url: str = None,
+                               provider: str = None, provider_ref: str = None):
     """Har gateway order ka record. kind = 'STORY' ya 'WALLET'."""
     await payment_orders_col.insert_one({
         "order_id": order_id,
@@ -646,6 +647,8 @@ async def create_payment_order(order_id: str, user_id: int, amount: float, kind:
         "story_id": story_id,
         "title": title,
         "pay_url": pay_url,
+        "provider": provider or "demotry",
+        "provider_ref": provider_ref,
         "status": "CREATED",
         "created_at": time.time()
     })
