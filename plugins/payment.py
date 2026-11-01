@@ -10,7 +10,7 @@ from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 # Config Imports
 from config import ADMIN_ID, BOT_USERNAME, LOG_CHANNEL, UPI_ID
-from gateway import create_order, check_order_status, extract_upi_payload, is_quota_error, is_blocked_error
+from gateway import create_order, check_order_status, extract_upi_payload, is_quota_error, is_blocked_error, get_upi_id
 from fulfill import fulfill_order
 from database.db import (
     get_setting,
@@ -286,7 +286,7 @@ async def generate_qr_after_terms(client, callback):
     await callback.answer("⏳ Payment link ban raha hai...")
     customer_name = callback.from_user.first_name or "Customer"
 
-    pay_url, gen_order_id, err = await create_order(user_id, customer_name, price)
+    pay_url, gen_order_id, err, gw_meta = await create_order(user_id, customer_name, price)
 
     # ---- Gateway ne order nahi banaya: nakli QR NAHI dikhana (wo kabhi verify nahi hota) ----
     if not pay_url:
@@ -350,7 +350,8 @@ async def generate_qr_after_terms(client, callback):
     # ---- Order ban gaya: DB me record (restart ke baad bhi verify chalega) ----
     await create_payment_order(
         gen_order_id, user_id, price, kind,
-        story_id=story_id, title=title, pay_url=pay_url
+        story_id=story_id, title=title, pay_url=pay_url,
+        provider=gw_meta.get("provider"), provider_ref=gw_meta.get("provider_ref")
     )
     ACTIVE_PAYMENTS[user_id] = {
         "title": title,
@@ -362,40 +363,56 @@ async def generate_qr_after_terms(client, callback):
     }
 
     display_amount = f"{price:.2f}"
+    provider = gw_meta.get("provider")
 
-    qr_payload = None
-    if str(pay_url).startswith("http"):
-        qr_payload = await extract_upi_payload(pay_url)
+    qr_image_bytes = None
+    if provider == "demotry":
+        qr_payload = None
+        if str(pay_url).startswith("http"):
+            qr_payload = await extract_upi_payload(pay_url)
 
-    if qr_payload:
-        if "tn=" not in qr_payload:
-            qr_payload += f"&tn={gen_order_id}"
+        if qr_payload:
+            if "tn=" not in qr_payload:
+                qr_payload += f"&tn={gen_order_id}"
+        else:
+            upi_id = await get_upi_id()
+            qr_payload = f"upi://pay?pa={upi_id}&pn=StorySeller&am={display_amount}&cu=INR&tr={gen_order_id}&tn={gen_order_id}"
+
+        qr_image_bytes = await generate_exact_website_qr_card(display_amount, qr_payload)
+
+        caption = (
+            f"⚡ <b>ᴀᴜᴛᴏᴍᴀᴛɪᴄ ᴘᴀʏᴍᴇɴᴛ ᴄʜᴇᴄᴋᴏᴜᴛ</b>\n\n"
+            f"📖 <b>ITEM:</b> {title}\n"
+            f"💰 <b>ᴀᴍᴏᴜɴᴛ:</b> ₹{display_amount}\n"
+            f"🆔 <b>ᴏʀᴅᴇʀ ɪᴅ:</b> <code>{gen_order_id}</code>\n"
+            f"⏳ <b>ᴛɪᴍᴇ ʟɪᴍɪᴛ:</b> 10 Minutes\n\n"
+            f"📲 <i>1. Scan this QR code using PhonePe, GPay, Paytm, or BHIM App.\n"
+            f"2. Click <b>'⚡ ᴠᴇʀɪғʏ ᴘᴀʏᴍᴇɴᴛ'</b> below after paying!</i>"
+        )
     else:
-        qr_payload = f"upi://pay?pa={UPI_ID}&pn=StorySeller&am={display_amount}&cu=INR&tr={gen_order_id}&tn={gen_order_id}"
-
-    qr_image_bytes = await generate_exact_website_qr_card(display_amount, qr_payload)
-
-    caption = (
-        f"⚡ <b>ᴀᴜᴛᴏᴍᴀᴛɪᴄ ᴘᴀʏᴍᴇɴᴛ ᴄʜᴇᴄᴋᴏᴜᴛ</b>\n\n"
-        f"📖 <b>ITEM:</b> {title}\n"
-        f"💰 <b>ᴀᴍᴏᴜɴᴛ:</b> ₹{display_amount}\n"
-        f"🆔 <b>ᴏʀᴅᴇʀ ɪᴅ:</b> <code>{gen_order_id}</code>\n"
-        f"⏳ <b>ᴛɪᴍᴇ ʟɪᴍɪᴛ:</b> 10 Minutes\n\n"
-        f"📲 <i>1. Scan this QR code using PhonePe, GPay, Paytm, or BHIM App.\n"
-        f"2. Click <b>'⚡ ᴠᴇʀɪғʏ ᴘᴀʏᴍᴇɴᴛ'</b> below after paying!</i>"
-    )
+        caption = (
+            f"⚡ <b>ᴀᴜᴛᴏᴍᴀᴛɪᴄ ᴘᴀʏᴍᴇɴᴛ ᴄʜᴇᴄᴋᴏᴜᴛ</b>\n\n"
+            f"📖 <b>ITEM:</b> {title}\n"
+            f"💰 <b>ᴀᴍᴏᴜɴᴛ:</b> ₹{display_amount}\n"
+            f"🆔 <b>ᴏʀᴅᴇʀ ɪᴅ:</b> <code>{gen_order_id}</code>\n\n"
+            f"📲 <i>1. Click <b>'🌐 ᴏᴘᴇɴ ᴘᴀʏᴍᴇɴᴛ ᴘᴀɢᴇ'</b> and pay using UPI / Card.\n"
+            f"2. After paying, come back and click <b>'⚡ ᴠᴇʀɪғʏ ᴘᴀʏᴍᴇɴᴛ'</b>!</i>"
+        )
 
     btn_list = []
     if str(pay_url).startswith(("http://", "https://")):
-        btn_list.append([InlineKeyboardButton("🌐 ᴏᴘᴇɴ ᴘᴀʏᴍᴇɴᴛ ᴘᴀɢᴇ", url=pay_url)])
+        btn_list.append([InlineKeyboardButton("🌐 ᴏᴘᴇɴ ᴘᴀʏᴍᴇɴᴛ ᴘᴀɢᴇ", style=enums.ButtonStyle.PRIMARY, url=pay_url)])
     btn_list.append([InlineKeyboardButton("⚡ ᴠᴇʀɪғʏ ᴘᴀʏᴍᴇɴᴛ", style=enums.ButtonStyle.SUCCESS, callback_data=f"chk:{gen_order_id}")])
     btn_list.append([InlineKeyboardButton("❌ ᴄᴀɴᴄᴇʟ", style=enums.ButtonStyle.DANGER, callback_data="cancel_payment_process")])
 
-    await callback.message.reply_photo(
-        photo=qr_image_bytes,
-        caption=caption,
-        reply_markup=InlineKeyboardMarkup(btn_list)
-    )
+    if qr_image_bytes:
+        await callback.message.reply_photo(
+            photo=qr_image_bytes,
+            caption=caption,
+            reply_markup=InlineKeyboardMarkup(btn_list)
+        )
+    else:
+        await callback.message.reply_text(caption, reply_markup=InlineKeyboardMarkup(btn_list))
 
     # Naya QR bhej dene ke BAAD purana mediator message hatao
     try:
@@ -525,12 +542,13 @@ async def ask_screenshot(client, callback):
     except Exception:
         pass
 
+    upi_id = await get_upi_id()
     manual_text = (
         f"📲 <b><u>ᴍᴀɴᴜᴀʟ ᴜᴘɪ ᴘᴀʏᴍᴇɴᴛ</u></b>\n\n"
         f"📌 <b>Item:</b> {story_title}\n"
         f"💰 <b>Amount:</b> ₹{price:g}\n\n"
         f"👇 <b>Pay to this UPI ID:</b>\n"
-        f"<code>{UPI_ID}</code>\n\n"
+        f"<code>{upi_id}</code>\n\n"
         f"<i>(Tap the UPI ID above to copy it)</i>\n\n"
         f"📸 <b>After payment, please send your payment screenshot photo directly in this chat.</b>"
     )

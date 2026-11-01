@@ -694,7 +694,7 @@ async def finalize_mark_completed(client, message, data):
 
 # ------------------ MASTER INPUT HANDLER FOR PRIVATE MESSAGES ------------------
 
-@Client.on_message(filters.private & filters.user(ADMIN_ID) & ~filters.command(["start", "addstory", "deletestory", "allstories", "cancel", "addmoney", "refreshstories", "addepisodes", "markcomplete", "editname", "setepisodes", "changestatus", "dbchannels", "autopay"]), group=1)
+@Client.on_message(filters.private & filters.user(ADMIN_ID) & ~filters.command(["start", "addstory", "deletestory", "allstories", "cancel", "addmoney", "refreshstories", "addepisodes", "markcomplete", "editname", "setepisodes", "changestatus", "dbchannels", "autopay", "setup", "payments"]), group=1)
 async def master_input_handler(client, message):
     user_id = message.from_user.id
 
