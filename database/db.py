@@ -9,7 +9,7 @@ from bson import ObjectId
 from pymongo import ReturnDocument
 from pymongo.errors import DuplicateKeyError
 from motor.motor_asyncio import AsyncIOMotorClient
-from config import MONGO_URL, LOG_CHANNEL, BOT_USERNAME
+from config import MONGO_URL, LOG_CHANNEL, BOT_USERNAME, CHANNEL_ID, DB_CHANNEL_IDS
 
 # MongoDB Async Client Setup
 client = AsyncIOMotorClient(MONGO_URL)
@@ -21,6 +21,36 @@ users_col = db["users"]              # User Registration, Wallet & Language
 purchases_col = db["purchases"]        # Purchased Stories
 verified_orders_col = db["verified_orders"]  # Webhook Auto-Payments
 payment_orders_col = db["payment_orders"]    # Every payment order the bot creates (survives restarts)
+settings_col = db["settings"]                # Admin switches (auto-pay maintenance, active DB channel)
+
+
+# -------------------- SETTINGS (admin switches) --------------------
+async def get_setting(key: str, default=None):
+    doc = await settings_col.find_one({"key": key})
+    return doc["value"] if doc and "value" in doc else default
+
+
+async def set_setting(key: str, value):
+    await settings_col.update_one({"key": key}, {"$set": {"key": key, "value": value}}, upsert=True)
+
+
+# -------------------- DB CHANNELS (multiple) --------------------
+def story_channel(story) -> int:
+    """Story ki files jis channel me hain. Purani stories (db_channel nahi) -> CHANNEL_ID."""
+    try:
+        return int((story or {}).get("db_channel") or CHANNEL_ID)
+    except (TypeError, ValueError):
+        return CHANNEL_ID
+
+
+async def get_active_db_channel() -> int:
+    """Naye stories ke liye channel (jab admin sirf message ID deta hai, link nahi)."""
+    val = await get_setting("active_db_channel")
+    try:
+        val = int(val)
+    except (TypeError, ValueError):
+        return CHANNEL_ID
+    return val if val in DB_CHANNEL_IDS else CHANNEL_ID
 
 
 # -------------------- LOG HELPER FUNCTION --------------------
@@ -424,6 +454,7 @@ async def add_story_db(data: dict):
         "first_msg_id": first_msg_id,
         "last_msg_id": last_msg_id,
         "custom_ranges": custom_ranges,
+        "db_channel": int(data.get("db_channel") or (existing_story or {}).get("db_channel") or CHANNEL_ID),
         "link": delivery_link(story_id)
     }
 
