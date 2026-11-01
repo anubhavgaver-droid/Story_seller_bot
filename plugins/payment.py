@@ -10,9 +10,10 @@ from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 # Config Imports
 from config import ADMIN_ID, BOT_USERNAME, LOG_CHANNEL, UPI_ID
-from gateway import create_order, check_order_status, extract_upi_payload
+from gateway import create_order, check_order_status, extract_upi_payload, is_quota_error, is_blocked_error
 from fulfill import fulfill_order
 from database.db import (
+    get_setting,
     get_story_by_key,
     add_user_purchase,
     add_wallet_balance,
@@ -23,6 +24,7 @@ from database.db import (
 )
 
 # Global Dictionaries
+_LAST_QUOTA_ALERT = [0.0]   # admin ko limit-alert har ghante me ek baar
 ACTIVE_PAYMENTS = {}        # sirf manual-screenshot flow ke liye (order ka asli record DB me hota hai)
 WALLET_TOPUP_WAITING = {}   
 
@@ -269,6 +271,13 @@ async def generate_qr_after_terms(client, callback):
     if price <= 0:
         return await callback.answer("❌ Invalid amount!", show_alert=True)
 
+    # Admin ne Auto UPI ko maintenance par rakha hai -> popup (default: ON, /autopay on se chalu karein)
+    if await get_setting("auto_pay_maintenance", True):
+        return await callback.answer(
+            "🛠 Auto UPI abhi Under Maintenance hai.\n\nKripya 'Manual (Screenshot)' option se payment karein.",
+            show_alert=True
+        )
+
     story_id = ref if kind == "STORY" else None
     ref_part = f"S:{ref}" if kind == "STORY" else f"W:{price:g}"
     retry_cb = f"payqr:{ref_part}"
@@ -281,16 +290,29 @@ async def generate_qr_after_terms(client, callback):
 
     # ---- Gateway ne order nahi banaya: nakli QR NAHI dikhana (wo kabhi verify nahi hota) ----
     if not pay_url:
-        error_text = (
-            "⚠️ <b>ᴘᴀʏᴍᴇɴᴛ ɢᴀᴛᴇᴡᴀʏ ᴀʙʜɪ ʙᴜsʏ ʜᴀɪ</b>\n\n"
-            "Payment link nahi ban paya. Kripya thodi der baad <b>Try Again</b> dabayein, "
-            "ya <b>Manual</b> option se screenshot bhejein."
-        )
-        error_kb = InlineKeyboardMarkup([
-            [InlineKeyboardButton("🔄 ᴛʀʏ ᴀɢᴀɪɴ", style=enums.ButtonStyle.PRIMARY, callback_data=retry_cb)],
-            [InlineKeyboardButton("📲 ᴍᴀɴᴜᴀʟ (sᴄʀᴇᴇɴsʜᴏᴛ)", callback_data=manual_cb)],
-            [InlineKeyboardButton("❌ ᴄᴀɴᴄᴇʟ", style=enums.ButtonStyle.DANGER, callback_data="cancel_payment_process")]
-        ])
+        quota_hit = is_quota_error(err) or is_blocked_error(err)  # dono me Try Again bekaar, Manual dikhao
+        if quota_hit:
+            # Gateway plan ki monthly limit khatam: Try Again bekaar hai, seedha Manual dikhao
+            error_text = (
+                "⚠️ <b>ᴀᴜᴛᴏ ᴘᴀʏᴍᴇɴᴛ ᴀʙʜɪ ᴀᴠᴀɪʟᴀʙʟᴇ ɴᴀʜɪ ʜᴀɪ</b>\n\n"
+                "Kripya <b>Manual (Screenshot)</b> option se payment karein. "
+                "Admin screenshot check karke approve kar dega."
+            )
+            error_kb = InlineKeyboardMarkup([
+                [InlineKeyboardButton("📲 ᴍᴀɴᴜᴀʟ (sᴄʀᴇᴇɴsʜᴏᴛ)", style=enums.ButtonStyle.PRIMARY, callback_data=manual_cb)],
+                [InlineKeyboardButton("❌ ᴄᴀɴᴄᴇʟ", style=enums.ButtonStyle.DANGER, callback_data="cancel_payment_process")]
+            ])
+        else:
+            error_text = (
+                "⚠️ <b>ᴘᴀʏᴍᴇɴᴛ ɢᴀᴛᴇᴡᴀʏ ᴀʙʜɪ ʙᴜsʏ ʜᴀɪ</b>\n\n"
+                "Payment link nahi ban paya. Kripya thodi der baad <b>Try Again</b> dabayein, "
+                "ya <b>Manual</b> option se screenshot bhejein."
+            )
+            error_kb = InlineKeyboardMarkup([
+                [InlineKeyboardButton("🔄 ᴛʀʏ ᴀɢᴀɪɴ", style=enums.ButtonStyle.PRIMARY, callback_data=retry_cb)],
+                [InlineKeyboardButton("📲 ᴍᴀɴᴜᴀʟ (sᴄʀᴇᴇɴsʜᴏᴛ)", callback_data=manual_cb)],
+                [InlineKeyboardButton("❌ ᴄᴀɴᴄᴇʟ", style=enums.ButtonStyle.DANGER, callback_data="cancel_payment_process")]
+            ])
         try:
             await callback.message.edit_caption(caption=error_text, reply_markup=error_kb)
         except Exception:
@@ -298,6 +320,22 @@ async def generate_qr_after_terms(client, callback):
                 await callback.message.reply_text(error_text, reply_markup=error_kb)
             except Exception:
                 pass
+
+        if quota_hit:
+            if time.time() - _LAST_QUOTA_ALERT[0] > 3600:
+                _LAST_QUOTA_ALERT[0] = time.time()
+                try:
+                    await client.send_message(
+                        ADMIN_ID,
+                        "🚨 <b>Gateway se order nahi ban pa raha!</b>\n\n"
+                        "Wajah: monthly limit khatam ya gateway ne bot-protection (403) laga di. "
+                        "demotry.shop support se baat karein / plan check karein. "
+                        "Tab tak users ko sirf Manual (screenshot) option dikh raha hai.\n\n"
+                        f"<code>{str(err)[:200]}</code>"
+                    )
+                except Exception:
+                    pass
+            return
 
         await send_log_to_channel(
             client,

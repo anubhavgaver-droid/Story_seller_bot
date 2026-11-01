@@ -19,6 +19,7 @@ from pyrogram.enums import ParseMode
 
 # Required Database functions
 from database.db import (
+    story_channel,
     get_story_by_title,
     get_story_by_key,
     deduct_wallet_if_enough,
@@ -241,7 +242,7 @@ async def send_story_files_start(client, user_id, story, first_id, last_id, clea
         msg = None
         while True:
             try:
-                msg = await client.get_messages(chat_id=CHANNEL_ID, message_ids=msg_id)
+                msg = await client.get_messages(chat_id=story_channel(story), message_ids=msg_id)
                 break
             except FloodWait as e:
                 await asyncio.sleep(e.value + 1)
@@ -263,7 +264,7 @@ async def send_story_files_start(client, user_id, story, first_id, last_id, clea
             try:
                 sent_msg = await client.copy_message(
                     chat_id=user_id,
-                    from_chat_id=CHANNEL_ID,
+                    from_chat_id=story_channel(story),
                     message_id=msg.id,
                     protect_content=True
                 )
@@ -458,7 +459,7 @@ async def web_app_data_handler(client, message):
                 try:
                     copied_msg = await client.copy_message(
                         chat_id=user_id,
-                        from_chat_id=CHANNEL_ID,
+                        from_chat_id=story_channel(story),
                         message_id=msg_id,
                         caption=f"🎧 <b>Demo Sample</b> - {story['title']}",
                         protect_content=True
@@ -553,7 +554,7 @@ async def view_demo_callback(client: Client, callback_query: CallbackQuery):
             try:
                 copied_msg = await client.copy_message(
                     chat_id=user_id,
-                    from_chat_id=CHANNEL_ID,
+                    from_chat_id=story_channel(story),
                     message_id=msg_id,
                     caption=f"🎧 <b>Demo Sample</b> - {story['title']}",
                     protect_content=True
@@ -944,7 +945,7 @@ async def start_handler(client, message):
             try:
                 copied_msg = await client.copy_message(
                     chat_id=user.id,
-                    from_chat_id=CHANNEL_ID,
+                    from_chat_id=story_channel(story),
                     message_id=msg_id,
                     caption=f"🎧 <b>Demo Sample</b> - {story['title']}",
                     protect_content=True

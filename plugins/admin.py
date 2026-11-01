@@ -3,7 +3,7 @@ import random
 import asyncio
 from pyrogram import Client, filters
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ForceReply
-from config import ADMIN_ID, BOT_USERNAME, WEB_APP_URL, CHANNEL_ID
+from config import ADMIN_ID, BOT_USERNAME, WEB_APP_URL, CHANNEL_ID, DB_CHANNEL_IDS
 from database.db import (
     add_story_db, 
     rename_story_db,
@@ -12,7 +12,9 @@ from database.db import (
     send_log,
     add_wallet_balance,
     stories_col,
-    users_col
+    users_col,
+    story_channel,
+    get_active_db_channel
 )
 from plugins.post import send_story_to_channel
 from plugins.notification import notify_story_buyers
@@ -36,6 +38,32 @@ def extract_msg_id(text: str):
         return int(text)
     match = re.search(r"/(\d+)$", text)
     return int(match.group(1)) if match else None
+
+def extract_chat_id(text: str):
+    """
+    Private channel link (https://t.me/c/1234567890/55) se channel ID (-1001234567890) nikalta hai.
+    Sirf message ID ya public link ho to None (channel link se pata nahi chal sakta).
+    """
+    if not text:
+        return None
+    m = re.search(r"t\.me/c/(\d+)/\d+", str(text))
+    return int("-100" + m.group(1)) if m else None
+
+
+def _wrong_channel(user_id: int, text: str):
+    """
+    Chalte hue wizard (add story / ongoing / complete) me admin ne alag channel ka link bheja?
+    Story ki saari files EK hi DB channel me honi chahiye. Galat ho to expected channel lautata hai.
+    """
+    chat = extract_chat_id(text)
+    if chat is None:
+        return None
+    for state in (ADD_STATE, ONGOING_STATE, COMPLETE_STATE):
+        expected = state.get(user_id, {}).get("db_channel")
+        if expected and chat != expected:
+            return expected
+    return None
+
 
 # ------------------ ADMIN REFRESH COMMAND FOR ALL STORIES ------------------
 @Client.on_message(filters.command("refreshstories") & filters.user(ADMIN_ID) & filters.private, group=1)
@@ -666,9 +694,19 @@ async def finalize_mark_completed(client, message, data):
 
 # ------------------ MASTER INPUT HANDLER FOR PRIVATE MESSAGES ------------------
 
-@Client.on_message(filters.private & filters.user(ADMIN_ID) & ~filters.command(["start", "addstory", "deletestory", "allstories", "cancel", "addmoney", "refreshstories", "addepisodes", "markcomplete", "editname", "setepisodes", "changestatus"]), group=1)
+@Client.on_message(filters.private & filters.user(ADMIN_ID) & ~filters.command(["start", "addstory", "deletestory", "allstories", "cancel", "addmoney", "refreshstories", "addepisodes", "markcomplete", "editname", "setepisodes", "changestatus", "dbchannels", "autopay"]), group=1)
 async def master_input_handler(client, message):
     user_id = message.from_user.id
+
+    # Story ki saari files ek hi DB channel me honi chahiye (link ka channel check)
+    if message.text:
+        _expected = _wrong_channel(user_id, message.text)
+        if _expected:
+            return await message.reply_text(
+                f"❌ <b>Ye link kisi aur DB channel ka hai!</b>\n\n"
+                f"Is story ki saari files ek hi channel me honi chahiye: <code>{_expected}</code>\n"
+                f"Sahi channel ka link bhejein."
+            )
 
     # 1. EDIT STORY NAME INPUT HANDLER
     if user_id in EDIT_NAME_STATE and 'step' in EDIT_NAME_STATE[user_id]:
@@ -819,6 +857,7 @@ async def master_input_handler(client, message):
             COMPLETE_STATE[user_id]['story_id'] = story['_id']
             COMPLETE_STATE[user_id]['title'] = story['title']
             COMPLETE_STATE[user_id]['old_first_id'] = story.get('first_msg_id')
+            COMPLETE_STATE[user_id]['db_channel'] = story_channel(story)
             COMPLETE_STATE[user_id]['old_last_id'] = story.get('last_msg_id')
             COMPLETE_STATE[user_id]['step'] = 'ASK_NEW_LAST'
 
@@ -866,6 +905,7 @@ async def master_input_handler(client, message):
             ONGOING_STATE[user_id]['title'] = story['title']
             ONGOING_STATE[user_id]['custom_ranges'] = list(story.get('custom_ranges', []))
             ONGOING_STATE[user_id]['old_first_id'] = story.get('first_msg_id')
+            ONGOING_STATE[user_id]['db_channel'] = story_channel(story)
             ONGOING_STATE[user_id]['old_last_id'] = story.get('last_msg_id')
 
             ONGOING_STATE[user_id]['step'] = 'ASK_EPISODE_COUNT'
@@ -1067,9 +1107,20 @@ async def master_input_handler(client, message):
             if not first_id:
                 return await message.reply_text("❌ Invalid ID/Link! Valid Message ID or Telegram Link enter karein:")
             
+            # Channel: link se (t.me/c/...), warna admin ka "active" DB channel (/dbchannels)
+            link_chat = extract_chat_id(message.text)
+            if link_chat is not None and link_chat not in DB_CHANNEL_IDS:
+                return await message.reply_text(
+                    f"❌ <b>Ye channel (<code>{link_chat}</code>) allowed list me nahi hai.</b>\n\n"
+                    f"Render me <code>DB_CHANNELS</code> variable me ye ID jodein, bot ko us channel me admin banayein "
+                    f"aur restart karein. Phir dobara link bhejein."
+                )
+            db_channel = link_chat if link_chat is not None else await get_active_db_channel()
+            ADD_STATE[user_id]['db_channel'] = db_channel
+
             ADD_STATE[user_id]['first_msg_id'] = first_id
             ADD_STATE[user_id]['step'] = 'LAST_MSG'
-            await message.reply_text("<b>[sᴛᴇᴘ 10/10]</b> DB Channel से स्टोरी की <b>LAST Message ID / Link</b> भेजें:", reply_markup=ForceReply(True))
+            await message.reply_text(f"📡 <b>DB Channel:</b> <code>{db_channel}</code>\n\n<b>[sᴛᴇᴘ 10/10]</b> DB Channel से स्टोरी की <b>LAST Message ID / Link</b> भेजें:", reply_markup=ForceReply(True))
 
         elif step == 'LAST_MSG':
             last_id = extract_msg_id(message.text)
