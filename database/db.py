@@ -22,6 +22,7 @@ purchases_col = db["purchases"]        # Purchased Stories
 verified_orders_col = db["verified_orders"]  # Webhook Auto-Payments
 payment_orders_col = db["payment_orders"]    # Every payment order the bot creates (survives restarts)
 settings_col = db["settings"]                # Admin switches (auto-pay maintenance, active DB channel)
+claim_tokens_col = db["claim_tokens"]        # Free-story ad-gate tokens
 
 
 # -------------------- SETTINGS (admin switches) --------------------
@@ -179,7 +180,8 @@ async def register_user(user_id: int, first_name: str, username: str = None, ref
     
     set_on_insert = {
         "wallet_balance": 0.0,
-        "lang_code": "en"
+        "lang_code": "en",
+        "joined_at": time.time()
     }
     
     if referred_by and referred_by != user_id:
@@ -683,6 +685,78 @@ async def release_payment_order(order_id: str):
     await payment_orders_col.update_one({"order_id": order_id}, {"$set": {"status": "CREATED"}})
 
 
+# -------------------- FREE STORY CLAIM TOKENS (ad gate) --------------------
+async def create_claim_token(user_id: int, story_id: str) -> str:
+    """Free story claim ke liye ek-baar-wala token (shortener ke baad verify hota hai)."""
+    token = secrets.token_urlsafe(9)
+    await claim_tokens_col.insert_one({
+        "token": token,
+        "user_id": user_id,
+        "story_id": str(story_id),
+        "short_url": None,
+        "created_at": time.time(),
+        "used": False
+    })
+    return token
+
+
+async def set_claim_short_url(token: str, short_url: str):
+    await claim_tokens_col.update_one({"token": token}, {"$set": {"short_url": short_url}})
+
+
+async def get_claim_token(token: str):
+    return await claim_tokens_col.find_one({"token": token})
+
+
+async def use_claim_token(token: str):
+    """Atomic: sirf pehli baar doc milta hai, dobara None (double-claim nahi)."""
+    return await claim_tokens_col.find_one_and_update(
+        {"token": token, "used": False},
+        {"$set": {"used": True, "used_at": time.time()}},
+        return_document=ReturnDocument.AFTER
+    )
+
+
+# -------------------- ADMIN STATS --------------------
+async def get_stats() -> dict:
+    now = time.time()
+    day, week, month = 86400, 7 * 86400, 30 * 86400
+
+    async def revenue(since):
+        cur = payment_orders_col.aggregate([
+            {"$match": {"status": "PAID", "paid_at": {"$gte": since}}},
+            {"$group": {"_id": None, "sum": {"$sum": "$paid_amount"}, "n": {"$sum": 1}}}
+        ])
+        rows = await cur.to_list(length=1)
+        return (round(rows[0]["sum"], 2), rows[0]["n"]) if rows else (0.0, 0)
+
+    top_cur = purchases_col.aggregate([
+        {"$group": {"_id": "$story_title", "n": {"$sum": 1}}},
+        {"$sort": {"n": -1}},
+        {"$limit": 5}
+    ])
+    wallet_cur = users_col.aggregate([{"$group": {"_id": None, "sum": {"$sum": "$wallet_balance"}}}])
+    wallet_rows = await wallet_cur.to_list(length=1)
+
+    return {
+        "users_total": await users_col.count_documents({}),
+        "users_today": await users_col.count_documents({"joined_at": {"$gte": now - day}}),
+        "users_week": await users_col.count_documents({"joined_at": {"$gte": now - week}}),
+        "stories_total": await stories_col.count_documents({}),
+        "stories_free": await stories_col.count_documents({"price": {"$in": [0, 0.0, "0", None]}}),
+        "purchases_total": await purchases_col.count_documents({}),
+        "purchases_today": await purchases_col.count_documents({"timestamp": {"$gte": now - day}}),
+        "purchases_week": await purchases_col.count_documents({"timestamp": {"$gte": now - week}}),
+        "orders_today": await payment_orders_col.count_documents({"created_at": {"$gte": now - day}}),
+        "rev_today": await revenue(now - day),
+        "rev_week": await revenue(now - week),
+        "rev_month": await revenue(now - month),
+        "free_claims": await claim_tokens_col.count_documents({"used": True}),
+        "wallet_total": round(wallet_rows[0]["sum"], 2) if wallet_rows else 0.0,
+        "top_stories": [(r["_id"], r["n"]) async for r in top_cur],
+    }
+
+
 # -------------------- STARTUP: ID REPAIR + INDEXES --------------------
 async def init_db():
     """
@@ -731,6 +805,7 @@ async def init_db():
         (purchases_col, [("user_id", 1), ("story_title", 1)], {}),
         (payment_orders_col, [("order_id", 1)], {"unique": True}),
         (payment_orders_col, [("user_id", 1), ("status", 1)], {}),
+        (claim_tokens_col, [("token", 1)], {"unique": True}),
     ]
     for col, keys, opts in index_jobs:
         try:
