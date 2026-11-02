@@ -4,6 +4,7 @@ import time
 import re
 from urllib.parse import quote as url_quote, unquote
 from pyrogram import Client, filters, enums
+from freeflow import handle_free_deeplink, start_free_claim, buy_rows, price_label
 from pyrogram.errors import FloodWait, MessageNotModified
 from pyrogram.types import (
     ReplyKeyboardMarkup, 
@@ -497,10 +498,7 @@ async def web_app_data_handler(client, message):
             if story.get('demo_enabled', False):
                 inline_buttons.append([InlineKeyboardButton("🎬 ᴅᴇᴍᴏ / ᴘʀᴇᴠɪᴇᴡ", style=enums.ButtonStyle.PRIMARY, callback_data=f"viewdemo_{encoded_title}")])
 
-            inline_buttons.extend([
-                [InlineKeyboardButton(f"💳 ᴅɪʀᴇᴄᴛ ᴘᴀʏ (₹{price})", style=enums.ButtonStyle.PRIMARY, callback_data=f"buy:{encoded_title}")],
-                [InlineKeyboardButton(f"👛 ᴘᴀʏ ᴠɪᴀ ᴡᴀʟʟᴇᴛ (Bal: ₹{wallet_bal})", style=enums.ButtonStyle.PRIMARY, callback_data=f"walletpay:{encoded_title}")]
-            ])
+            inline_buttons.extend(buy_rows(encoded_title, price, wallet_bal))
             
             btn = InlineKeyboardMarkup(inline_buttons)
             photo_url = story.get('photo', 'https://picsum.photos/400/200')
@@ -600,7 +598,9 @@ async def process_wallet_payment(client, callback_query):
         # Price hamesha database se, button me likhe price par bharosa nahi
         price = float(story.get("price", 0) or 0)
         if price <= 0:
-            return await callback_query.answer("❌ Is story ka price set nahi hai. Admin se contact karein.", show_alert=True)
+            await callback_query.answer("🎁 Free story!")
+            await start_free_claim(client, user_id, story)
+            return
 
         clean_title = story['title'].strip().split("\n")[0]
         story_id = story.get("story_id")
@@ -918,6 +918,10 @@ async def start_handler(client, message):
     except Exception as db_err:
         print(f"Database Error in /start registration: {db_err}")
 
+    # Free story claim / ad-gate verify deep links
+    if len(args) > 1 and args[1].startswith(("free_", "verify_")):
+        return await handle_free_deeplink(client, message, args[1])
+
     # Deep-Link Logic for Demo Section
     if len(args) > 1 and args[1].startswith("demo_"):
         raw_param = args[1]
@@ -1039,6 +1043,9 @@ async def start_handler(client, message):
         encoded_title = _story_key(story, clean_title)
 
         unlocked = await is_story_unlocked(user.id, clean_title, story.get("story_id"))
+        if not unlocked and float(story.get("price", 0) or 0) <= 0:
+            await start_free_claim(client, user.id, story)
+            return
         if not unlocked:
             buy_btn = InlineKeyboardMarkup([
                 [InlineKeyboardButton("🛒 ʙᴜʏ ɴᴏᴡ", callback_data=f"buy:{encoded_title}")]
@@ -1098,18 +1105,7 @@ async def start_handler(client, message):
             if story.get('demo_enabled', False):
                 buttons.append([InlineKeyboardButton("🎬 ᴅᴇᴍᴏ / ᴘʀᴇᴠɪᴇᴡ", style=enums.ButtonStyle.PRIMARY, callback_data=f"viewdemo_{encoded_title}")])
 
-            buttons.append([
-                InlineKeyboardButton(
-                    f"🛒 ʙᴜʏ ɴᴏᴡ (₹{story['price']})", style=enums.ButtonStyle.PRIMARY,
-                    callback_data=f"buy:{encoded_title}"
-                )
-            ])
-            buttons.append([
-                InlineKeyboardButton(
-                    f"👛 ᴘᴀʏ ᴠɪᴀ ᴡᴀʟʟᴇᴛ (Bal: ₹{wallet_bal})", style=enums.ButtonStyle.PRIMARY,
-                    callback_data=f"walletpay:{encoded_title}"
-                )
-            ])
+            buttons.extend(buy_rows(encoded_title, story.get('price', 0), wallet_bal))
             
             btn = InlineKeyboardMarkup(buttons)
             
@@ -1119,7 +1115,7 @@ async def start_handler(client, message):
                 f"🖥️ <b>Platform :</b> {story.get('category', 'Pocket FM')}\n"
                 f"🧩 <b>Genre :</b> {story.get('genre', 'Drama')}\n"
                 f"🎬 <b>Episodes :</b> {story.get('episodes', 'N/A')}\n\n"
-                f"░▒▓█ PRICE - ₹{story['price']} █▓▒░\n\n"
+                f"░▒▓█ PRICE - {price_label(story.get('price', 0))} █▓▒░\n\n"
                 f"👛 <b>ʏᴏᴜʀ ᴡᴀʟʟᴇᴛ:</b> ₹{wallet_bal}\n\n"
                 f"<i>👇 Choose an option below to view or purchase:</i>"
             )

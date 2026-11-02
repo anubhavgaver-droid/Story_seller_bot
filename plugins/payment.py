@@ -12,6 +12,7 @@ from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from config import ADMIN_ID, BOT_USERNAME, LOG_CHANNEL, UPI_ID
 from gateway import create_order, check_order_status, extract_upi_payload, is_quota_error, is_blocked_error, get_upi_id
 from fulfill import fulfill_order
+from freeflow import start_free_claim
 from database.db import (
     get_setting,
     get_story_by_key,
@@ -188,7 +189,10 @@ async def show_payment_methods(client, callback):
     # Price hamesha database se (callback me bheja gaya price par bharosa nahi)
     price = float(story.get("price", 0) or 0)
     if price <= 0:
-        return await callback.answer("❌ Is story ka price set nahi hai. Admin se contact karein.", show_alert=True)
+        # Free story: payment nahi, Claim Free flow (ad-gate ON ho to ad ke baad unlock)
+        await callback.answer("🎁 Free story!")
+        await start_free_claim(client, callback.from_user.id, story)
+        return
 
     story_title = _clean(story["title"])
     sid = _skey(story)

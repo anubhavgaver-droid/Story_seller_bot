@@ -694,7 +694,7 @@ async def finalize_mark_completed(client, message, data):
 
 # ------------------ MASTER INPUT HANDLER FOR PRIVATE MESSAGES ------------------
 
-@Client.on_message(filters.private & filters.user(ADMIN_ID) & ~filters.command(["start", "addstory", "deletestory", "allstories", "cancel", "addmoney", "refreshstories", "addepisodes", "markcomplete", "editname", "setepisodes", "changestatus", "dbchannels", "autopay", "setup", "payments"]), group=1)
+@Client.on_message(filters.private & filters.user(ADMIN_ID) & ~filters.command(["start", "addstory", "deletestory", "allstories", "cancel", "addmoney", "refreshstories", "addepisodes", "markcomplete", "editname", "setepisodes", "changestatus", "dbchannels", "autopay", "setup", "payments", "setkey", "admin", "panel", "stats", "version"]), group=1)
 async def master_input_handler(client, message):
     user_id = message.from_user.id
 
@@ -1063,7 +1063,7 @@ async def master_input_handler(client, message):
                 return await message.reply_text("❌ ᴘʟᴇᴀsᴇ sᴇɴᴅ ᴀ ᴠᴀʟɪᴅ ᴘʜᴏᴛᴏ ᴏʀ ɪᴍᴀɢᴇ ᴜʀʟ:")
                 
             ADD_STATE[user_id]['step'] = 'PRICE'
-            await message.reply_text("<b>[sᴛᴇᴘ 7/10]</b> ᴇɴᴛᴇʀ ᴛʜᴇ ᴘʀɪᴄᴇ (₹):", reply_markup=ForceReply(True))
+            await message.reply_text("<b>[sᴛᴇᴘ 7/10]</b> ᴇɴᴛᴇʀ ᴛʜᴇ ᴘʀɪᴄᴇ (₹):\n<i>Free story ke liye <code>0</code> likhein (Claim Free button + optional ad).</i>", reply_markup=ForceReply(True))
             
         elif step == 'PRICE':
             if not message.text or not message.text.isdigit():

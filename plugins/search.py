@@ -4,6 +4,7 @@ import re
 import difflib
 import time
 from pyrogram import Client, filters, enums
+from freeflow import buy_rows, price_label
 from pyrogram.types import (
     ReplyKeyboardMarkup, 
     KeyboardButton, 
@@ -259,10 +260,7 @@ async def story_selected_handler(client, message):
             InlineKeyboardButton("🎬 ᴠɪᴇᴡ ᴅᴇᴍᴏ / ᴘʀᴇᴠɪᴇᴡ", style=enums.ButtonStyle.PRIMARY, callback_data=f"viewdemo_{encoded_title}")
         ])
         
-    inline_buttons.extend([
-        [InlineKeyboardButton(f"💳 ᴅɪʀᴇᴄᴛ ᴘᴀʏ (₹{story['price']})", style=enums.ButtonStyle.PRIMARY, callback_data=f"buy:{encoded_title}")],
-        [InlineKeyboardButton(f"👛 ᴘᴀʏ ᴠɪᴀ ᴡᴀʟʟᴇᴛ (ʙᴀʟ: ₹{wallet_bal})", style=enums.ButtonStyle.PRIMARY, callback_data=f"walletpay:{encoded_title}")]
-    ])
+    inline_buttons.extend(buy_rows(encoded_title, story.get('price', 0), wallet_bal))
     
     btn = InlineKeyboardMarkup(inline_buttons)
     

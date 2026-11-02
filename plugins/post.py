@@ -103,7 +103,7 @@ async def send_story_to_channel(client: Client, story_data: dict, delay_seconds:
             f"🖥️ <b>Platform :</b> {platform_display}\n"
             f"🧩 <b>Genre :</b> {genre}\n"
             f"🎬 <b>Episodes :</b> {episodes}\n\n"
-            f"░▒▓█ PRICE - ₹{price} █▓▒░\n\n"
+            f"░▒▓█ PRICE - {'FREE 🎁' if not price else '₹' + str(price)} █▓▒░\n\n"
             f"👇 <i>नीचे दिए गए बटन पर क्लिक करके स्टोरी अनलॉक करें:</i>"
         )
 
