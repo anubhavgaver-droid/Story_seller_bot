@@ -1391,28 +1391,17 @@
 
         function claimFreeStory(story) {
             triggerHaptic('success');
-            
-            const alreadyUnlocked = userPurchases.some(p => (p.story_title === story.title || p.title === story.title));
-            if (!alreadyUnlocked) {
-                userPurchases.push({
-                    story_title: story.title,
-                    link: story.link || '#',
-                    photo: getOriginalPhoto(story),
-                    platform: story.platform,
-                    price: story.price
-                });
-                renderGrid(stories, 'homeGrid');
-                renderGrid(stories, 'exploreGrid');
-                renderUnlockedList();
-            }
 
-            closeModal();
-            switchTab('orders');
-            
-            if (tg.showAlert) {
-                tg.showAlert(`🎉 "${story.title}" unlocked successfully! You can access it directly now.`);
+            // Asli unlock bot ke andar hota hai (ad-gate ON ho to ad ke baad). Yahan sirf bot kholte hain.
+            const key = story.story_id || story.id;
+            const param = key ? String(key) : encodeURIComponent(String(story.title).replace(/\s+/g, "_"));
+            const deepLink = `https://t.me/${BOT_USERNAME}?start=free_${param}`;
+
+            if (tg && tg.openTelegramLink) {
+                tg.openTelegramLink(deepLink);
+                tg.close();
             } else {
-                alert(`🎉 "${story.title}" unlocked successfully! You can access it directly now.`);
+                window.location.href = deepLink;
             }
         }
 
