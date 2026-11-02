@@ -6,7 +6,7 @@ BOT_TOKEN = os.environ.get("BOT_TOKEN", "YOUR_BOT_TOKEN")
 ADMIN_ID = int(os.environ.get("ADMIN_ID", "987654321"))
 LOG_CHANNEL = int(os.environ.get("LOG_CHANNEL", "-1001234567890"))
 
-CHANNEL_ID = int(os.environ.get("CHANNEL_ID", "-1003970824423,-1003523854665"))
+CHANNEL_ID = int(os.environ.get("CHANNEL_ID", "-1003970824423"))
 
 # Multiple DB (database) channels: comma-separated IDs, jaise  -1001111111111,-1002222222222
 # CHANNEL_ID hamesha list me pehle rehta hai (purani stories isi se chalti hain).
@@ -33,7 +33,7 @@ PRATILIPI_FM_CHANNEL = int(os.environ.get("PRATILIPI_FM_CHANNEL", "-100322607408
 CHANNEL = int(os.environ.get("CHANNEL", "-1003226074080"))
 
 
-UPI_ID = os.environ.get("UPI_ID", "BHARATPE2L0U0G8F4J64101@unitype")
+UPI_ID = os.environ.get("UPI_ID", "paytm.s3zpohs@pty")
 PORT = int(os.environ.get("PORT", "8080"))
 BOT_USERNAME = os.environ.get("BOT_USERNAME", "YourStorySellerBot")
 MONGO_URL = os.environ.get("MONGO_URL", "mongodb://localhost:27017")
