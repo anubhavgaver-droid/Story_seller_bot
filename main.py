@@ -12,6 +12,7 @@ from database.db import (
     init_db, get_payment_order, delivery_link, demo_link
 )
 from gateway import check_order_status
+from version import VERSION
 from fulfill import fulfill_order
 
 
@@ -238,7 +239,7 @@ async def main():
 
     await bot_instance.start()
     bot_info = await bot_instance.get_me()
-    print(f"🤖 Telegram Bot Started Successfully! (@{bot_info.username})")
+    print(f"🤖 Telegram Bot v{VERSION} Started Successfully! (@{bot_info.username})")
 
     if LOG_CHANNEL and LOG_CHANNEL != 0:
         try:
@@ -251,7 +252,7 @@ async def main():
                 f"🚀 <b>ʙᴏᴛ ʀᴇsᴛᴀʀᴛᴇᴅ sᴜᴄᴄᴇssғᴜʟʟʏ!</b>\n\n"
                 f"🤖 <b>Bot Name:</b> {bot_info.first_name}\n"
                 f"🔖 <b>Username:</b> @{bot_info.username}\n"
-                f"⚙️ <b>Version:</b> <code>v2.0 (Only Webhook Active)</code>\n"
+                f"⚙️ <b>Version:</b> <code>v{VERSION}</code>\n"
                 f"📅 <b>Date:</b> <code>{date_str}</code>\n"
                 f"⏰ <b>Time:</b> <code>{time_str} (IST)</code>\n"
                 f"🟢 <b>Status:</b> Online & Ready!"

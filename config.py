@@ -6,23 +6,35 @@ BOT_TOKEN = os.environ.get("BOT_TOKEN", "YOUR_BOT_TOKEN")
 ADMIN_ID = int(os.environ.get("ADMIN_ID", "987654321"))
 LOG_CHANNEL = int(os.environ.get("LOG_CHANNEL", "-1001234567890"))
 
-CHANNEL_ID = int(os.environ.get("CHANNEL_ID", "-1003970824423,-1003523854665").split(",")[0])
-
-# Multiple DB (database) channels: comma-separated IDs, jaise  -1001111111111,-1002222222222
-# CHANNEL_ID hamesha list me pehle rehta hai (purani stories isi se chalti hain).
-# Naya channel bas yahan jodein aur bot ko us channel me admin banayein.
-def _parse_db_channels():
-    ids = [CHANNEL_ID]
-    for part in os.environ.get("DB_CHANNELS", "").replace(" ", "").split(","):
+def _id_list(raw: str):
+    """'-100111, -100222' (comma / space se alag) -> [-100111, -100222]. Galat entries chhod deta hai."""
+    out = []
+    for part in str(raw or "").replace(";", ",").replace(" ", ",").split(","):
+        part = part.strip()
         if not part:
             continue
         try:
             val = int(part)
         except ValueError:
             continue
+        if val not in out:
+            out.append(val)
+    return out
+
+
+# DB (database) channel(s). CHANNEL_ID me EK ya KAI ID (comma se) de sakte hain; pehli ID "primary" hai
+# (purani stories isi se chalti hain). Alag se DB_CHANNELS variable bhi chalta hai. Dono me se kuch bhi use karein.
+_primary = _id_list(os.environ.get("CHANNEL_ID", "-1003970824423,-1003523854665")) or [-1003970824423]
+CHANNEL_ID = _primary[0]
+
+
+def _parse_db_channels():
+    ids = list(_primary)
+    for val in _id_list(os.environ.get("DB_CHANNELS", "")):
         if val not in ids:
             ids.append(val)
     return ids
+
 
 DB_CHANNEL_IDS = _parse_db_channels()
 
@@ -33,7 +45,7 @@ PRATILIPI_FM_CHANNEL = int(os.environ.get("PRATILIPI_FM_CHANNEL", "-100322607408
 CHANNEL = int(os.environ.get("CHANNEL", "-1003226074080"))
 
 
-UPI_ID = os.environ.get("UPI_ID", "paytm.s3zpohs@pty")
+UPI_ID = os.environ.get("UPI_ID", "BHARATPE2L0U0G8F4J64101@unitype")
 PORT = int(os.environ.get("PORT", "8080"))
 BOT_USERNAME = os.environ.get("BOT_USERNAME", "YourStorySellerBot")
 MONGO_URL = os.environ.get("MONGO_URL", "mongodb://localhost:27017")

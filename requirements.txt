@@ -1,6 +1,5 @@
 Kurigram
-tgcrypto 
-pyrogram 
+tgcrypto
 motor
 aiohttp
 aiofiles
