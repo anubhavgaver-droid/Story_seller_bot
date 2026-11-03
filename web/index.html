@@ -1200,7 +1200,10 @@
 
         async function loadUserPurchases(userId) {
             try {
-                const res = await fetch(`/api/user_purchases?user_id=${userId}`);
+                // The server identifies the user from Telegram's signed initData (a plain user_id is no longer accepted)
+                const initData = (window.Telegram && Telegram.WebApp && Telegram.WebApp.initData) || '';
+                const res = await fetch('/api/user_purchases?init_data=' + encodeURIComponent(initData));
+                if (!res.ok) { userPurchases = []; return; }
                 userPurchases = await res.json();
                 
                 // Re-render grids so the purchased items switch to "VIEW DETAILS"
