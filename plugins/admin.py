@@ -703,9 +703,9 @@ async def master_input_handler(client, message):
         _expected = _wrong_channel(user_id, message.text)
         if _expected:
             return await message.reply_text(
-                f"❌ <b>Ye link kisi aur DB channel ka hai!</b>\n\n"
-                f"Is story ki saari files ek hi channel me honi chahiye: <code>{_expected}</code>\n"
-                f"Sahi channel ka link bhejein."
+                f"❌ <b>This link belongs to a different DB channel!</b>\n\n"
+                f"All files of one story must be in the same channel: <code>{_expected}</code>\n"
+                f"Please send a link from the correct channel."
             )
 
     # 1. EDIT STORY NAME INPUT HANDLER
@@ -737,7 +737,7 @@ async def master_input_handler(client, message):
             story_doc = await stories_col.find_one({"_id": story_id})
             if not story_doc:
                 EDIT_NAME_STATE.pop(user_id, None)
-                return await message.reply_text("❌ <b>Story database me nahi mili.</b>")
+                return await message.reply_text("❌ <b>The story was not found in the database.</b>")
 
             # Naam badalne par story_id wahi rehti hai; kharidne walon ka access bhi saath update hota hai
             new_sid = await rename_story_db(story_doc, new_title)
@@ -1063,7 +1063,7 @@ async def master_input_handler(client, message):
                 return await message.reply_text("❌ ᴘʟᴇᴀsᴇ sᴇɴᴅ ᴀ ᴠᴀʟɪᴅ ᴘʜᴏᴛᴏ ᴏʀ ɪᴍᴀɢᴇ ᴜʀʟ:")
                 
             ADD_STATE[user_id]['step'] = 'PRICE'
-            await message.reply_text("<b>[sᴛᴇᴘ 7/10]</b> ᴇɴᴛᴇʀ ᴛʜᴇ ᴘʀɪᴄᴇ (₹):\n<i>Free story ke liye <code>0</code> likhein (Claim Free button + optional ad).</i>", reply_markup=ForceReply(True))
+            await message.reply_text("<b>[sᴛᴇᴘ 7/10]</b> ᴇɴᴛᴇʀ ᴛʜᴇ ᴘʀɪᴄᴇ (₹):\n<i>For a free story, enter <code>0</code> (users get a Claim Free button, with an optional ad).</i>", reply_markup=ForceReply(True))
             
         elif step == 'PRICE':
             if not message.text or not message.text.isdigit():
@@ -1111,9 +1111,9 @@ async def master_input_handler(client, message):
             link_chat = extract_chat_id(message.text)
             if link_chat is not None and link_chat not in DB_CHANNEL_IDS:
                 return await message.reply_text(
-                    f"❌ <b>Ye channel (<code>{link_chat}</code>) allowed list me nahi hai.</b>\n\n"
-                    f"Render me <code>DB_CHANNELS</code> variable me ye ID jodein, bot ko us channel me admin banayein "
-                    f"aur restart karein. Phir dobara link bhejein."
+                    f"❌ <b>This channel (<code>{link_chat}</code>) is not in the allowed list.</b>\n\n"
+                    f"Add its ID to the <code>CHANNEL_ID</code> or <code>DB_CHANNELS</code> variable on Render, make the bot an admin "
+                    f"of that channel, restart the bot, and send the link again."
                 )
             db_channel = link_chat if link_chat is not None else await get_active_db_channel()
             ADD_STATE[user_id]['db_channel'] = db_channel

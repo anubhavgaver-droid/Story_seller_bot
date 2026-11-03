@@ -1,19 +1,22 @@
 """
-/setup  (ya /payments)  -  Admin ke liye payment + ads setup panel.
+/setup (or /payments) - Payment, ads and bonus setup panel for the admin.
 
-Yahin se sab set hota hai (Render me jaake variable nahi badalne padte):
-  - Gateway chunna: Demotry.shop / Razorpay / Cashfree, aur unki API key / secret / mode
-  - Manual payment ki UPI ID
+Everything is configured from inside the bot (no Render variable edits needed):
+  - Payment gateway: Demotry.shop / Razorpay / Cashfree  (API key, secret, mode, test, activate)
+  - Manual-payment UPI ID
   - Auto Pay ON / Maintenance
-  - Free Story Ads (URL shortener) ON / OFF, API URL, API key, minimum wait
-  - Keys ka "Test" (bina order banaye)
+  - Free-story ads (URL shortener): ON/OFF, API URL, API key, minimum wait, test
+  - Wallet top-up bonus: ON/OFF, minimum amount, percent
 
-Input kaise lete hain (pehle kabhi-kabhi "accept nahi hota" tha, ab theek):
-  - Setup ki state ab DATABASE me rehti hai, Render restart / sleep par bhi nahi khoti
-  - Value tolerant tareeke se padhi jaati hai: space, line-break, "X-API-Key: ...", quotes, chipka hua header
-  - Reject hone par saaf wajah batayi jaati hai
-  - Dusra raasta: /setkey <gateway> <field> <value>
-Admin ka bheja hua secret message save hote hi chat se delete ho jata hai.
+How input works:
+  - The pending step is stored in the DATABASE, so it survives restarts and Render sleep.
+  - Values are cleaned tolerantly (spaces, line breaks, "X-API-Key: ...", quotes, pasted headers, extra words).
+  - If a value is rejected, the bot says exactly why.
+  - Alternative: /setkey <target> <field> <value>
+A secret you send is deleted from the chat as soon as it is saved.
+
+IMPORTANT (Pyrogram): message.stop_propagation() raises an exception immediately, so it must be the very
+LAST thing a handler does. Calling it first (as v1.0.22 did) silently skipped the saving and the reply.
 """
 import re
 import time
@@ -26,16 +29,26 @@ from config import ADMIN_ID, WEB_APP_URL, BOT_USERNAME
 from database.db import get_setting, set_setting, settings_col
 from gateway import GATEWAYS, load_config, is_configured, mask, test_gateway
 from freeflow import get_ads_config, ads_ready, shorten_url
+from bonus import get_bonus_config
+from style import sc
 
-PROMPT_MARK = "⌨️"          # har input-prompt isse shuru hota hai (expire hui session pehchanne ke liye)
-STATE_TTL = 30 * 60         # 30 minute
+PROMPT_MARK = "⌨️"          # every input prompt starts with this (used to detect an expired session)
+STATE_TTL = 30 * 60         # 30 minutes
 
-UPI_RE = re.compile(r"^[A-Za-z0-9.\-_]{2,}@[A-Za-z]{2,}$")
+UPI_RE = re.compile(r"[A-Za-z0-9.\-_]{2,}@[A-Za-z]{2,}")
+URL_RE = re.compile(r"https?://[^\s`'\"<>]+")
 
 ADS_FIELDS = {
-    "api_url": {"label": "Shortener API URL", "hint": "jaise: <code>https://gplinks.in/api</code> (bot khud <code>?api=KEY&url=LINK</code> jodta hai)"},
-    "api_key": {"label": "Shortener API Key", "hint": "shortener ki website se mili API key/token"},
-    "min_seconds": {"label": "Minimum wait (second)", "hint": "ad kholne ke baad kam se kam itne second baad hi verify hoga (jaise 15)"},
+    "api_url": {"label": "Shortener API URL",
+                "hint": "Example: <code>https://gplinks.in/api</code>\nThe bot adds <code>?api=KEY&amp;url=LINK</code> by itself."},
+    "api_key": {"label": "Shortener API Key", "hint": "The API key / token from your shortener account."},
+    "min_seconds": {"label": "Minimum wait (seconds)",
+                    "hint": "A user must stay at least this long on the ad link before the claim is accepted (for example 15)."},
+}
+
+BONUS_FIELDS = {
+    "min_amount": {"label": "Minimum top-up (₹)", "hint": "The smallest top-up that earns a bonus (for example 100)."},
+    "percent": {"label": "Bonus percent", "hint": "Extra percent credited on top of the top-up (for example 10)."},
 }
 
 
@@ -68,15 +81,14 @@ async def _save(path: str, value, root: str = "gateway_config"):
 # ------------------------------- value cleaning / validation -------------------------------
 def _clean_value(raw: str, field: str = "") -> str:
     """
-    Admin ki bheji value saaf karo:
-      "X-API-Key: pi_live_abc"        -> pi_live_abc
-      "api_key=abc"                   -> abc
-      "pi_live_abcX-API-Secret: sk_.."-> field ke hisaab se sahi hissa (docs ka header chipka hua copy hota hai)
-      `quotes`, spaces, line-breaks   -> hata do
+    Cleans what the admin pasted:
+      "X-API-Key: pi_live_abc"         -> pi_live_abc
+      "api_key=abc"                    -> abc
+      "pi_live_abcX-API-Secret: sk_.." -> the right half for the field (the docs show both headers joined)
+      `quotes`, spaces, line breaks    -> removed
     """
     v = (raw or "").strip()
 
-    # Dono headers chipke hue paste ho gaye
     low = v.lower()
     if "x-api-secret" in low:
         i = low.index("x-api-secret")
@@ -84,7 +96,6 @@ def _clean_value(raw: str, field: str = "") -> str:
         v = right if field in ("api_secret", "key_secret", "client_secret") else left
         v = re.sub(r"^\s*[:=]\s*", "", v)
 
-    # "Label: value" / "label=value"
     m = re.match(r"^\s*[A-Za-z][A-Za-z0-9_\- ]{1,40}\s*[:=]\s*(\S.*)$", v, re.S)
     if m and not v.lower().startswith(("http://", "https://")):
         v = m.group(1)
@@ -97,46 +108,90 @@ def _validate_gateway_value(gw: str, field: str, value: str):
     """Returns (ok, error_text)."""
     spec = next((f for f in GATEWAYS[gw]["fields"] if f["name"] == field), None)
     if not spec:
-        return False, "Field nahi mila"
+        return False, "Unknown field."
     if not value:
-        return False, "Value khaali hai"
+        return False, "The value is empty."
     need = spec.get("min", 1)
     if len(value) < need:
-        return False, f"Value bahut chhoti hai ({len(value)} akshar, kam se kam {need} chahiye)"
+        return False, f"That value is too short ({len(value)} characters, at least {need} needed)."
     if spec.get("prefix") and not value.startswith(spec["prefix"]):
-        return False, f"Ye <code>{spec['prefix']}</code> se shuru honi chahiye (aapne <code>{value[:6]}…</code> bheja)"
+        return False, f"It must start with <code>{spec['prefix']}</code> (you sent <code>{value[:6]}…</code>)."
     if spec.get("choices") and value not in spec["choices"]:
-        return False, f"Sirf ye chalega: {', '.join(spec['choices'])}"
+        return False, f"Only these values are allowed: {', '.join(spec['choices'])}."
     return True, ""
+
+
+def _extract_upi(raw: str):
+    m = UPI_RE.search(raw or "")
+    return m.group(0) if m else None
+
+
+def _validate_ads_value(field: str, raw: str):
+    """Returns (ok, value_or_error)."""
+    if field == "api_url":
+        m = URL_RE.search(raw or "")
+        if not m:
+            return False, "The API URL must start with <code>https://</code>."
+        return True, m.group(0).rstrip(".,;)")
+    v = _clean_value(raw, field)
+    if field == "api_key":
+        if len(v) < 4:
+            return False, "That API key is too short."
+        return True, v
+    if field == "min_seconds":
+        if not v.isdigit() or not (0 <= int(v) <= 600):
+            return False, "Send a whole number between 0 and 600."
+        return True, int(v)
+    return False, "Unknown field."
+
+
+def _validate_bonus_value(field: str, raw: str):
+    v = _clean_value(raw, field).replace(",", "")
+    try:
+        num = float(v)
+    except ValueError:
+        return False, "Send a number, for example <code>100</code>."
+    if field == "min_amount":
+        if not (1 <= num <= 100000):
+            return False, "The minimum top-up must be between 1 and 100000."
+        return True, num
+    if field == "percent":
+        if not (0 < num <= 100):
+            return False, "The percent must be above 0 and at most 100."
+        return True, num
+    return False, "Unknown field."
 
 
 # ------------------------------- PANELS -------------------------------
 async def _home_panel():
     cfg = await load_config()
     ads = await get_ads_config()
+    bonus = await get_bonus_config()
     maintenance = await get_setting("auto_pay_maintenance", True)
     active = cfg["active"]
     spec = GATEWAYS.get(active, GATEWAYS["demotry"])
-    ready = "✅ keys set" if is_configured(active, cfg) else "❌ keys set nahi"
-    auto = "🛠 Under Maintenance (BAND)" if maintenance else "✅ ON"
-    ads_state = ("✅ ON" if ads_ready(ads) else ("⚠️ ON par setup adhoora" if ads.get("enabled") else "❌ OFF"))
+    ready = "keys saved ✅" if is_configured(active, cfg) else "keys missing ❌"
+    auto = "🛠 Under maintenance (OFF)" if maintenance else "✅ ON"
+    ads_state = "✅ ON" if ads_ready(ads) else ("⚠️ ON, setup incomplete" if ads.get("enabled") else "❌ OFF")
+    bonus_state = f"✅ {bonus['percent']:g}% from ₹{bonus['min_amount']:g}" if bonus.get("enabled") else "❌ OFF"
 
     text = (
-        "⚙️ <b>ᴘᴀʏᴍᴇɴᴛ & ᴀᴅs sᴇᴛᴜᴘ</b>\n\n"
-        f"💳 <b>Active Gateway:</b> {spec['title']} ({ready})\n"
-        f"⚡ <b>Auto Pay:</b> {auto}\n"
-        f"🏦 <b>Manual UPI ID:</b> <code>{cfg['upi_id']}</code>\n"
-        f"🎁 <b>Free Story Ads:</b> {ads_state}\n\n"
-        "<i>Sab kuch yahin se set karein, Render me variable badalne ki zaroorat nahi.</i>"
+        f"⚙️ <b>{sc('Payment & Ads Setup')}</b>\n\n"
+        f"💳 <b>{sc('Active gateway')}:</b> {spec['title']} ({ready})\n"
+        f"⚡ <b>{sc('Auto pay')}:</b> {auto}\n"
+        f"🏦 <b>{sc('Manual UPI ID')}:</b> <code>{cfg['upi_id']}</code>\n"
+        f"🎁 <b>{sc('Free story ads')}:</b> {ads_state}\n"
+        f"💰 <b>{sc('Top-up bonus')}:</b> {bonus_state}\n\n"
+        "<i>Everything is set from here. No need to edit Render variables.</i>"
     )
-    toggle_label = "🛠 Maintenance lagayein (Auto Pay band)" if not maintenance else "✅ Auto Pay chalu karein"
+    toggle_label = "🛠 Put Auto Pay under maintenance" if not maintenance else "✅ Turn Auto Pay ON"
     rows = [
-        [_btn("💳 Payment Gateway chunein / Setup", "st:gws")],
-        [_btn("🏦 UPI ID badlein (Manual payment)", "st:upi")],
-        [_btn(toggle_label, "st:toggle")],
-        [_btn("🎁 Free Story Ads (Shortener)", "st:ads")],
-        [_btn("🔌 Active gateway Test", "st:test")],
-        [_btn("🏠 Admin Panel", "ap:home"), _btn("❌ Close", "st:close")],
+        [_btn(f"💳 {sc('Payment gateway')}", "st:gws")],
+        [_btn(f"🏦 {sc('Change UPI ID')}", "st:upi")],
+        [_btn(sc(toggle_label), "st:toggle")],
+        [_btn(f"🎁 {sc('Free story ads')}", "st:ads"), _btn(f"💰 {sc('Top-up bonus')}", "st:bonus")],
+        [_btn(f"🔌 {sc('Test active gateway')}", "st:test")],
+        [_btn(f"🏠 {sc('Admin panel')}", "ap:home"), _btn(f"❌ {sc('Close')}", "st:close")],
     ]
     return text, InlineKeyboardMarkup(rows)
 
@@ -148,11 +203,11 @@ async def _gateways_panel():
         status = "✅" if is_configured(gw, cfg) else "⚠️"
         active = " 🟢 ACTIVE" if cfg["active"] == gw else ""
         rows.append([_btn(f"{status} {spec['title']}{active}", f"st:gw:{gw}")])
-    rows.append([_btn("⬅️ Back", "st:home")])
+    rows.append([_btn(f"⬅️ {sc('Back')}", "st:home")])
     text = (
-        "💳 <b>Payment Gateway</b>\n\n"
-        "Jo gateway chahiye uspe tap karein, uski keys daalein, phir <b>Active banayein</b> dabayein.\n"
-        "✅ = keys set hain   ⚠️ = keys baaki hain"
+        f"💳 <b>{sc('Payment gateway')}</b>\n\n"
+        "Tap a gateway, enter its keys, then press <b>Make active</b>.\n"
+        "✅ = keys saved   ⚠️ = keys missing"
     )
     return text, InlineKeyboardMarkup(rows)
 
@@ -173,46 +228,67 @@ async def _gateway_panel(gw: str):
                 for c in f["choices"]
             ])
         else:
-            shown = f"✅ <code>{mask(val)}</code>" if val else "❌ set nahi"
+            shown = f"✅ <code>{mask(val)}</code>" if val else "❌ not set"
             lines.append(f"• <b>{f['label']}:</b> {shown}")
             rows.append([_btn(f"✏️ {f['label']}", f"st:f:{gw}:{f['name']}")])
 
     lines.append("\n" + spec["note"].format(web=WEB_APP_URL.rstrip("/")))
-    lines.append("\n<i>Value kaam na kare to: <code>/setkey " + gw + " &lt;field&gt; &lt;value&gt;</code></i>")
+    lines.append(f"\n<i>If a value is not accepted, use: <code>/setkey {gw} &lt;field&gt; &lt;value&gt;</code></i>")
 
     action_row = []
     if is_configured(gw, cfg) and not is_active:
-        action_row.append(_btn("🟢 Active banayein", f"st:act:{gw}"))
-    action_row.append(_btn("🔌 Test", f"st:tg:{gw}"))
+        action_row.append(_btn(f"🟢 {sc('Make active')}", f"st:act:{gw}"))
+    action_row.append(_btn(f"🔌 {sc('Test')}", f"st:tg:{gw}"))
     rows.append(action_row)
-    rows.append([_btn("🗑 Keys hatayein", f"st:clr:{gw}")])
-    rows.append([_btn("⬅️ Back", "st:gws")])
+    rows.append([_btn(f"🗑 {sc('Remove keys')}", f"st:clr:{gw}")])
+    rows.append([_btn(f"⬅️ {sc('Back')}", "st:gws")])
     return "\n".join(lines), InlineKeyboardMarkup(rows)
 
 
 async def _ads_panel():
     ads = await get_ads_config()
     state = "✅ ON" if ads.get("enabled") else "❌ OFF"
-    ready = "✅ taiyaar" if ads_ready(ads) else "⚠️ URL / Key baaki"
+    ready = "ready ✅" if ads_ready(ads) else "URL / key missing ⚠️"
+    key = f"✅ <code>{mask(ads['api_key'])}</code>" if ads.get("api_key") else "❌ not set"
     text = (
-        "🎁 <b>ғʀᴇᴇ sᴛᴏʀʏ ᴀᴅs (sʜᴏʀᴛɴᴇʀ)</b>\n\n"
+        f"🎁 <b>{sc('Free story ads (shortener)')}</b>\n\n"
         f"• <b>Status:</b> {state}  ({ready})\n"
         f"• <b>API URL:</b> <code>{ads.get('api_url') or '—'}</code>\n"
-        f"• <b>API Key:</b> {('✅ <code>' + mask(ads['api_key']) + '</code>') if ads.get('api_key') else '❌ set nahi'}\n"
-        f"• <b>Minimum wait:</b> {ads.get('min_seconds')} second\n\n"
-        "<b>Kaise kaam karta hai:</b> user 'Claim Free' dabata hai → bot shortener ka ad link deta hai → "
-        "user ad steps poore karke bot par wapas aata hai → story unlock.\n"
-        "Ads OFF ho to Claim Free se story seedha unlock ho jati hai. "
-        "Shortener fail ho jaye to bhi user ko rokte nahi (seedha unlock + aapko log).\n\n"
-        "<i>Story free karne ke liye /addstory me price <code>0</code> rakhein.</i>"
+        f"• <b>API key:</b> {key}\n"
+        f"• <b>Minimum wait:</b> {ads.get('min_seconds')} seconds\n\n"
+        "<b>How it works:</b> the user taps Claim Free, the bot sends a shortener ad link, the user completes the "
+        "ad steps and returns to the bot, and the story unlocks.\n"
+        "If ads are OFF, Claim Free unlocks the story directly. If the shortener fails, the user is not blocked "
+        "(the story unlocks and you get a log message).\n\n"
+        "<i>To make a story free, set its price to <code>0</code> in /addstory.</i>"
     )
     rows = [
-        [_btn("🔴 Ads band karein" if ads.get("enabled") else "🟢 Ads chalu karein", "st:adtog")],
-        [_btn("✏️ Shortener API URL", "st:adf:api_url")],
-        [_btn("✏️ Shortener API Key", "st:adf:api_key")],
-        [_btn("✏️ Minimum wait (second)", "st:adf:min_seconds")],
-        [_btn("🔌 Shortener Test", "st:adtest")],
-        [_btn("⬅️ Back", "st:home")],
+        [_btn(f"🔴 {sc('Turn ads OFF')}" if ads.get("enabled") else f"🟢 {sc('Turn ads ON')}", "st:adtog")],
+        [_btn(f"✏️ {sc('Shortener API URL')}", "st:adf:api_url")],
+        [_btn(f"✏️ {sc('Shortener API key')}", "st:adf:api_key")],
+        [_btn(f"✏️ {sc('Minimum wait')}", "st:adf:min_seconds")],
+        [_btn(f"🔌 {sc('Test shortener')}", "st:adtest")],
+        [_btn(f"⬅️ {sc('Back')}", "st:home")],
+    ]
+    return text, InlineKeyboardMarkup(rows)
+
+
+async def _bonus_panel():
+    b = await get_bonus_config()
+    state = "✅ ON" if b.get("enabled") else "❌ OFF"
+    text = (
+        f"💰 <b>{sc('Wallet top-up bonus')}</b>\n\n"
+        f"• <b>Status:</b> {state}\n"
+        f"• <b>Minimum top-up:</b> ₹{b['min_amount']:g}\n"
+        f"• <b>Bonus:</b> {b['percent']:g}%\n\n"
+        f"Example: a ₹{b['min_amount']:g} top-up credits ₹{b['min_amount'] * (1 + b['percent'] / 100):g} to the wallet.\n"
+        "The bonus is added automatically for gateway payments and for manually approved top-ups."
+    )
+    rows = [
+        [_btn(f"🔴 {sc('Turn bonus OFF')}" if b.get("enabled") else f"🟢 {sc('Turn bonus ON')}", "st:bntog")],
+        [_btn(f"✏️ {sc('Minimum top-up')}", "st:bnf:min_amount")],
+        [_btn(f"✏️ {sc('Bonus percent')}", "st:bnf:percent")],
+        [_btn(f"⬅️ {sc('Back')}", "st:home")],
     ]
     return text, InlineKeyboardMarkup(rows)
 
@@ -234,29 +310,27 @@ async def setup_command(client, message):
     await message.reply_text(text, reply_markup=markup)
 
 
+SETKEY_USAGE = (
+    f"ℹ️ <b>{sc('Usage')}</b>\n"
+    "<code>/setkey demotry api_key VALUE</code>\n"
+    "<code>/setkey demotry api_secret VALUE</code>\n"
+    "<code>/setkey razorpay key_id VALUE</code>\n"
+    "<code>/setkey razorpay key_secret VALUE</code>\n"
+    "<code>/setkey cashfree client_id VALUE</code>\n"
+    "<code>/setkey cashfree client_secret VALUE</code>\n"
+    "<code>/setkey upi yourname@bank</code>\n"
+    "<code>/setkey ads api_url VALUE</code>  (also api_key, min_seconds)\n"
+    "<code>/setkey bonus percent 10</code>  (also min_amount)\n\n"
+    "<i>Your message is deleted right after it is saved.</i>"
+)
+
+
 @Client.on_message(filters.command("setkey") & filters.user(ADMIN_ID) & filters.private, group=1)
 async def setkey_command(client, message):
-    """
-    /setkey <gateway> <field> <value>      jaise: /setkey demotry api_key pi_live_xxx
-    /setkey upi yourname@bank
-    /setkey ads api_url https://gplinks.in/api     (ads: api_url | api_key | min_seconds)
-    Bot ke buttons se value accept na ho to ye raasta hamesha chalta hai.
-    """
+    """Always-works alternative to the buttons: /setkey <target> <field> <value>"""
     parts = message.text.split(maxsplit=3)
-    usage = (
-        "ℹ️ <b>Usage:</b>\n"
-        "<code>/setkey demotry api_key VALUE</code>\n"
-        "<code>/setkey demotry api_secret VALUE</code>\n"
-        "<code>/setkey razorpay key_id VALUE</code>\n"
-        "<code>/setkey razorpay key_secret VALUE</code>\n"
-        "<code>/setkey cashfree client_id VALUE</code>\n"
-        "<code>/setkey cashfree client_secret VALUE</code>\n"
-        "<code>/setkey upi yourname@bank</code>\n"
-        "<code>/setkey ads api_url VALUE</code> (api_key / min_seconds bhi)\n\n"
-        "<i>Message save hote hi delete ho jayega.</i>"
-    )
     if len(parts) < 3:
-        return await message.reply_text(usage)
+        return await message.reply_text(SETKEY_USAGE)
 
     target = parts[1].lower()
 
@@ -268,62 +342,63 @@ async def setkey_command(client, message):
         await client.send_message(message.chat.id, text)
 
     if target == "upi":
-        value = _clean_value(parts[2])
-        if not UPI_RE.match(value):
-            return await message.reply_text("❌ UPI ID sahi nahi lag rahi. Jaise: <code>yourname@bank</code>")
-        await _save("upi_id", value)
-        return await done(f"✅ UPI ID save ho gayi: <code>{value}</code>")
+        upi = _extract_upi(parts[2] + (" " + parts[3] if len(parts) > 3 else ""))
+        if not upi:
+            return await message.reply_text("❌ That does not look like a UPI ID. Example: <code>yourname@bank</code>")
+        await _save("upi_id", upi)
+        return await done(f"✅ <b>UPI ID saved:</b> <code>{upi}</code>")
 
     if len(parts) < 4:
-        return await message.reply_text(usage)
+        return await message.reply_text(SETKEY_USAGE)
     field, raw = parts[2], parts[3]
 
     if target == "ads":
         if field not in ADS_FIELDS:
-            return await message.reply_text("❌ ads ke field: api_url, api_key, min_seconds")
+            return await message.reply_text("❌ Ads fields: api_url, api_key, min_seconds")
         ok, value_or_err = _validate_ads_value(field, raw)
         if not ok:
             return await message.reply_text(f"❌ {value_or_err}")
         await _save(field, value_or_err, root="ads_config")
-        return await done(f"✅ Ads {ADS_FIELDS[field]['label']} save ho gaya.")
+        return await done(f"✅ <b>{ADS_FIELDS[field]['label']}</b> saved.")
+
+    if target == "bonus":
+        if field not in BONUS_FIELDS:
+            return await message.reply_text("❌ Bonus fields: min_amount, percent")
+        ok, value_or_err = _validate_bonus_value(field, raw)
+        if not ok:
+            return await message.reply_text(f"❌ {value_or_err}")
+        await _save(field, value_or_err, root="bonus_config")
+        return await done(f"✅ <b>{BONUS_FIELDS[field]['label']}</b> saved.")
 
     if target not in GATEWAYS:
-        return await message.reply_text("❌ Gateway: demotry, razorpay ya cashfree")
+        return await message.reply_text("❌ Targets: demotry, razorpay, cashfree, upi, ads, bonus")
     value = _clean_value(raw, field)
     ok, err = _validate_gateway_value(target, field, value)
     if not ok:
         return await message.reply_text(f"❌ {err}")
     await _save(f"{target}.{field}", value)
-    await done(f"✅ {GATEWAYS[target]['title']} → {field} save ho gaya (<code>{mask(value)}</code>).\n/setup se Active banayein.")
+    await done(f"✅ <b>{GATEWAYS[target]['title']} → {field}</b> saved (<code>{mask(value)}</code>).\nOpen /setup to activate it.")
 
 
-def _validate_ads_value(field: str, raw: str):
-    v = _clean_value(raw, field) if field != "api_url" else raw.strip().strip("`'\"“”‘’ ")
-    if field == "api_url":
-        v = re.sub(r"\s+", "", v)
-        if not v.startswith(("http://", "https://")):
-            return False, "API URL <code>https://</code> se shuru honi chahiye"
-        return True, v
-    if field == "api_key":
-        if len(v) < 4:
-            return False, "API key bahut chhoti hai"
-        return True, v
-    if field == "min_seconds":
-        if not v.isdigit() or not (0 <= int(v) <= 600):
-            return False, "0 se 600 ke beech number bhejein"
-        return True, int(v)
-    return False, "Unknown field"
-
-
-# /cancel: chalta hua input band (admin.py ka /cancel apna kaam alag karta hai)
+# /cancel: stop a pending input (the /cancel in admin.py does its own job separately)
 @Client.on_message(filters.command("cancel") & filters.user(ADMIN_ID) & filters.private, group=-1)
 async def setup_cancel(client, message):
     if await _get_state(message.from_user.id):
         await _clear_state(message.from_user.id)
-        await message.reply_text("❌ <b>Setup input cancel kar diya.</b>")
+        await message.reply_text(f"❌ <b>{sc('Setup input cancelled')}</b>")
 
 
 # ------------------------------- CALLBACKS -------------------------------
+async def _ask(callback, admin_id, state, title, hint):
+    await _set_state(admin_id, state)
+    await callback.message.reply_text(
+        f"{PROMPT_MARK} <b>{title}</b>\n\n{hint}\n\n"
+        "<i>Send the value now. Your message is deleted as soon as it is saved. Send /cancel to stop.</i>",
+        reply_markup=ForceReply(True)
+    )
+    await callback.answer()
+
+
 @Client.on_callback_query(filters.regex(r"^st:") & filters.user(ADMIN_ID))
 async def setup_callbacks(client, callback):
     parts = callback.data.split(":")
@@ -353,47 +428,43 @@ async def setup_callbacks(client, callback):
         text, markup = await _gateway_panel(parts[2])
         return await _show(callback, text, markup)
 
-    # ---- ek gateway field ki value maangna ----
+    # ---- ask for one gateway field ----
     if action == "f":
         gw, field = parts[2], parts[3]
         spec = next((f for f in GATEWAYS[gw]["fields"] if f["name"] == field), None)
         if not spec:
-            return await callback.answer("❌ Field nahi mila", show_alert=True)
-        await _set_state(admin_id, {"kind": "field", "gw": gw, "field": field})
-        await callback.message.reply_text(
-            f"{PROMPT_MARK} <b>{GATEWAYS[gw]['title']} → {spec['label']}</b>\n\n"
-            f"Ab ye value bhejein (seedha paste kar sakte hain).\n"
-            f"<i>Message save hote hi chat se delete ho jayega. Rokne ke liye /cancel.</i>",
-            reply_markup=ForceReply(True)
+            return await callback.answer("Field not found.", show_alert=True)
+        return await _ask(
+            callback, admin_id, {"kind": "field", "gw": gw, "field": field},
+            f"{GATEWAYS[gw]['title']} → {spec['label']}", "Paste the value here exactly as shown in your dashboard."
         )
-        return await callback.answer()
 
-    # ---- choices (jaise Cashfree prod/sandbox) ----
+    # ---- fixed choices (for example Cashfree prod / sandbox) ----
     if action == "v":
         gw, field, value = parts[2], parts[3], parts[4]
         await _save(f"{gw}.{field}", value)
-        await callback.answer(f"✅ {value} set ho gaya")
+        await callback.answer(f"{value} selected")
         text, markup = await _gateway_panel(gw)
         return await _show(callback, text, markup)
 
-    # ---- gateway ko Active banana ----
+    # ---- make a gateway active ----
     if action == "act":
         gw = parts[2]
         cfg = await load_config()
         if not is_configured(gw, cfg):
-            return await callback.answer("❌ Pehle saari keys set karein", show_alert=True)
+            return await callback.answer("Please save all the keys first.", show_alert=True)
         await _save("active", gw)
         maintenance = await get_setting("auto_pay_maintenance", True)
-        hint = "\n\n⚠️ Auto Pay abhi Maintenance me hai. Main panel se chalu karein." if maintenance else ""
-        await callback.answer(f"✅ {GATEWAYS[gw]['title']} ab Active hai{hint}", show_alert=True)
+        hint = "\n\nAuto Pay is still under maintenance. Turn it ON from the main panel." if maintenance else ""
+        await callback.answer(f"{GATEWAYS[gw]['title']} is now active.{hint}", show_alert=True)
         text, markup = await _gateway_panel(gw)
         return await _show(callback, text, markup)
 
-    # ---- keys hatana ----
+    # ---- remove keys ----
     if action == "clr":
         gw = parts[2]
         await settings_col.update_one({"key": "gateway_config"}, {"$unset": {f"value.{gw}": ""}}, upsert=True)
-        await callback.answer("🗑 Keys hata di gayi", show_alert=True)
+        await callback.answer("Keys removed.", show_alert=True)
         text, markup = await _gateway_panel(gw)
         return await _show(callback, text, markup)
 
@@ -401,36 +472,32 @@ async def setup_callbacks(client, callback):
     if action in ("tg", "test"):
         cfg = await load_config()
         gw = parts[2] if action == "tg" else cfg["active"]
-        await callback.answer("🔌 Test ho raha hai...")
+        await callback.answer("Testing the connection...")
         ok, msg = await test_gateway(gw)
-        await callback.message.reply_text(f"{'✅' if ok else '❌'} <b>{GATEWAYS[gw]['title']} Test:</b> {msg}")
-        return
+        return await callback.message.reply_text(f"{'✅' if ok else '❌'} <b>{GATEWAYS[gw]['title']} test:</b> {msg}")
 
     # ---- UPI ID ----
     if action == "upi":
-        await _set_state(admin_id, {"kind": "upi"})
-        await callback.message.reply_text(
-            f"{PROMPT_MARK} <b>Manual payment ki UPI ID bhejein</b>\n\n"
-            "Jaise: <code>yourname@bank</code>\n<i>Rokne ke liye /cancel.</i>",
-            reply_markup=ForceReply(True)
+        return await _ask(
+            callback, admin_id, {"kind": "upi"},
+            "Manual payment UPI ID", "Example: <code>yourname@bank</code>"
         )
-        return await callback.answer()
 
-    # ---- Auto Pay ON / Maintenance ----
+    # ---- Auto Pay ON / maintenance ----
     if action == "toggle":
         maintenance = await get_setting("auto_pay_maintenance", True)
         if maintenance:
             cfg = await load_config()
             if not is_configured(cfg["active"], cfg):
                 return await callback.answer(
-                    f"❌ {GATEWAYS[cfg['active']]['title']} ki keys set nahi hain. Pehle keys daalein.",
+                    f"The {GATEWAYS[cfg['active']]['title']} keys are not saved yet. Add the keys first.",
                     show_alert=True
                 )
             await set_setting("auto_pay_maintenance", False)
-            await callback.answer("✅ Auto Pay chalu", show_alert=True)
+            await callback.answer("Auto Pay is now ON.", show_alert=True)
         else:
             await set_setting("auto_pay_maintenance", True)
-            await callback.answer("🛠 Maintenance lag gaya. Users ko popup dikhega.", show_alert=True)
+            await callback.answer("Maintenance mode is ON. Users will see a popup.", show_alert=True)
         text, markup = await _home_panel()
         return await _show(callback, text, markup)
 
@@ -444,96 +511,130 @@ async def setup_callbacks(client, callback):
         ads = await get_ads_config()
         new_state = not ads.get("enabled")
         if new_state and not (ads.get("api_url") and ads.get("api_key")):
-            return await callback.answer("❌ Pehle Shortener API URL aur Key set karein.", show_alert=True)
+            return await callback.answer("Please save the shortener API URL and key first.", show_alert=True)
         await _save("enabled", new_state, root="ads_config")
-        await callback.answer("✅ Ads chalu" if new_state else "🔴 Ads band")
+        await callback.answer("Ads are ON." if new_state else "Ads are OFF.")
         text, markup = await _ads_panel()
         return await _show(callback, text, markup)
 
     if action == "adf":
         field = parts[2]
         if field not in ADS_FIELDS:
-            return await callback.answer("❌ Field nahi mila", show_alert=True)
-        await _set_state(admin_id, {"kind": "ads", "field": field})
-        await callback.message.reply_text(
-            f"{PROMPT_MARK} <b>{ADS_FIELDS[field]['label']}</b>\n\n{ADS_FIELDS[field]['hint']}\n\n"
-            "<i>Value bhejein. Rokne ke liye /cancel.</i>",
-            reply_markup=ForceReply(True)
-        )
-        return await callback.answer()
+            return await callback.answer("Field not found.", show_alert=True)
+        return await _ask(callback, admin_id, {"kind": "ads", "field": field}, ADS_FIELDS[field]["label"], ADS_FIELDS[field]["hint"])
 
     if action == "adtest":
         ads = await get_ads_config()
         if not (ads.get("api_url") and ads.get("api_key")):
-            return await callback.answer("❌ Pehle URL aur Key set karein", show_alert=True)
-        await callback.answer("🔌 Test ho raha hai...")
+            return await callback.answer("Please save the API URL and key first.", show_alert=True)
+        await callback.answer("Testing the shortener...")
         short, err = await shorten_url(ads, f"https://t.me/{BOT_USERNAME}")
         if short:
-            return await callback.message.reply_text(f"✅ <b>Shortener Test OK</b>\n\n<code>{short}</code>")
-        return await callback.message.reply_text(f"❌ <b>Shortener Test fail:</b>\n<code>{err}</code>")
+            return await callback.message.reply_text(f"✅ <b>Shortener test passed</b>\n\n<code>{short}</code>")
+        return await callback.message.reply_text(f"❌ <b>Shortener test failed:</b>\n<code>{err}</code>")
+
+    # ================= TOP-UP BONUS =================
+    if action == "bonus":
+        await _clear_state(admin_id)
+        text, markup = await _bonus_panel()
+        return await _show(callback, text, markup)
+
+    if action == "bntog":
+        b = await get_bonus_config()
+        await _save("enabled", not b.get("enabled"), root="bonus_config")
+        await callback.answer("Bonus is ON." if not b.get("enabled") else "Bonus is OFF.")
+        text, markup = await _bonus_panel()
+        return await _show(callback, text, markup)
+
+    if action == "bnf":
+        field = parts[2]
+        if field not in BONUS_FIELDS:
+            return await callback.answer("Field not found.", show_alert=True)
+        return await _ask(callback, admin_id, {"kind": "bonus", "field": field}, BONUS_FIELDS[field]["label"], BONUS_FIELDS[field]["hint"])
 
     await callback.answer()
 
 
 # ------------------------------- VALUE INPUT -------------------------------
-# group=-1: admin.py ke master input handler se pehle chalta hai, taaki secret kisi aur handler tak na jaye
-@Client.on_message(filters.private & filters.user(ADMIN_ID) & filters.text & ~filters.command(
-    ["start", "setup", "payments", "cancel", "setkey"]), group=-1)
-async def setup_input(client, message):
+async def _process_input(client, message, state):
+    """Does ALL the work for one pending setup step. Never raises StopPropagation itself."""
     admin_id = message.from_user.id
-    state = await _get_state(admin_id)
-
-    if not state:
-        # Admin ne hamare prompt ka reply diya par session expire ho chuka -> saaf bata do
-        replied = message.reply_to_message
-        if replied and replied.from_user and replied.from_user.is_self and (replied.text or "").startswith(PROMPT_MARK):
-            message.stop_propagation()
-            return await message.reply_text(
-                "⚠️ <b>Ye setup session expire ho gaya.</b>\n/setup se dobara shuru karein, "
-                "ya seedha <code>/setkey</code> use karein."
-            )
-        return  # koi setup chal nahi raha: baaki handlers apna kaam karenge
-
-    message.stop_propagation()   # ye message sirf setup ka hai
     raw = message.text
 
     async def finish(ok_text: str, panel):
         await _clear_state(admin_id)
         try:
-            await message.delete()   # secret chat me na rahe
+            await message.delete()   # do not leave the secret in the chat
         except Exception:
             pass
         text, markup = panel
         await client.send_message(message.chat.id, f"{ok_text}\n\n{text}", reply_markup=markup, disable_web_page_preview=True)
 
-    # ---- UPI ID ----
-    if state["kind"] == "upi":
-        value = _clean_value(raw)
-        if not UPI_RE.match(value):
-            return await message.reply_text(
-                f"❌ <b>UPI ID sahi nahi lag rahi</b> (mila: <code>{value[:30]}</code>).\n"
-                "Jaise: <code>yourname@bank</code>. Dobara bhejein ya /cancel:"
-            )
-        await _save("upi_id", value)
-        return await finish("✅ <b>UPI ID save ho gayi.</b>", await _home_panel())
+    async def reject(reason: str):
+        await message.reply_text(f"❌ <b>{reason}</b>\nPlease send it again, or send /cancel to stop.")
 
-    # ---- ads field ----
-    if state["kind"] == "ads":
+    kind = state["kind"]
+
+    if kind == "upi":
+        upi = _extract_upi(raw)
+        if not upi:
+            return await reject("That does not look like a UPI ID. Example: <code>yourname@bank</code>")
+        await _save("upi_id", upi)
+        return await finish(f"✅ <b>UPI ID saved:</b> <code>{upi}</code>", await _home_panel())
+
+    if kind == "ads":
         field = state["field"]
         ok, value_or_err = _validate_ads_value(field, raw)
         if not ok:
-            return await message.reply_text(f"❌ <b>{value_or_err}</b>\nDobara bhejein ya /cancel:")
+            return await reject(value_or_err)
         await _save(field, value_or_err, root="ads_config")
-        return await finish(f"✅ <b>{ADS_FIELDS[field]['label']} save ho gaya.</b>", await _ads_panel())
+        return await finish(f"✅ <b>{ADS_FIELDS[field]['label']} saved.</b>", await _ads_panel())
+
+    if kind == "bonus":
+        field = state["field"]
+        ok, value_or_err = _validate_bonus_value(field, raw)
+        if not ok:
+            return await reject(value_or_err)
+        await _save(field, value_or_err, root="bonus_config")
+        return await finish(f"✅ <b>{BONUS_FIELDS[field]['label']} saved.</b>", await _bonus_panel())
 
     # ---- gateway field ----
     gw, field = state["gw"], state["field"]
     value = _clean_value(raw, field)
     ok, err = _validate_gateway_value(gw, field, value)
     if not ok:
-        print(f"[setup] {gw}.{field} rejected: {err} (len={len(value)})")
-        return await message.reply_text(f"❌ <b>{err}</b>\nDobara bhejein ya /cancel:")
+        print(f"[setup] {gw}.{field} rejected: {err} (length {len(value)})")
+        return await reject(err)
 
     await _save(f"{gw}.{field}", value)
     label = next(f["label"] for f in GATEWAYS[gw]["fields"] if f["name"] == field)
-    await finish(f"✅ <b>{label} save ho gaya</b> (<code>{mask(value)}</code>).", await _gateway_panel(gw))
+    await finish(f"✅ <b>{label} saved</b> (<code>{mask(value)}</code>).", await _gateway_panel(gw))
+
+
+# group=-1 runs before the master input handler in admin.py, so a secret never reaches another handler.
+@Client.on_message(filters.private & filters.user(ADMIN_ID) & filters.text & ~filters.command(
+    ["start", "setup", "payments", "cancel", "setkey"]), group=-1)
+async def setup_input(client, message):
+    state = await _get_state(message.from_user.id)
+
+    if not state:
+        # The admin answered one of our prompts but the session has expired -> say so instead of staying silent.
+        replied = message.reply_to_message
+        if replied and replied.from_user and replied.from_user.is_self and (replied.text or "").startswith(PROMPT_MARK):
+            await message.reply_text(
+                "⚠️ <b>This setup session has expired.</b>\nOpen /setup and tap the field again, or use <code>/setkey</code>."
+            )
+            message.stop_propagation()          # LAST line: raises, so nothing after it would run
+        return  # no setup in progress: the other handlers handle this message
+
+    try:
+        await _process_input(client, message, state)
+    except Exception as e:
+        print(f"[setup] input error: {type(e).__name__}: {e}")
+        try:
+            await message.reply_text("❌ <b>Something went wrong while saving.</b> Please try again, or use <code>/setkey</code>.")
+        except Exception:
+            pass
+
+    # LAST line (it raises StopPropagation): the setup message never reaches any other handler.
+    message.stop_propagation()

@@ -1,4 +1,4 @@
-from pyrogram import Client, filters, enums
+from pyrogram import Client, filters
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 from config import ADMIN_ID, DB_CHANNEL_IDS
@@ -8,39 +8,42 @@ from database.db import (
     get_active_db_channel,
     stories_col,
 )
+from style import sc
 
 
 # ------------------ /autopay : Auto UPI maintenance on/off ------------------
 @Client.on_message(filters.command("autopay") & filters.user(ADMIN_ID) & filters.private, group=1)
 async def autopay_command(client, message):
     """
-    /autopay          -> abhi ka status
-    /autopay off      -> Auto UPI par 'Under Maintenance' popup (users ko Manual dikhega)
-    /autopay on       -> Auto UPI wapas chalu
+    /autopay        -> current status
+    /autopay off    -> "Under maintenance" popup on the Auto UPI button (users are pointed to Manual)
+    /autopay on     -> Auto UPI works again
     """
     arg = message.command[1].lower() if len(message.command) > 1 else ""
 
-    if arg in ("on", "enable", "chalu"):
+    if arg in ("on", "enable"):
         await set_setting("auto_pay_maintenance", False)
-        return await message.reply_text("✅ <b>Auto UPI chalu kar diya gaya.</b>")
+        return await message.reply_text(f"✅ <b>{sc('Auto UPI is now ON')}</b>")
 
-    if arg in ("off", "disable", "band", "maintenance"):
+    if arg in ("off", "disable", "maintenance"):
         await set_setting("auto_pay_maintenance", True)
-        return await message.reply_text("🛠 <b>Auto UPI ab 'Under Maintenance' hai.</b>\nUsers ko popup dikhega aur Manual option use karna hoga.")
+        return await message.reply_text(
+            f"🛠 <b>{sc('Auto UPI is under maintenance')}</b>\nUsers will see a popup and will be asked to use the Manual option."
+        )
 
     maintenance = await get_setting("auto_pay_maintenance", True)
-    status = "🛠 Under Maintenance (band)" if maintenance else "✅ Chalu"
+    status = "🛠 Under maintenance (OFF)" if maintenance else "✅ ON"
     await message.reply_text(
-        f"⚡ <b>Auto UPI status:</b> {status}\n\n"
-        f"<code>/autopay on</code>  → chalu karein\n"
-        f"<code>/autopay off</code> → maintenance popup lagayein"
+        f"⚡ <b>{sc('Auto UPI status')}:</b> {status}\n\n"
+        "<code>/autopay on</code>  → turn it ON\n"
+        "<code>/autopay off</code> → put it under maintenance"
     )
 
 
 # ------------------ /dbchannels : multiple DB channels ------------------
 async def _build_channel_panel(client):
     active = await get_active_db_channel()
-    lines = ["📡 <b>DB Channels</b>\n"]
+    lines = [f"📡 <b>{sc('DB channels')}</b>\n"]
     rows = []
 
     for idx, cid in enumerate(DB_CHANNEL_IDS):
@@ -49,7 +52,7 @@ async def _build_channel_panel(client):
             name = chat.title or "Channel"
             access = "✅"
         except Exception:
-            name = "Access nahi (bot admin/member nahi)"
+            name = "No access (the bot is not an admin or member)"
             access = "❌"
 
         stories_count = await stories_col.count_documents(
@@ -59,13 +62,14 @@ async def _build_channel_panel(client):
         lines.append(f"{idx + 1}. {access} <b>{name}</b> {mark}\n   <code>{cid}</code> | 📚 {stories_count} stories")
 
         if cid != active and access == "✅":
-            rows.append([InlineKeyboardButton(f"➡️ #{idx + 1} ko Active banayein", callback_data=f"setdbch:{idx}")])
+            rows.append([InlineKeyboardButton(f"➡️ {sc('Make')} #{idx + 1} {sc('active')}", callback_data=f"setdbch:{idx}")])
 
     lines.append(
-        "\n<i>Active channel: jab /addstory me aap link ki jagah sirf message ID dete hain, "
-        "tab nayi story isi channel me maani jaati hai. Link (t.me/c/...) dene par channel link se hi pata chal jaata hai.</i>\n\n"
-        "➕ <b>Naya channel jodne ke liye:</b> Render me <code>DB_CHANNELS</code> variable me ID comma se jodein "
-        "(jaise <code>-1001111111111,-1002222222222</code>), bot ko us channel me admin banayein, restart karein."
+        "\n<i>The active channel is used when you give only a message ID (not a link) in /addstory. "
+        "If you give a link (t.me/c/...), the channel is detected from the link itself.</i>\n\n"
+        "➕ <b>To add a channel:</b> put its ID in the <code>CHANNEL_ID</code> or <code>DB_CHANNELS</code> variable on Render "
+        "(comma separated, for example <code>-1001111111111,-1002222222222</code>), make the bot an admin of that channel, "
+        "and restart the bot."
     )
     return "\n".join(lines), InlineKeyboardMarkup(rows) if rows else None
 
@@ -80,10 +84,10 @@ async def dbchannels_command(client, message):
 async def set_active_channel_callback(client, callback):
     idx = int(callback.data.split(":")[1])
     if idx >= len(DB_CHANNEL_IDS):
-        return await callback.answer("❌ Channel nahi mila!", show_alert=True)
+        return await callback.answer("Channel not found.", show_alert=True)
 
     await set_setting("active_db_channel", DB_CHANNEL_IDS[idx])
-    await callback.answer("✅ Active channel badal gaya!", show_alert=True)
+    await callback.answer("Active channel changed.", show_alert=True)
 
     text, markup = await _build_channel_panel(client)
     try:

@@ -60,7 +60,7 @@ STOP_DELIVERY_USERS = set()
 
 # ------------------ Story key helpers (title kabhi link / button me nahi jaata) ------------------
 def _story_key(story, fallback_title=""):
-    """Link / callback me jaane wali key = random story_id. (Id na ho tabhi purana title-fallback.)"""
+    """The key used in links and callbacks: the random story_id (the old title fallback is used only if there is no id)."""
     sid = (story or {}).get("story_id")
     if sid:
         return str(sid)
@@ -606,10 +606,10 @@ async def process_wallet_payment(client, callback_query):
         story_id = story.get("story_id")
         delivery_link = _delivery_link_for(story, clean_title)
 
-        # Pehle se kharidi hui story ke paise dobara na katein
+        # Never charge twice for a story the user already owns
         if await is_story_unlocked(user_id, clean_title, story_id):
             return await callback_query.answer(
-                "✅ Aap ye story pehle hi kharid chuke hain! 'My Account' se files le sakte hain.",
+                "✅ You have already bought this story! Open 'My Account' to get your files.",
                 show_alert=True
             )
 
@@ -625,9 +625,9 @@ async def process_wallet_payment(client, callback_query):
         try:
             await add_user_purchase(user_id, clean_title, story_link=delivery_link, story_id=story_id)
         except Exception as db_err:
-            await add_wallet_balance(user_id, price)  # purchase save na hui to paise wapas
+            await add_wallet_balance(user_id, price)  # the purchase was not saved, so give the money back
             print(f"Wallet purchase save failed, refunded: {db_err}")
-            return await callback_query.answer("❌ Error! Aapke paise wapas wallet me daal diye gaye hain. Dobara try karein.", show_alert=True)
+            return await callback_query.answer("❌ Something went wrong. Your money was returned to your wallet. Please try again.", show_alert=True)
 
         await callback_query.answer("🎉 Purchase successful! Story unlocked.", show_alert=True)
         
@@ -681,7 +681,7 @@ async def process_cart_payment(client, callback_query):
             seen_ids.add(str(story["_id"]))
             clean_title = story['title'].strip().split("\n")[0]
             if await is_story_unlocked(user_id, clean_title, story.get("story_id")):
-                continue  # pehle se kharidi hui ke paise nahi katenge
+                continue  # do not charge again for a story already owned
             to_buy.append((story, clean_title))
 
         if not to_buy:
@@ -707,9 +707,9 @@ async def process_cart_payment(client, callback_query):
                 )
                 purchased_list_text += f"• {clean_title}\n"
         except Exception as db_err:
-            await add_wallet_balance(user_id, total_price)  # paise wapas
+            await add_wallet_balance(user_id, total_price)  # give the money back
             print(f"Cart purchase save failed, refunded: {db_err}")
-            return await callback_query.answer("❌ Error! Aapke paise wapas wallet me daal diye gaye hain. Dobara try karein.", show_alert=True)
+            return await callback_query.answer("❌ Something went wrong. Your money was returned to your wallet. Please try again.", show_alert=True)
 
         await callback_query.answer("🎉 Cart checkout successful! All stories unlocked.", show_alert=True)
         
