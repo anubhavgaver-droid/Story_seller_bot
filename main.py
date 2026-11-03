@@ -1,7 +1,11 @@
 import asyncio
+import hashlib
+import hmac
 import json
 import os
 import re
+import time
+from urllib.parse import parse_qsl
 from datetime import datetime, timezone, timedelta
 from aiohttp import web
 import aiofiles
@@ -174,23 +178,52 @@ async def handle_get_stories(request):
         return web.json_response({"error": str(e)}, status=500)
 
 # ------------------ 5. API Endpoint: User Purchases ------------------
+def verify_init_data(init_data: str, bot_token: str, max_age: int = 86400):
+    """
+    Checks the signed Telegram Mini App "initData" string (HMAC-SHA256 with the bot token).
+    Returns the Telegram user dict when it is genuine and not older than max_age seconds, otherwise None.
+    This is what proves WHO is calling the API, so nobody can read another user's purchases.
+    """
+    if not init_data or not bot_token:
+        return None
+    try:
+        pairs = dict(parse_qsl(init_data, keep_blank_values=True))
+        received_hash = pairs.pop("hash", None)
+        if not received_hash:
+            return None
+        data_check_string = "\n".join(f"{k}={v}" for k, v in sorted(pairs.items()))
+        secret_key = hmac.new(b"WebAppData", bot_token.encode(), hashlib.sha256).digest()
+        calculated = hmac.new(secret_key, data_check_string.encode(), hashlib.sha256).hexdigest()
+        if not hmac.compare_digest(calculated, received_hash):
+            return None
+        if time.time() - int(pairs.get("auth_date", "0")) > max_age:
+            return None
+        user = json.loads(pairs.get("user", "{}"))
+        return user if user.get("id") else None
+    except Exception:
+        return None
+
+
 async def handle_get_user_purchases(request):
-    user_id = request.query.get("user_id")
+    # The user is identified ONLY from the signed initData (a plain user_id in the URL is ignored).
+    tg_user = verify_init_data(request.query.get("init_data", ""), BOT_TOKEN)
+    if not tg_user:
+        return web.json_response({"error": "unauthorized"}, status=401)
+
     purchases_data = []
-    if user_id:
-        try:
-            purchases = await get_user_purchases(int(user_id))
-            for item in purchases:
-                story = await get_story_by_title(item.get('story_title', ''))
-                sid = item.get("story_id") or (story.get("story_id") if story else None)
-                purchases_data.append({
-                    "story_title": item.get('story_title', 'Untitled'),
-                    "story_id": str(sid) if sid else None,
-                    "link": delivery_link(sid) if sid else "#"
-                })
-        except Exception as e:
-            print(f"Error fetching purchases for web app: {e}")
-            
+    try:
+        purchases = await get_user_purchases(int(tg_user["id"]))
+        for item in purchases:
+            story = await get_story_by_title(item.get('story_title', ''))
+            sid = item.get("story_id") or (story.get("story_id") if story else None)
+            purchases_data.append({
+                "story_title": item.get('story_title', 'Untitled'),
+                "story_id": str(sid) if sid else None,
+                "link": delivery_link(sid) if sid else "#"
+            })
+    except Exception as e:
+        print(f"Error fetching purchases for web app: {e}")
+
     return web.json_response(purchases_data)
 
 # ------------------ Start Web Server ------------------

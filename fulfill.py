@@ -1,7 +1,8 @@
 """
-Paid order ko ek hi jagah se poora karna (Verify button aur webhook dono yahi use karte hain).
-claim_payment_order() atomic hai, isliye chahe user 5 baar Verify dabaye ya webhook bhi aa jaye,
-wallet / story sirf ek baar milti hai.
+Completes a paid order in ONE place (the Verify button, the webhook and the admin support tools all use it).
+
+claim_payment_order() is atomic, so even if the user presses Verify five times or the webhook arrives at the
+same moment, the wallet credit / story unlock happens exactly once.
 """
 from pyrogram import enums
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
@@ -15,6 +16,8 @@ from database.db import (
     get_story_by_key,
     delivery_link,
 )
+from bonus import bonus_amount
+from style import sc
 
 
 async def _log(client, text: str):
@@ -22,12 +25,13 @@ async def _log(client, text: str):
         try:
             await client.send_message(chat_id=LOG_CHANNEL, text=text, disable_web_page_preview=True)
         except Exception as e:
-            print(f"❌ LOG_CHANNEL Error: {e}")
+            print(f"LOG_CHANNEL error: {e}")
 
 
 async def fulfill_order(client, order: dict, paid_amount: float, source: str = "AUTO VERIFY") -> str:
     """
     Returns "done" | "already" | "error".
+    `source` is only used in the admin log (AUTO VERIFY, WEBHOOK, ADMIN FORCE ...).
     """
     order_id = order["order_id"]
     user_id = order["user_id"]
@@ -44,24 +48,27 @@ async def fulfill_order(client, order: dict, paid_amount: float, source: str = "
         return "already"
 
     user_mention = f"<a href='tg://user?id={user_id}'>User</a>"
-    notice = None          # user ko bhejne wala message
+    notice = None           # message for the user
     notice_markup = None
     log_msg = None
 
     try:
         # ---------------- WALLET TOP-UP ----------------
         if order.get("kind") == "WALLET":
-            new_bal = await add_wallet_balance(user_id, paid)
+            bonus = await bonus_amount(paid)
+            new_bal = await add_wallet_balance(user_id, paid + bonus)
+            bonus_line = f"🎁 <b>{sc('Bonus')}:</b> +₹{bonus:g}\n" if bonus else ""
             notice = (
-                f"🎉 <b>ᴀᴜᴛᴏ-ᴠᴇʀɪғɪᴇᴅ sᴜᴄᴄᴇssғᴜʟʟʏ!</b>\n\n"
-                f"💰 Added ₹{paid} to Wallet.\n"
-                f"👛 New Balance: ₹{new_bal}"
+                f"🎉 <b>{sc('Payment verified')}</b>\n\n"
+                f"💰 <b>{sc('Added')}:</b> ₹{paid:g}\n"
+                f"{bonus_line}"
+                f"👛 <b>{sc('New balance')}:</b> ₹{new_bal}"
             )
             log_msg = (
-                f"💳 <b>[{source}] WALLET TOP-UP</b>\n\n"
+                f"💳 <b>[{source}] {sc('Wallet top-up')}</b>\n\n"
                 f"👤 <b>User:</b> {user_mention} (<code>{user_id}</code>)\n"
-                f"💰 <b>Amount Added:</b> ₹{paid}\n"
-                f"👛 <b>New Balance:</b> ₹{new_bal}\n"
+                f"💰 <b>Amount:</b> ₹{paid:g}" + (f" (+₹{bonus:g} bonus)" if bonus else "") + "\n"
+                f"👛 <b>New balance:</b> ₹{new_bal}\n"
                 f"🆔 <b>Order ID:</b> <code>{order_id}</code>"
             )
 
@@ -70,16 +77,17 @@ async def fulfill_order(client, order: dict, paid_amount: float, source: str = "
             story = await get_story_by_key(order.get("story_id") or order.get("title"))
 
             if story is None:
-                # Story delete ho chuki -> paisa wallet me daal do, kuch gaya nahi
+                # The story was deleted: put the money in the wallet so nothing is lost.
                 new_bal = await add_wallet_balance(user_id, paid)
                 notice = (
-                    f"⚠️ <b>Story ab available nahi hai.</b>\n\n"
-                    f"Aapke ₹{paid} wallet me jod diye gaye hain.\n👛 Balance: ₹{new_bal}"
+                    f"⚠️ <b>{sc('Story unavailable')}</b>\n\n"
+                    f"This story is no longer available, so ₹{paid:g} was added to your wallet.\n"
+                    f"👛 Balance: ₹{new_bal}"
                 )
                 log_msg = (
-                    f"⚠️ <b>[{source}] STORY MISSING -> WALLET CREDIT</b>\n\n"
+                    f"⚠️ <b>[{source}] {sc('Story missing, wallet credit')}</b>\n\n"
                     f"👤 <b>User:</b> {user_mention} (<code>{user_id}</code>)\n"
-                    f"💰 <b>Amount:</b> ₹{paid}\n🆔 <b>Order ID:</b> <code>{order_id}</code>"
+                    f"💰 <b>Amount:</b> ₹{paid:g}\n🆔 <b>Order ID:</b> <code>{order_id}</code>"
                 )
             else:
                 price = float(story.get("price", 0) or 0)
@@ -87,56 +95,54 @@ async def fulfill_order(client, order: dict, paid_amount: float, source: str = "
                 story_id = story.get("story_id")
 
                 if paid + 0.01 < price:
-                    # Kam paisa mila: story unlock nahi, jitna aaya wallet me
+                    # Underpaid: do not unlock, credit what was paid to the wallet.
                     new_bal = await add_wallet_balance(user_id, paid)
                     notice = (
-                        f"⚠️ <b>Payment amount kam mila.</b>\n\n"
-                        f"Story ka price ₹{price} hai, aapne ₹{paid} diye.\n"
-                        f"₹{paid} aapke wallet me jod diye gaye hain (Balance: ₹{new_bal}). "
-                        f"Wallet se story kharid sakte hain."
+                        f"⚠️ <b>{sc('Amount too low')}</b>\n\n"
+                        f"The story costs ₹{price:g}, but you paid ₹{paid:g}.\n"
+                        f"₹{paid:g} was added to your wallet (balance ₹{new_bal}). "
+                        f"You can now buy the story using your wallet."
                     )
                     log_msg = (
-                        f"⚠️ <b>[{source}] UNDERPAID -> WALLET CREDIT</b>\n\n"
+                        f"⚠️ <b>[{source}] {sc('Underpaid, wallet credit')}</b>\n\n"
                         f"👤 <b>User:</b> {user_mention} (<code>{user_id}</code>)\n"
-                        f"📖 <b>Story:</b> {clean_title} (₹{price})\n"
-                        f"💰 <b>Paid:</b> ₹{paid}\n🆔 <b>Order ID:</b> <code>{order_id}</code>"
+                        f"📖 <b>Story:</b> {clean_title} (₹{price:g})\n"
+                        f"💰 <b>Paid:</b> ₹{paid:g}\n🆔 <b>Order ID:</b> <code>{order_id}</code>"
                     )
                 else:
                     await add_user_purchase(user_id, clean_title, story_id=story_id)
                     link = delivery_link(story_id) if story_id else None
                     notice = (
-                        f"🎉 <b>ᴀᴜᴛᴏ-ᴠᴇʀɪғɪᴇᴅ sᴜᴄᴄᴇssғᴜʟʟʏ!</b>\n\n"
-                        f"📖 <b>Story:</b> {clean_title}\n"
-                        f"💰 <b>Paid:</b> ₹{paid}\n\n"
-                        f"Click below to access your files:"
+                        f"🎉 <b>{sc('Payment verified')}</b>\n\n"
+                        f"📖 <b>{sc('Story')}:</b> {clean_title}\n"
+                        f"💰 <b>{sc('Paid')}:</b> ₹{paid:g}\n\n"
+                        f"Tap the button below to get your files."
                     )
                     if link:
                         notice_markup = InlineKeyboardMarkup([[
-                            InlineKeyboardButton("📂 ɢᴇᴛ ғɪʟᴇs (Unlocked)", style=enums.ButtonStyle.PRIMARY, url=link)
+                            InlineKeyboardButton(f"📂 {sc('Get files')}", style=enums.ButtonStyle.PRIMARY, url=link)
                         ]])
                     log_msg = (
-                        f"⚡ <b>[{source}] STORY BOUGHT</b>\n\n"
+                        f"⚡ <b>[{source}] {sc('Story bought')}</b>\n\n"
                         f"👤 <b>User:</b> {user_mention} (<code>{user_id}</code>)\n"
                         f"📖 <b>Story:</b> {clean_title}\n"
-                        f"💰 <b>Amount Paid:</b> ₹{paid}\n"
+                        f"💰 <b>Amount paid:</b> ₹{paid:g}\n"
                         f"🆔 <b>Order ID:</b> <code>{order_id}</code>"
                     )
     except Exception as e:
-        # DB kaam fail hua -> order wapas open, taaki user dobara Verify dabaye
-        print(f"❌ fulfill_order DB error for {order_id}: {e}")
+        # A database step failed: reopen the order so the user can press Verify again.
+        print(f"fulfill_order database error for {order_id}: {e}")
         try:
             await release_payment_order(order_id)
         except Exception:
             pass
         return "error"
 
-    # Messages (fail bhi ho jaye to paisa / story ho chuki hai, rollback nahi)
+    # Messages: even if they fail, the money / story is already handled, so there is no rollback.
     try:
-        await client.send_message(
-            chat_id=user_id, text=notice, reply_markup=notice_markup, protect_content=False
-        )
+        await client.send_message(chat_id=user_id, text=notice, reply_markup=notice_markup, protect_content=False)
     except Exception as e:
-        print(f"⚠ fulfill_order: user {user_id} ko message nahi gaya: {e}")
+        print(f"fulfill_order: could not message user {user_id}: {e}")
 
     if log_msg:
         await _log(client, log_msg)

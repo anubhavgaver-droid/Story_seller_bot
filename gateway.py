@@ -41,7 +41,7 @@ GATEWAYS = {
             {"name": "api_key", "label": "API Key (X-API-Key)", "secret": False, "min": 10},
             {"name": "api_secret", "label": "API Secret (X-API-Secret)", "secret": True, "min": 10},
         ],
-        "note": "Callback URL apne aap set hota hai: <code>{web}/paytm</code>",
+        "note": "The callback URL is set automatically: <code>{web}/paytm</code>",
     },
     "razorpay": {
         "title": "Razorpay",
@@ -50,9 +50,9 @@ GATEWAYS = {
             {"name": "key_secret", "label": "Key Secret", "secret": True, "min": 10},
         ],
         "note": (
-            "Auto-verify ke liye (optional): Razorpay Dashboard → Settings → Webhooks me URL "
-            "<code>{web}/webhook/razorpay</code> dalein aur event <b>payment_link.paid</b> chunein. "
-            "Webhook na ho to user 'Verify Payment' dabakar bhi kaam chalega."
+            "For automatic verification (optional): in the Razorpay Dashboard open Settings → Webhooks, add "
+            "<code>{web}/webhook/razorpay</code> and select the event <b>payment_link.paid</b>. "
+            "Without a webhook, users can still press Verify Payment."
         ),
     },
     "cashfree": {
@@ -62,7 +62,7 @@ GATEWAYS = {
             {"name": "client_secret", "label": "Secret Key (x-client-secret)", "secret": True, "min": 10},
             {"name": "env", "label": "Mode", "secret": False, "min": 1, "choices": ["prod", "sandbox"], "optional": True},
         ],
-        "note": "Webhook URL (notify_url) apne aap set hota hai: <code>{web}/webhook/cashfree</code>",
+        "note": "The webhook URL (notify_url) is set automatically: <code>{web}/webhook/cashfree</code>",
     },
 }
 
@@ -350,7 +350,7 @@ async def create_order(user_id: int, user_name: str, amount: float, attempts: in
     order_id = new_order_id(user_id)
 
     if not is_configured(gw, cfg):
-        err = f"{GATEWAYS[gw]['title']} ki API keys set nahi hain (/setup se set karein)"
+        err = f"{GATEWAYS[gw]['title']} API keys are not saved (open /setup)"
         print(f"❌ create_order: {err}")
         return None, order_id, err, meta
 
@@ -387,7 +387,7 @@ async def check_order_status(order_id: str, attempts: int = 2):
     cfg = await load_config()
 
     if gw not in _CHECKERS or not is_configured(gw, cfg):
-        return False, 0.0, "Gateway keys set nahi hain"
+        return False, 0.0, "Gateway keys are not saved"
 
     last_msg = "Connection Error"
     for attempt in range(1, attempts + 1):
@@ -415,18 +415,18 @@ async def test_gateway(gw: str):
     if gw not in GATEWAYS:
         return False, "Unknown gateway"
     if not is_configured(gw, cfg):
-        return False, "Pehle saari keys set karein"
+        return False, "Save all the keys first"
 
     try:
         if gw == "demotry":
             status, body = await _http("POST", CHECK_STATUS_URL, headers=_demotry_headers(cfg["demotry"]),
                                        json_body={"order_id": "TEST_PING_000"}, timeout=12)
             if status == 401:
-                return False, "API key/secret galat hain (HTTP 401)"
+                return False, "Wrong API key or secret (HTTP 401)"
             if status == 403:
-                return False, f"Gateway ne bot ko block kiya (HTTP 403): {_short(body, 80)}"
+                return False, f"The gateway blocked the bot (HTTP 403): {_short(body, 80)}"
             if status == 429:
-                return False, "Order/request limit khatam (HTTP 429)"
+                return False, "Order or request limit reached (HTTP 429)"
             if status >= 500:
                 return False, f"Gateway server error (HTTP {status})"
             return True, f"Keys accepted (HTTP {status})"
@@ -435,7 +435,7 @@ async def test_gateway(gw: str):
             status, body = await _http("GET", "https://api.razorpay.com/v1/payment_links?count=1",
                                        auth=_rzp_auth(cfg), timeout=12)
             if status == 200:
-                return True, "Razorpay keys sahi hain"
+                return True, "Razorpay keys are valid"
             return False, _error_text(status, body)
 
         if gw == "cashfree":

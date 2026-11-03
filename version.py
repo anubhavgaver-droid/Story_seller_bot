@@ -1,8 +1,17 @@
 """Bot version. Har upgrade par VERSION badlein aur CHANGELOG me upar nayi entry jodein."""
 
-VERSION = "1.0.22"
+VERSION = "1.0.23"
 
 CHANGELOG = [
+    ("1.0.23", [
+        "Fixed: setup values (API keys, shortener URL, UPI ID) were not being saved or answered",
+        "Auto UPI now shows a 'Please wait, your invoice is being generated' message instead of a popup",
+        "All new screens are in proper English with small-caps headings",
+        "New: 'I paid but got nothing' support button with one-tap admin check",
+        "New: wallet top-up bonus (set in /setup)",
+        "New: UTR duplicate guard for manual payments",
+        "Security: the purchases API now needs Telegram's signed initData",
+    ]),
     ("1.0.22", [
         "Admin Panel (/admin): saari admin commands buttons se",
         "/setup: payment gateway (Demotry / Razorpay / Cashfree) bot ke andar se set",

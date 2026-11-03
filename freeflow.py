@@ -1,17 +1,16 @@
 """
-Free story claim + optional Ad (URL shortener) gate.
+Free story claim + optional ad gate (URL shortener).
 
-Flow (ads ON):
-  user "Claim Free" dabata hai
-    -> bot ek ek-baar-wala token banata hai
-    -> https://t.me/<bot>?start=verify_<token> ko shortener se chhota karta hai
-    -> user short link kholta hai (ads / steps poore karta hai) -> bot par wapas aata hai
-    -> bot token check karta hai (user same, pehle use nahi hua, kam se kam N second guzre) -> story unlock
+Flow with ads ON:
+  1. The user taps "Claim Free".
+  2. The bot creates a one-time token and shortens  https://t.me/<bot>?start=verify_<token>  with the shortener.
+  3. The user opens the short link (sees the ads / steps) and comes back to the bot.
+  4. The bot checks the token (same user, not used before, minimum wait passed, not expired) and unlocks the story.
 
-Flow (ads OFF ya shortener set nahi): seedha unlock.
+Flow with ads OFF (or shortener not configured): the story is unlocked immediately.
 
-NOTE: shortener ka "bypass" pooree tarah roka nahi ja sakta (user direct t.me link bana sakta hai agar use token
-pata ho). Isliye token sirf us user ke liye, ek baar, aur minimum wait time ke saath chalta hai.
+Note: a shortener gate can never be made 100% bypass-proof. The token is bound to one user, works once and
+needs a minimum wait, which stops the easy shortcuts.
 """
 import json
 import time
@@ -34,6 +33,7 @@ from database.db import (
     delivery_link,
     send_log,
 )
+from style import sc
 
 DEFAULT_ADS = {"enabled": False, "api_url": "", "api_key": "", "min_seconds": 15}
 TOKEN_MAX_AGE = 24 * 3600
@@ -56,8 +56,8 @@ def ads_ready(cfg: dict) -> bool:
 
 async def shorten_url(cfg: dict, target: str):
     """
-    Returns (short_url, error). Common shortener API: GET <api_url>?api=<key>&url=<link>
-    JSON ({"status":"success","shortenedUrl":"..."}) aur plain-text dono samajhta hai.
+    Returns (short_url, error). Works with the common shortener API:  GET <api_url>?api=<key>&url=<link>
+    Understands JSON ({"status":"success","shortenedUrl":"..."}) and plain-text replies.
     """
     base = cfg["api_url"].strip()
     sep = "&" if "?" in base else "?"
@@ -85,11 +85,11 @@ async def shorten_url(cfg: dict, target: str):
             val = data.get(k)
             if isinstance(val, str) and val.startswith("http"):
                 return val, None
-        return None, f"short link nahi mila: {body[:120]}"
+        return None, f"No short link in the reply: {body[:120]}"
 
     if body.startswith("http") and " " not in body and "\n" not in body:
         return body, None
-    return None, f"samajh nahi aaya: {body[:120]}"
+    return None, f"Unrecognised reply: {body[:120]}"
 
 
 # ------------------------------- helpers -------------------------------
@@ -102,7 +102,7 @@ async def _send_access(client, user_id: int, story, text: str):
     markup = None
     if link:
         markup = InlineKeyboardMarkup([[
-            InlineKeyboardButton("📂 ɢᴇᴛ ғɪʟᴇs (Unlocked)", style=enums.ButtonStyle.PRIMARY, url=link)
+            InlineKeyboardButton(f"📂 {sc('Get files')}", style=enums.ButtonStyle.PRIMARY, url=link)
         ]])
     await client.send_message(user_id, text, reply_markup=markup)
 
@@ -112,10 +112,10 @@ async def _grant(client, user_id: int, story, via: str = "FREE"):
     await add_user_purchase(user_id, clean_title, story_id=story.get("story_id"))
     await _send_access(
         client, user_id, story,
-        f"🎉 <b>ᴄʟᴀɪᴍᴇᴅ sᴜᴄᴄᴇssғᴜʟʟʏ!</b>\n\n📖 <b>Story:</b> {clean_title}\n\nNeeche button se files le lein:"
+        f"🎉 <b>{sc('Claimed successfully')}</b>\n\n📖 <b>{sc('Story')}:</b> {clean_title}\n\nTap the button below to get your files."
     )
     try:
-        await send_log(client, f"🎁 <b>[{via}] Free story claimed</b>\n\n👤 <code>{user_id}</code>\n📖 {clean_title}")
+        await send_log(client, f"🎁 <b>[{via}] {sc('Free story claimed')}</b>\n\n👤 <code>{user_id}</code>\n📖 {clean_title}")
     except Exception:
         pass
 
@@ -127,7 +127,7 @@ async def start_free_claim(client, user_id: int, story) -> str:
     story_id = story.get("story_id")
 
     if await is_story_unlocked(user_id, clean_title, story_id):
-        await _send_access(client, user_id, story, f"✅ <b>{clean_title}</b> aapke paas pehle se unlocked hai.")
+        await _send_access(client, user_id, story, f"✅ <b>{clean_title}</b> is already unlocked on your account.")
         return "already"
 
     try:
@@ -137,8 +137,8 @@ async def start_free_claim(client, user_id: int, story) -> str:
     if price > 0:
         await client.send_message(
             user_id,
-            f"💎 <b>{clean_title}</b> free nahi hai (₹{price:g}).",
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🛒 ʙᴜʏ ɴᴏᴡ", callback_data=f"buy:{story_id}")]])
+            f"💎 <b>{clean_title}</b> is not free (₹{price:g}).",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(f"🛒 {sc('Buy now')}", callback_data=f"buy:{story_id}")]])
         )
         return "paid"
 
@@ -151,19 +151,19 @@ async def start_free_claim(client, user_id: int, story) -> str:
             await set_claim_short_url(token, short_url)
             await client.send_message(
                 user_id,
-                f"🎁 <b>ғʀᴇᴇ sᴛᴏʀʏ:</b> {clean_title}\n\n"
-                f"1️⃣ Neeche <b>Ad Link</b> kholein aur steps poore karein.\n"
-                f"2️⃣ Aakhir me <b>Telegram / Bot</b> par wapas aayein, story apne aap unlock ho jayegi.",
+                f"🎁 <b>{sc('Free story')}:</b> {clean_title}\n\n"
+                f"1️⃣ Open the <b>ad link</b> below and complete the steps.\n"
+                f"2️⃣ Come back to the bot when you are done. The story unlocks automatically.",
                 reply_markup=InlineKeyboardMarkup([[
-                    InlineKeyboardButton("🔗 ᴏᴘᴇɴ ᴀᴅ ʟɪɴᴋ", style=enums.ButtonStyle.PRIMARY, url=short_url)
+                    InlineKeyboardButton(f"🔗 {sc('Open ad link')}", style=enums.ButtonStyle.PRIMARY, url=short_url)
                 ]])
             )
             return "ad"
 
-        # Shortener fail: user ko rokna nahi, seedha free (admin ko batao)
-        print(f"⚠ Shortener failed: {err}")
+        # The shortener failed: do not block the user, unlock directly and tell the admin.
+        print(f"Shortener failed: {err}")
         try:
-            await send_log(client, f"⚠️ <b>Shortener fail hua, free story seedha unlock hui</b>\n\n<code>{err}</code>")
+            await send_log(client, f"⚠️ <b>{sc('Shortener failed, story unlocked directly')}</b>\n\n<code>{err}</code>")
         except Exception:
             pass
 
@@ -172,14 +172,14 @@ async def start_free_claim(client, user_id: int, story) -> str:
 
 
 async def handle_free_deeplink(client, message, param: str):
-    """/start free_<key>  ya  /start verify_<token>"""
+    """/start free_<story key>   or   /start verify_<token>"""
     user = message.from_user
 
     # ---- free_<story key> ----
     if param.startswith("free_"):
         story = await get_story_by_key(param[len("free_"):])
         if not story:
-            return await message.reply_text("❌ <b>sᴛᴏʀʏ ɴᴏᴛ ғᴏᴜɴᴅ!</b>")
+            return await message.reply_text(f"❌ <b>{sc('Story not found')}</b>")
         await start_free_claim(client, user.id, story)
         return
 
@@ -187,42 +187,42 @@ async def handle_free_deeplink(client, message, param: str):
     token = param[len("verify_"):]
     doc = await get_claim_token(token)
     if not doc:
-        return await message.reply_text("❌ <b>Ye verify link galat ya purana hai.</b> Story page se dobara 'Claim Free' dabayein.")
+        return await message.reply_text("❌ <b>This verification link is invalid or old.</b>\nPlease tap Claim Free on the story page again.")
 
     if doc["user_id"] != user.id:
-        return await message.reply_text("❌ <b>Ye link kisi aur user ke liye bana tha.</b> Apne account se 'Claim Free' dabayein.")
+        return await message.reply_text("❌ <b>This link was created for another user.</b>\nPlease tap Claim Free from your own account.")
 
     story = await get_story_by_key(doc["story_id"])
     if not story:
-        return await message.reply_text("❌ <b>Story ab available nahi hai.</b>")
+        return await message.reply_text("❌ <b>This story is no longer available.</b>")
 
     if doc.get("used"):
         if await is_story_unlocked(user.id, _clean_title(story), story.get("story_id")):
-            return await _send_access(client, user.id, story, "✅ <b>Ye story pehle hi claim ho chuki hai.</b>")
-        return await message.reply_text("⚠️ <b>Ye link pehle use ho chuka hai.</b> Dobara 'Claim Free' dabayein.")
+            return await _send_access(client, user.id, story, "✅ <b>This story has already been claimed.</b>")
+        return await message.reply_text("⚠️ <b>This link has already been used.</b>\nPlease tap Claim Free again.")
 
     age = time.time() - doc["created_at"]
     if age > TOKEN_MAX_AGE:
-        return await message.reply_text("⌛ <b>Ye link expire ho gaya.</b> Dobara 'Claim Free' dabayein.")
+        return await message.reply_text("⌛ <b>This link has expired.</b>\nPlease tap Claim Free again.")
 
     cfg = await get_ads_config()
     if age < cfg["min_seconds"]:
         markup = None
         if doc.get("short_url"):
-            markup = InlineKeyboardMarkup([[InlineKeyboardButton("🔗 ᴏᴘᴇɴ ᴀᴅ ʟɪɴᴋ", url=doc["short_url"])]])
+            markup = InlineKeyboardMarkup([[InlineKeyboardButton(f"🔗 {sc('Open ad link')}", url=doc["short_url"])]])
         return await message.reply_text(
-            "⏳ <b>Pehle ad ke steps poore karein.</b>\nAd link kholkar sab steps khatam karne ke baad hi story unlock hogi.",
+            "⏳ <b>Please complete the ad steps first.</b>\nThe story unlocks only after you finish the steps on the ad link.",
             reply_markup=markup
         )
 
     claimed = await use_claim_token(token)
     if not claimed:
-        return await message.reply_text("⚠️ <b>Ye link pehle use ho chuka hai.</b>")
+        return await message.reply_text("⚠️ <b>This link has already been used.</b>")
 
     await _grant(client, user.id, story, "AD")
 
 
-# ------------------------------- UI helpers (start.py / search.py use these) -------------------------------
+# ------------------------------- UI helpers (used by start.py and search.py) -------------------------------
 def price_label(price) -> str:
     try:
         p = float(price or 0)
@@ -232,14 +232,14 @@ def price_label(price) -> str:
 
 
 def buy_rows(encoded_title: str, price, wallet_bal) -> list:
-    """Story page ke buttons: free ho to 'Claim Free', warna Direct Pay + Wallet Pay."""
+    """Story page buttons: 'Claim Free' for a free story, otherwise Direct Pay + Wallet Pay."""
     try:
         p = float(price or 0)
     except (TypeError, ValueError):
         p = 0.0
     if p <= 0:
-        return [[InlineKeyboardButton("🎁 ᴄʟᴀɪᴍ ғʀᴇᴇ", style=enums.ButtonStyle.PRIMARY, callback_data=f"claim:{encoded_title}")]]
+        return [[InlineKeyboardButton(f"🎁 {sc('Claim free')}", style=enums.ButtonStyle.PRIMARY, callback_data=f"claim:{encoded_title}")]]
     return [
-        [InlineKeyboardButton(f"💳 ᴅɪʀᴇᴄᴛ ᴘᴀʏ (₹{p:g})", style=enums.ButtonStyle.PRIMARY, callback_data=f"buy:{encoded_title}")],
-        [InlineKeyboardButton(f"👛 ᴘᴀʏ ᴠɪᴀ ᴡᴀʟʟᴇᴛ (Bal: ₹{wallet_bal})", style=enums.ButtonStyle.PRIMARY, callback_data=f"walletpay:{encoded_title}")],
+        [InlineKeyboardButton(f"💳 {sc('Direct pay')} (₹{p:g})", style=enums.ButtonStyle.PRIMARY, callback_data=f"buy:{encoded_title}")],
+        [InlineKeyboardButton(f"👛 {sc('Pay via wallet')} (Bal: ₹{wallet_bal})", style=enums.ButtonStyle.PRIMARY, callback_data=f"walletpay:{encoded_title}")],
     ]
