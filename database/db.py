@@ -23,6 +23,7 @@ verified_orders_col = db["verified_orders"]  # Webhook Auto-Payments
 payment_orders_col = db["payment_orders"]    # Every payment order the bot creates (survives restarts)
 settings_col = db["settings"]                # Admin switches (auto-pay maintenance, active DB channel)
 claim_tokens_col = db["claim_tokens"]        # Free-story ad-gate tokens
+used_utrs_col = db["used_utrs"]              # Manual-payment UTRs already approved (duplicate guard)
 
 
 # -------------------- SETTINGS (admin switches) --------------------
@@ -717,6 +718,30 @@ async def use_claim_token(token: str):
     )
 
 
+# -------------------- UTR DUPLICATE GUARD (manual payments) --------------------
+async def utr_exists(utr: str) -> bool:
+    return bool(await used_utrs_col.find_one({"utr": utr}, {"_id": 1}))
+
+
+async def claim_utr(utr: str, user_id: int) -> bool:
+    """True if this UTR was never approved before (and is now recorded). False if it was already used."""
+    try:
+        await used_utrs_col.insert_one({"utr": utr, "user_id": user_id, "at": time.time()})
+        return True
+    except DuplicateKeyError:
+        return False
+
+
+# -------------------- SUPPORT ("I paid but did not receive") --------------------
+async def mark_order_sos(order_id: str) -> bool:
+    """True only the first time a user raises a support request for this order (no spam)."""
+    res = await payment_orders_col.update_one(
+        {"order_id": order_id, "sos_at": {"$exists": False}},
+        {"$set": {"sos_at": time.time()}}
+    )
+    return res.modified_count > 0
+
+
 # -------------------- ADMIN STATS --------------------
 async def get_stats() -> dict:
     now = time.time()
@@ -806,6 +831,7 @@ async def init_db():
         (payment_orders_col, [("order_id", 1)], {"unique": True}),
         (payment_orders_col, [("user_id", 1), ("status", 1)], {}),
         (claim_tokens_col, [("token", 1)], {"unique": True}),
+        (used_utrs_col, [("utr", 1)], {"unique": True}),
     ]
     for col, keys, opts in index_jobs:
         try:
