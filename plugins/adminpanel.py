@@ -26,9 +26,11 @@ from database.db import (
     delete_story_db,
     get_stats,
     get_setting,
+    set_setting,
     send_log,
 )
 from style import sc
+from richui import edit_panel, send_panel, rich_enabled, reset_failures
 
 BOOT_TIME = time.time()
 PAGE_SIZE = 8
@@ -126,13 +128,9 @@ async def _run_command(client, callback, cmd):
         pass
 
 
-async def _show(callback, text, markup):
-    try:
-        await callback.message.edit_text(text, reply_markup=markup, disable_web_page_preview=True)
-    except MessageNotModified:
-        pass
-    except Exception:
-        await callback.message.reply_text(text, reply_markup=markup, disable_web_page_preview=True)
+async def _show(callback, text, markup, notice=None):
+    """Edits the panel message in place (never sends a new page unless editing is impossible)."""
+    await edit_panel(callback, text, markup, notice)
 
 
 # ------------------------------- PANELS -------------------------------
@@ -146,6 +144,7 @@ def _home_panel():
         [_btn(f"📚 {sc('Stories')}", "ap:sec:stories"), _btn(f"👥 {sc('Users')}", "ap:sec:users")],
         [_btn(f"💳 {sc('Payments')}", "ap:sec:pay"), _btn(f"🎁 {sc('Free & ads')}", "st:ads")],
         [_btn(f"📊 {sc('Stats')}", "ap:stats"), _btn(f"ℹ️ {sc('Version & help')}", "ap:ver")],
+        [_btn(f"✨ {sc('Big headings on/off')}", "ap:rich")],
         [_btn(f"❌ {sc('Close')}", "ap:close")],
     ]
     return text, InlineKeyboardMarkup(rows)
@@ -261,17 +260,33 @@ def _version_text():
 @Client.on_message(filters.command(["admin", "panel"]) & filters.user(ADMIN_ID) & filters.private, group=1)
 async def admin_panel_command(client, message):
     text, markup = _home_panel()
-    await message.reply_text(text, reply_markup=markup)
+    await send_panel(message, text, markup)
 
 
 @Client.on_message(filters.command("stats") & filters.user(ADMIN_ID) & filters.private, group=1)
 async def stats_command(client, message):
-    await message.reply_text(await _stats_text(), reply_markup=InlineKeyboardMarkup([[_btn(f"🏠 {sc('Admin panel')}", "ap:home")]]))
+    await send_panel(message, await _stats_text(), InlineKeyboardMarkup([[_btn(f"🏠 {sc('Admin panel')}", "ap:home")]]))
 
 
 @Client.on_message(filters.command("version") & filters.user(ADMIN_ID) & filters.private, group=1)
 async def version_command(client, message):
-    await message.reply_text(_version_text(), reply_markup=InlineKeyboardMarkup([[_btn(f"🏠 {sc('Admin panel')}", "ap:home")]]))
+    await send_panel(message, _version_text(), InlineKeyboardMarkup([[_btn(f"🏠 {sc('Admin panel')}", "ap:home")]]))
+
+
+@Client.on_message(filters.command("richui") & filters.user(ADMIN_ID) & filters.private, group=1)
+async def richui_command(client, message):
+    """/richui  -> status   |   /richui on   |   /richui off   (big real headings in /admin and /setup)"""
+    arg = message.command[1].lower() if len(message.command) > 1 else ""
+    if arg in ("on", "off"):
+        await set_setting("rich_ui", arg == "on")
+        reset_failures()
+    state = await rich_enabled()
+    await message.reply_text(
+        f"✨ <b>{sc('Big headings')}:</b> {'✅ ON' if state else '❌ OFF'}\n\n"
+        "<code>/richui on</code>  → big headings in /admin and /setup\n"
+        "<code>/richui off</code> → normal messages only\n\n"
+        "<i>If a panel ever looks wrong, send /richui off.</i>"
+    )
 
 
 # ------------------------------- CALLBACKS -------------------------------
@@ -293,6 +308,15 @@ async def admin_panel_callbacks(client, callback):
 
     if action == "sec":
         text, markup = _section_panel(parts[2])
+        return await _show(callback, text, markup)
+
+    # ---- big headings on / off ----
+    if action == "rich":
+        current = bool(await get_setting("rich_ui", True))
+        await set_setting("rich_ui", not current)
+        reset_failures()
+        await callback.answer("Big headings are ON." if not current else "Big headings are OFF.", show_alert=True)
+        text, markup = _home_panel()
         return await _show(callback, text, markup)
 
     # ---- run an existing command from a button ----

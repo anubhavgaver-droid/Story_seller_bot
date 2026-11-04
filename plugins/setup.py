@@ -31,6 +31,7 @@ from gateway import GATEWAYS, load_config, is_configured, mask, test_gateway
 from freeflow import get_ads_config, ads_ready, shorten_url
 from bonus import get_bonus_config
 from style import sc
+from richui import edit_panel, send_panel, send_panel_to
 
 PROMPT_MARK = "⌨️"          # every input prompt starts with this (used to detect an expired session)
 STATE_TTL = 30 * 60         # 30 minutes
@@ -293,13 +294,9 @@ async def _bonus_panel():
     return text, InlineKeyboardMarkup(rows)
 
 
-async def _show(callback, text, markup):
-    try:
-        await callback.message.edit_text(text, reply_markup=markup, disable_web_page_preview=True)
-    except MessageNotModified:
-        pass
-    except Exception:
-        await callback.message.reply_text(text, reply_markup=markup, disable_web_page_preview=True)
+async def _show(callback, text, markup, notice=None):
+    """Edits the panel message in place (never sends a new page unless editing is impossible)."""
+    await edit_panel(callback, text, markup, notice)
 
 
 # ------------------------------- COMMANDS -------------------------------
@@ -307,7 +304,7 @@ async def _show(callback, text, markup):
 async def setup_command(client, message):
     await _clear_state(message.from_user.id)
     text, markup = await _home_panel()
-    await message.reply_text(text, reply_markup=markup)
+    await send_panel(message, text, markup)
 
 
 SETKEY_USAGE = (
@@ -568,7 +565,7 @@ async def _process_input(client, message, state):
         except Exception:
             pass
         text, markup = panel
-        await client.send_message(message.chat.id, f"{ok_text}\n\n{text}", reply_markup=markup, disable_web_page_preview=True)
+        await send_panel_to(client, message.chat.id, text, markup, notice=ok_text)
 
     async def reject(reason: str):
         await message.reply_text(f"❌ <b>{reason}</b>\nPlease send it again, or send /cancel to stop.")
