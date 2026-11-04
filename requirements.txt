@@ -1,4 +1,4 @@
-Kurigram
+Kurigram>=2.2.26
 tgcrypto
 motor
 aiohttp

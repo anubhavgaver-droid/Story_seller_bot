@@ -1,8 +1,12 @@
 """Bot version. Har upgrade par VERSION badlein aur CHANGELOG me upar nayi entry jodein."""
 
-VERSION = "1.0.23"
+VERSION = "1.0.24"
 
 CHANGELOG = [
+    ("1.0.24", [
+        "Panels (/admin, /setup) now EDIT the same message on every button (Next, Back, Delete list ...)",
+        "Big, dark real headings using Telegram Rich Messages (with automatic fallback and a /richui switch)",
+    ]),
     ("1.0.23", [
         "Fixed: setup values (API keys, shortener URL, UPI ID) were not being saved or answered",
         "Auto UPI now shows a 'Please wait, your invoice is being generated' message instead of a popup",
