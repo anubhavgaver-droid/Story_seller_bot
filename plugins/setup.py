@@ -294,9 +294,9 @@ async def _bonus_panel():
     return text, InlineKeyboardMarkup(rows)
 
 
-async def _show(callback, text, markup, notice=None):
+async def _show(callback, text, markup, notice=None, headers=("Setting", "Status")):
     """Edits the panel message in place (never sends a new page unless editing is impossible)."""
-    await edit_panel(callback, text, markup, notice)
+    await edit_panel(callback, text, markup, notice, headers)
 
 
 # ------------------------------- COMMANDS -------------------------------

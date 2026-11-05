@@ -35,6 +35,27 @@ def _ago(ts: float) -> str:
     return f"{secs // 3600} hours ago"
 
 
+def _request_text(order: dict, user_name: str = None) -> str:
+    uid = order["user_id"]
+    return (
+        f"🆘 <b>{sc('Payment support request')}</b>\n\n"
+        f"👤 <b>User:</b> <a href='tg://user?id={uid}'>{html.escape(user_name or 'User')}</a> (<code>{uid}</code>)\n"
+        f"📌 <b>Item:</b> {html.escape(str(order.get('title') or order.get('kind')))} ({order.get('kind')})\n"
+        f"💰 <b>Amount:</b> ₹{order.get('amount'):g}\n"
+        f"🏷 <b>Gateway:</b> {order.get('provider', 'demotry')}\n"
+        f"🆔 <b>Order ID:</b> <code>{order['order_id']}</code>\n"
+        f"🕒 <b>Created:</b> {_ago(order.get('created_at'))}\n\n"
+        "The gateway does <b>not</b> show this order as paid yet."
+    )
+
+
+def _request_buttons(order_id: str) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([
+        [_btn(f"🔍 {sc('Check with gateway')}", f"sosa:chk:{order_id}")],
+        [_btn(f"✅ {sc('Force deliver')}", f"sosa:ok:{order_id}"), _btn(f"❌ {sc('Decline')}", f"sosa:no:{order_id}")],
+    ])
+
+
 # ------------------------------- USER -------------------------------
 @Client.on_callback_query(filters.regex(r"^sos:"))
 async def sos_user(client, callback):
@@ -60,23 +81,8 @@ async def sos_user(client, callback):
             return
 
     # 2) Not confirmed by the gateway: send the request to the admin.
-    text = (
-        f"🆘 <b>{sc('Payment support request')}</b>\n\n"
-        f"👤 <b>User:</b> <a href='tg://user?id={user.id}'>{html.escape(user.first_name or 'User')}</a> "
-        f"(<code>{user.id}</code>)\n"
-        f"📌 <b>Item:</b> {html.escape(str(order.get('title') or order.get('kind')))} ({order.get('kind')})\n"
-        f"💰 <b>Amount:</b> ₹{order.get('amount'):g}\n"
-        f"🏷 <b>Gateway:</b> {order.get('provider', 'demotry')}\n"
-        f"🆔 <b>Order ID:</b> <code>{order['order_id']}</code>\n"
-        f"🕒 <b>Created:</b> {_ago(order.get('created_at'))}\n\n"
-        "The gateway does <b>not</b> show this order as paid yet."
-    )
-    kb = InlineKeyboardMarkup([
-        [_btn(f"🔍 {sc('Check with gateway')}", f"sosa:chk:{order['order_id']}")],
-        [_btn(f"✅ {sc('Force deliver')}", f"sosa:ok:{order['order_id']}"), _btn(f"❌ {sc('Decline')}", f"sosa:no:{order['order_id']}")],
-    ])
     try:
-        await client.send_message(ADMIN_ID, text, reply_markup=kb)
+        await client.send_message(ADMIN_ID, _request_text(order, user.first_name), reply_markup=_request_buttons(order["order_id"]))
     except Exception as e:
         print(f"SOS: could not message the admin: {e}")
 
@@ -96,7 +102,7 @@ async def sos_admin(client, callback):
     if order.get("status") == "PAID" and action != "no":
         return await callback.answer("This order is already completed.", show_alert=True)
 
-    base = callback.message.text.html if callback.message.text else ""
+    base = _request_text(order)   # rebuilt from the order, so it works for plain and rich messages alike
 
     async def mark(note: str):
         try:
@@ -118,15 +124,14 @@ async def sos_admin(client, callback):
             _btn(f"✅ {sc('Yes, deliver')}", f"sosa:okc:{order_id}"), _btn(f"⬅️ {sc('No')}", f"sosa:back:{order_id}")
         ]])
         await callback.answer()
-        return await callback.message.edit_reply_markup(kb)
+        return await callback.message.edit_text(
+            f"{base}\n\n⚠️ <b>Deliver without gateway proof?</b> Only do this if you have verified the payment yourself.",
+            reply_markup=kb
+        )
 
     if action == "back":
         await callback.answer()
-        kb = InlineKeyboardMarkup([
-            [_btn(f"🔍 {sc('Check with gateway')}", f"sosa:chk:{order_id}")],
-            [_btn(f"✅ {sc('Force deliver')}", f"sosa:ok:{order_id}"), _btn(f"❌ {sc('Decline')}", f"sosa:no:{order_id}")],
-        ])
-        return await callback.message.edit_reply_markup(kb)
+        return await callback.message.edit_text(base, reply_markup=_request_buttons(order_id))
 
     if action == "okc":
         result = await fulfill_order(client, order, float(order.get("amount", 0)), "ADMIN FORCE")

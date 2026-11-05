@@ -30,7 +30,7 @@ from database.db import (
     send_log,
 )
 from style import sc
-from richui import edit_panel, send_panel, rich_enabled, reset_failures
+from richui import edit_panel, send_panel, get_scope, reset_failures
 
 BOOT_TIME = time.time()
 PAGE_SIZE = 8
@@ -128,9 +128,9 @@ async def _run_command(client, callback, cmd):
         pass
 
 
-async def _show(callback, text, markup, notice=None):
+async def _show(callback, text, markup, notice=None, headers=("Setting", "Status")):
     """Edits the panel message in place (never sends a new page unless editing is impossible)."""
-    await edit_panel(callback, text, markup, notice)
+    await edit_panel(callback, text, markup, notice, headers)
 
 
 # ------------------------------- PANELS -------------------------------
@@ -244,7 +244,8 @@ def _version_text():
     h, rem = divmod(uptime, 3600)
     m, _ = divmod(rem, 60)
     lines = [
-        f"ℹ️ <b>{sc('Bot version')}:</b> <code>v{VERSION}</code>",
+        f"ℹ️ <b>{sc('Bot version')}</b>  <code>v{VERSION}</code>",
+        "",
         f"🤖 @{BOT_USERNAME}",
         f"⏱ Uptime: {h}h {m}m",
         "",
@@ -252,7 +253,7 @@ def _version_text():
     ]
     for ver, items in CHANGELOG:
         lines.append(f"\n<b>v{ver}</b>")
-        lines.extend(f"• {it}" for it in items)
+        lines.extend(f"• {html.escape(it)}" for it in items)   # changelog text must never be read as HTML tags
     return "\n".join(lines)
 
 
@@ -265,7 +266,8 @@ async def admin_panel_command(client, message):
 
 @Client.on_message(filters.command("stats") & filters.user(ADMIN_ID) & filters.private, group=1)
 async def stats_command(client, message):
-    await send_panel(message, await _stats_text(), InlineKeyboardMarkup([[_btn(f"🏠 {sc('Admin panel')}", "ap:home")]]))
+    await send_panel(message, await _stats_text(), InlineKeyboardMarkup([[_btn(f"🏠 {sc('Admin panel')}", "ap:home")]]),
+                     headers=("Metric", "Value"))
 
 
 @Client.on_message(filters.command("version") & filters.user(ADMIN_ID) & filters.private, group=1)
@@ -273,19 +275,37 @@ async def version_command(client, message):
     await send_panel(message, _version_text(), InlineKeyboardMarkup([[_btn(f"🏠 {sc('Admin panel')}", "ap:home")]]))
 
 
+_SCOPE_TEXT = {
+    "all": "✅ ON for the whole bot",
+    "admin": "👮 ON for the admin panels only",
+    "off": "❌ OFF",
+}
+
+
+async def _set_scope(scope: str):
+    await set_setting("rich_ui", scope != "off")
+    if scope != "off":
+        await set_setting("rich_scope", scope)
+    reset_failures()
+
+
 @Client.on_message(filters.command("richui") & filters.user(ADMIN_ID) & filters.private, group=1)
 async def richui_command(client, message):
-    """/richui  -> status   |   /richui on   |   /richui off   (big real headings in /admin and /setup)"""
+    """/richui  -> status   |   /richui all   |   /richui admin   |   /richui off"""
     arg = message.command[1].lower() if len(message.command) > 1 else ""
-    if arg in ("on", "off"):
-        await set_setting("rich_ui", arg == "on")
-        reset_failures()
-    state = await rich_enabled()
+    if arg in ("on", "all"):
+        await _set_scope("all")
+    elif arg == "admin":
+        await _set_scope("admin")
+    elif arg == "off":
+        await _set_scope("off")
+    scope = await get_scope()
     await message.reply_text(
-        f"✨ <b>{sc('Big headings')}:</b> {'✅ ON' if state else '❌ OFF'}\n\n"
-        "<code>/richui on</code>  → big headings in /admin and /setup\n"
-        "<code>/richui off</code> → normal messages only\n\n"
-        "<i>If a panel ever looks wrong, send /richui off.</i>"
+        f"✨ <b>{sc('Big headings and tables')}:</b> {_SCOPE_TEXT[scope]}\n\n"
+        "<code>/richui all</code>   → every text screen of the bot\n"
+        "<code>/richui admin</code> → only /admin and /setup\n"
+        "<code>/richui off</code>   → normal messages only\n\n"
+        "<i>If a screen ever looks wrong, send /richui off.</i>"
     )
 
 
@@ -312,10 +332,10 @@ async def admin_panel_callbacks(client, callback):
 
     # ---- big headings on / off ----
     if action == "rich":
-        current = bool(await get_setting("rich_ui", True))
-        await set_setting("rich_ui", not current)
-        reset_failures()
-        await callback.answer("Big headings are ON." if not current else "Big headings are OFF.", show_alert=True)
+        order = ["all", "admin", "off"]
+        nxt = order[(order.index(await get_scope()) + 1) % 3]
+        await _set_scope(nxt)
+        await callback.answer(f"Big headings and tables: {_SCOPE_TEXT[nxt]}", show_alert=True)
         text, markup = _home_panel()
         return await _show(callback, text, markup)
 
@@ -343,7 +363,7 @@ async def admin_panel_callbacks(client, callback):
         await callback.answer("Loading...")
         return await _show(callback, await _stats_text(), InlineKeyboardMarkup([
             [_btn(f"🔄 {sc('Refresh')}", "ap:stats")], [_btn(f"⬅️ {sc('Back')}", "ap:home")]
-        ]))
+        ]), headers=("Metric", "Value"))
 
     if action == "ver":
         return await _show(callback, _version_text(), InlineKeyboardMarkup([
