@@ -17,6 +17,7 @@ from database.db import (
 )
 from gateway import check_order_status
 from version import VERSION
+from richui import install as install_richui
 from fulfill import fulfill_order
 
 
@@ -261,6 +262,9 @@ async def main():
     global bot_instance
     await init_db()
     await start_web_server()
+
+    # Rich Messages for the whole bot: one hook on Client.send_message / edit_message_text (safe fallbacks inside)
+    install_richui()
 
     bot_instance = Client(
         "StorySellerBot",

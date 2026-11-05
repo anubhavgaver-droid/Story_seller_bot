@@ -1,8 +1,13 @@
 """Bot version. Har upgrade par VERSION badlein aur CHANGELOG me upar nayi entry jodein."""
 
-VERSION = "1.0.24"
+VERSION = "1.0.25"
 
 CHANGELOG = [
+    ("1.0.25", [
+        "Whole bot: every text screen now uses Telegram Rich Messages (big heading, bordered tables, buttons inside the message)",
+        "One global hook on Client.send_message / edit_message_text, with automatic fallback per message; /richui all | admin | off",
+        "Admin panels and every button press edit the same message instead of sending a new page",
+    ]),
     ("1.0.24", [
         "Panels (/admin, /setup) now EDIT the same message on every button (Next, Back, Delete list ...)",
         "Big, dark real headings using Telegram Rich Messages (with automatic fallback and a /richui switch)",
