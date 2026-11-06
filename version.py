@@ -1,8 +1,13 @@
 """Bot version. Har upgrade par VERSION badlein aur CHANGELOG me upar nayi entry jodein."""
 
-VERSION = "1.0.25"
+VERSION = "1.0.26"
 
 CHANGELOG = [
+    ("1.0.26", [
+        "New gateway: FamPay (Gmail). Reads the payment-received emails over IMAP and matches each payment by its exact amount and UTR",
+        "Every order gets a unique amount (price plus a few paise); the order is delivered automatically when the matching email arrives",
+        "Spoof protection: only the configured sender, and only when Gmail's DKIM/SPF check passed; a UTR can be used once",
+    ]),
     ("1.0.25", [
         "Whole bot: every text screen now uses Telegram Rich Messages (big heading, bordered tables, buttons inside the message)",
         "One global hook on Client.send_message / edit_message_text, with automatic fallback per message; /richui all | admin | off",

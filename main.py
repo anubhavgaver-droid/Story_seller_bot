@@ -18,6 +18,7 @@ from database.db import (
 from gateway import check_order_status
 from version import VERSION
 from richui import install as install_richui
+from emailpay import poll_loop as email_poll_loop
 from fulfill import fulfill_order
 
 
@@ -277,6 +278,9 @@ async def main():
     await bot_instance.start()
     bot_info = await bot_instance.get_me()
     print(f"🤖 Telegram Bot v{VERSION} Started Successfully! (@{bot_info.username})")
+
+    # Background check of the Gmail payment mails (only does work while the FamPay (Gmail) gateway is active)
+    asyncio.create_task(email_poll_loop(bot_instance))
 
     if LOG_CHANNEL and LOG_CHANNEL != 0:
         try:

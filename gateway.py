@@ -22,6 +22,7 @@ from config import (
     API_KEY_VALUE, API_SECRET_VALUE, PAYMENT_CALLBACK_URL
 )
 from database.db import get_setting, get_payment_order
+import emailpay
 
 _BROWSER_UA = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -55,6 +56,28 @@ GATEWAYS = {
             "Without a webhook, users can still press Verify Payment."
         ),
     },
+    "email": {
+        "title": "FamPay (Gmail)",
+        "fields": [
+            {"name": "email", "label": "Gmail address", "secret": False, "show": True, "min": 6,
+             "regex": r"^[^@\s]+@[^@\s]+\.[^@\s]+$", "regex_error": "That does not look like an email address."},
+            {"name": "app_password", "label": "Gmail App Password", "secret": True, "min": 12},
+            {"name": "sender", "label": "Sender of the payment mails", "secret": False, "show": True, "min": 3},
+            {"name": "auth", "label": "Sender check", "secret": False, "show": True, "min": 1,
+             "choices": ["on", "off"], "optional": True},
+        ],
+        "note": (
+            "The bot reads the payment-received emails in this Gmail and matches each payment by its exact amount "
+            "(price plus a few paise) and its UTR.\n"
+            "1. Google Account → Security → turn ON 2-Step Verification.\n"
+            "2. Security → App passwords → create one → paste the 16 characters here (not your normal password).\n"
+            "3. Gmail → Settings → Forwarding and POP/IMAP → turn ON IMAP.\n"
+            "4. <b>Sender</b> = text from the payment mails' From address, for example <code>fampay</code> or the full address.\n"
+            "5. Also set your FamPay UPI ID (main panel → Change UPI ID).\n"
+            "<i>Tip: use a separate Gmail that only receives forwarded payment mails. Keep <b>Sender check</b> ON: it "
+            "stops forged \"payment received\" emails.</i>"
+        ),
+    },
     "cashfree": {
         "title": "Cashfree",
         "fields": [
@@ -73,9 +96,17 @@ async def load_config() -> dict:
     demotry = raw.get("demotry") or {}
     razorpay = raw.get("razorpay") or {}
     cashfree = raw.get("cashfree") or {}
+    mail = raw.get("email") or {}
     return {
         "active": raw.get("active") or "demotry",
         "upi_id": raw.get("upi_id") or ENV_UPI_ID,
+        "upi_saved": bool(raw.get("upi_id")),      # the e-mail gateway must not fall back to the default env UPI ID
+        "email": {
+            "email": (mail.get("email") or "").strip().lower(),
+            "app_password": re.sub(r"\s+", "", mail.get("app_password") or ""),
+            "sender": (mail.get("sender") or "").strip().lower(),
+            "auth": (mail.get("auth") or "on").strip().lower(),
+        },
         "demotry": {
             "api_key": (demotry.get("api_key") or API_KEY_VALUE or "").strip(),
             "api_secret": (demotry.get("api_secret") or API_SECRET_VALUE or "").strip(),
@@ -105,6 +136,8 @@ def is_configured(gw: str, cfg: dict) -> bool:
             continue
         if not (cfg.get(gw, {}).get(f["name"]) or "").strip():
             return False
+    if gw == "email" and not cfg.get("upi_saved"):
+        return False
     return True
 
 
@@ -334,8 +367,25 @@ async def _check_cashfree(cfg, order_id, ref):
     return False, 0.0, f"Status: {st if st else 'PENDING'}"
 
 
-_CREATORS = {"demotry": _create_demotry, "razorpay": _create_razorpay, "cashfree": _create_cashfree}
-_CHECKERS = {"demotry": _check_demotry, "razorpay": _check_razorpay, "cashfree": _check_cashfree}
+# ----------------------------- FAMPAY via GMAIL (exact-amount matching) -----------------------------
+async def _create_email(cfg, order_id, name, amount):
+    payable = await emailpay.unique_payable(float(amount))
+    if payable is None:
+        return None, None, "All payment slots are busy right now. Please try again in a minute.", True   # retrying instantly cannot help
+    upi_uri = f"upi://pay?pa={cfg['upi_id']}&pn=StorySeller&am={payable:.2f}&cu=INR&tn={order_id}"
+    return upi_uri, {"payable_amount": payable}, None, False
+
+
+async def _check_email(cfg, order_id, ref):
+    order = await get_payment_order(order_id)
+    found, base_amount = await emailpay.check_for_order(order)
+    if found:
+        return True, base_amount, "Payment found in the bank email"
+    return False, 0.0, "Status: PENDING (waiting for the bank email)"
+
+
+_CREATORS = {"demotry": _create_demotry, "razorpay": _create_razorpay, "cashfree": _create_cashfree, "email": _create_email}
+_CHECKERS = {"demotry": _check_demotry, "razorpay": _check_razorpay, "cashfree": _check_cashfree, "email": _check_email}
 
 
 # ----------------------------- PUBLIC API -----------------------------
@@ -360,7 +410,10 @@ async def create_order(user_id: int, user_name: str, amount: float, attempts: in
         try:
             pay_url, ref, err, final = await _CREATORS[gw](cfg, order_id, user_name, amount)
             if pay_url:
-                meta["provider_ref"] = ref
+                if isinstance(ref, dict):      # the e-mail gateway returns {"payable_amount": ...}
+                    meta.update(ref)
+                else:
+                    meta["provider_ref"] = ref
                 return pay_url, order_id, None, meta
             last_err = err or "unknown error"
             if final:
@@ -414,7 +467,7 @@ async def test_gateway(gw: str):
     cfg = await load_config()
     if gw not in GATEWAYS:
         return False, "Unknown gateway"
-    if not is_configured(gw, cfg):
+    if gw != "email" and not is_configured(gw, cfg):
         return False, "Save all the keys first"
 
     try:
@@ -430,6 +483,12 @@ async def test_gateway(gw: str):
             if status >= 500:
                 return False, f"Gateway server error (HTTP {status})"
             return True, f"Keys accepted (HTTP {status})"
+
+        if gw == "email":
+            ok, text = await emailpay.run_test(await emailpay.get_email_cfg())
+            if ok and not cfg.get("upi_saved"):
+                text += "\n\n⚠️ Your FamPay UPI ID is not saved yet (main panel → Change UPI ID)."
+            return ok, text
 
         if gw == "razorpay":
             status, body = await _http("GET", "https://api.razorpay.com/v1/payment_links?count=1",
