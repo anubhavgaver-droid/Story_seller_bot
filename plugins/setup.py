@@ -18,6 +18,7 @@ A secret you send is deleted from the chat as soon as it is saved.
 IMPORTANT (Pyrogram): message.stop_propagation() raises an exception immediately, so it must be the very
 LAST thing a handler does. Calling it first (as v1.0.22 did) silently skipped the saving and the reply.
 """
+import html as _html
 import re
 import time
 
@@ -29,6 +30,7 @@ from config import ADMIN_ID, WEB_APP_URL, BOT_USERNAME
 from database.db import get_setting, set_setting, settings_col
 from gateway import GATEWAYS, load_config, is_configured, mask, test_gateway
 from freeflow import get_ads_config, ads_ready, shorten_url
+from emailpay import status_lines as emailpay_status_lines
 from bonus import get_bonus_config
 from style import sc
 from richui import edit_panel, send_panel, send_panel_to
@@ -102,7 +104,8 @@ def _clean_value(raw: str, field: str = "") -> str:
         v = m.group(1)
 
     v = v.strip().strip("`'\"“”‘’ ")
-    return re.sub(r"\s+", "", v)
+    v = re.sub(r"\s+", "", v)
+    return v.lower() if field == "email" else v
 
 
 def _validate_gateway_value(gw: str, field: str, value: str):
@@ -119,6 +122,8 @@ def _validate_gateway_value(gw: str, field: str, value: str):
         return False, f"It must start with <code>{spec['prefix']}</code> (you sent <code>{value[:6]}…</code>)."
     if spec.get("choices") and value not in spec["choices"]:
         return False, f"Only these values are allowed: {', '.join(spec['choices'])}."
+    if spec.get("regex") and not re.match(spec["regex"], value):
+        return False, spec.get("regex_error", "That value is not in the expected format.")
     return True, ""
 
 
@@ -229,10 +234,14 @@ async def _gateway_panel(gw: str):
                 for c in f["choices"]
             ])
         else:
-            shown = f"✅ <code>{mask(val)}</code>" if val else "❌ not set"
+            shown = (f"✅ <code>{_html.escape(val) if f.get('show') else mask(val)}</code>") if val else "❌ not set"
             lines.append(f"• <b>{f['label']}:</b> {shown}")
             rows.append([_btn(f"✏️ {f['label']}", f"st:f:{gw}:{f['name']}")])
 
+    if gw == "email":
+        lines.append("\n" + await emailpay_status_lines())
+        if not cfg.get("upi_saved"):
+            lines.append("\n⚠️ <b>Your FamPay UPI ID is not saved yet.</b> Use Change UPI ID in the main panel.")
     lines.append("\n" + spec["note"].format(web=WEB_APP_URL.rstrip("/")))
     lines.append(f"\n<i>If a value is not accepted, use: <code>/setkey {gw} &lt;field&gt; &lt;value&gt;</code></i>")
 
@@ -315,6 +324,9 @@ SETKEY_USAGE = (
     "<code>/setkey razorpay key_secret VALUE</code>\n"
     "<code>/setkey cashfree client_id VALUE</code>\n"
     "<code>/setkey cashfree client_secret VALUE</code>\n"
+    "<code>/setkey email email you@gmail.com</code>\n"
+    "<code>/setkey email app_password abcdefghijklmnop</code>\n"
+    "<code>/setkey email sender fampay</code>\n"
     "<code>/setkey upi yourname@bank</code>\n"
     "<code>/setkey ads api_url VALUE</code>  (also api_key, min_seconds)\n"
     "<code>/setkey bonus percent 10</code>  (also min_amount)\n\n"
@@ -605,7 +617,9 @@ async def _process_input(client, message, state):
 
     await _save(f"{gw}.{field}", value)
     label = next(f["label"] for f in GATEWAYS[gw]["fields"] if f["name"] == field)
-    await finish(f"✅ <b>{label} saved</b> (<code>{mask(value)}</code>).", await _gateway_panel(gw))
+    spec_field = next(f for f in GATEWAYS[gw]["fields"] if f["name"] == field)
+    shown = _html.escape(value) if spec_field.get("show") else mask(value)
+    await finish(f"✅ <b>{label} saved</b> (<code>{shown}</code>).", await _gateway_panel(gw))
 
 
 # group=-1 runs before the master input handler in admin.py, so a secret never reaches another handler.

@@ -351,7 +351,8 @@ async def generate_qr_after_terms(client, callback):
     await create_payment_order(
         gen_order_id, user_id, price, kind,
         story_id=story_id, title=title, pay_url=pay_url,
-        provider=gw_meta.get("provider"), provider_ref=gw_meta.get("provider_ref")
+        provider=gw_meta.get("provider"), provider_ref=gw_meta.get("provider_ref"),
+        payable_amount=gw_meta.get("payable_amount")
     )
     ACTIVE_PAYMENTS[user_id] = {
         "title": title, "story_id": story_id, "price": price,
@@ -384,6 +385,22 @@ async def generate_qr_after_terms(client, callback):
             f"⏳ <b>{sc('Time limit')}:</b> 10 minutes\n\n"
             f"📲 <i>1. Scan this QR code with PhonePe, GPay, Paytm or any UPI app.\n"
             f"2. After paying, tap <b>Verify payment</b> below.</i>"
+        )
+    elif provider == "email":
+        # Exact-amount payment: the unique amount is how the bank email is matched to this order
+        payable = float(gw_meta.get("payable_amount") or price)
+        display_amount = f"{payable:.2f}"
+        qr_image_bytes = await generate_exact_website_qr_card(display_amount, pay_url)
+        caption = (
+            f"⚡ <b>{sc('Automatic payment checkout')}</b>\n\n"
+            f"📖 <b>{sc('Item')}:</b> {title}\n"
+            f"💰 <b>{sc('Pay exactly')}:</b> ₹{display_amount}\n"
+            f"🆔 <b>{sc('Order ID')}:</b> <code>{gen_order_id}</code>\n"
+            f"⏳ <b>{sc('Time limit')}:</b> 30 minutes\n\n"
+            f"📲 <i>1. Scan the QR code with any UPI app.\n"
+            f"2. Pay <b>exactly ₹{display_amount}</b>. Do not change the amount: it is how your payment is "
+            f"recognised (₹{payable - price:.2f} of it identifies your order).\n"
+            f"3. Your order is delivered automatically within a minute. If it is not, tap <b>Verify payment</b>.</i>"
         )
     else:
         caption = (
