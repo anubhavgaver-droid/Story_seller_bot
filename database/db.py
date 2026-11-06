@@ -24,6 +24,7 @@ payment_orders_col = db["payment_orders"]    # Every payment order the bot creat
 settings_col = db["settings"]                # Admin switches (auto-pay maintenance, active DB channel)
 claim_tokens_col = db["claim_tokens"]        # Free-story ad-gate tokens
 used_utrs_col = db["used_utrs"]              # Manual-payment UTRs already approved (duplicate guard)
+email_credits_col = db["email_credits"]      # Payment-received emails read from Gmail (one document per email)
 
 
 # -------------------- SETTINGS (admin switches) --------------------
@@ -640,7 +641,7 @@ async def get_verified_order_details(order_id: str):
 # -------------------- PAYMENT ORDERS (restart-safe, one-time fulfilment) --------------------
 async def create_payment_order(order_id: str, user_id: int, amount: float, kind: str,
                                story_id: str = None, title: str = None, pay_url: str = None,
-                               provider: str = None, provider_ref: str = None):
+                               provider: str = None, provider_ref: str = None, payable_amount: float = None):
     """Har gateway order ka record. kind = 'STORY' ya 'WALLET'."""
     await payment_orders_col.insert_one({
         "order_id": order_id,
@@ -652,6 +653,7 @@ async def create_payment_order(order_id: str, user_id: int, amount: float, kind:
         "pay_url": pay_url,
         "provider": provider or "demotry",
         "provider_ref": provider_ref,
+        "payable_amount": round(float(payable_amount), 2) if payable_amount is not None else None,
         "status": "CREATED",
         "created_at": time.time()
     })
@@ -716,6 +718,63 @@ async def use_claim_token(token: str):
         {"$set": {"used": True, "used_at": time.time()}},
         return_document=ReturnDocument.AFTER
     )
+
+
+# -------------------- E-MAIL PAYMENTS (FamPay / bank "payment received" mails in Gmail) --------------------
+async def get_open_email_payables(since_ts: float) -> set:
+    """Unique amounts (in paise) that are already reserved by open e-mail orders."""
+    cur = payment_orders_col.find(
+        {"provider": "email", "status": "CREATED", "created_at": {"$gte": since_ts}},
+        {"payable_amount": 1, "_id": 0}
+    )
+    return {int(round(float(d["payable_amount"]) * 100)) async for d in cur if d.get("payable_amount") is not None}
+
+
+async def find_open_email_orders(amount: float, since_ts: float) -> list:
+    """Open e-mail orders whose unique payable amount equals `amount` (oldest first)."""
+    cur = payment_orders_col.find({
+        "provider": "email", "status": "CREATED",
+        "payable_amount": {"$gte": round(amount - 0.005, 3), "$lte": round(amount + 0.005, 3)},
+        "created_at": {"$gte": since_ts},
+    }).sort("created_at", 1)
+    return await cur.to_list(length=5)
+
+
+async def save_email_credit(doc: dict) -> bool:
+    """False when this e-mail was already stored (same msg_key), so one mail is never processed twice."""
+    try:
+        await email_credits_col.insert_one(doc)
+        return True
+    except DuplicateKeyError:
+        return False
+
+
+async def update_email_credit(msg_key: str, fields: dict):
+    await email_credits_col.update_one({"msg_key": msg_key}, {"$set": fields})
+
+
+async def claim_email_credit(msg_key: str, order_id: str) -> bool:
+    """Atomic: a credit can be attached to exactly one order."""
+    doc = await email_credits_col.find_one_and_update(
+        {"msg_key": msg_key, "status": {"$in": ["NEW", "UNMATCHED"]}},
+        {"$set": {"status": "MATCHED", "order_id": order_id, "matched_at": time.time()}},
+        return_document=ReturnDocument.AFTER
+    )
+    return bool(doc)
+
+
+async def release_email_credit(msg_key: str):
+    await email_credits_col.update_one({"msg_key": msg_key, "status": "MATCHED"}, {"$set": {"status": "UNMATCHED"}})
+
+
+async def get_unmatched_email_credits(since_ts: float, limit: int = 50) -> list:
+    cur = email_credits_col.find({"status": "UNMATCHED", "received_at": {"$gte": since_ts}}).sort("received_at", -1)
+    return await cur.to_list(length=limit)
+
+
+async def get_recent_email_credits(limit: int = 8) -> list:
+    cur = email_credits_col.find({}).sort("created_at", -1)
+    return await cur.to_list(length=limit)
 
 
 # -------------------- UTR DUPLICATE GUARD (manual payments) --------------------
@@ -832,6 +891,8 @@ async def init_db():
         (payment_orders_col, [("user_id", 1), ("status", 1)], {}),
         (claim_tokens_col, [("token", 1)], {"unique": True}),
         (used_utrs_col, [("utr", 1)], {"unique": True}),
+        (email_credits_col, [("msg_key", 1)], {"unique": True}),
+        (payment_orders_col, [("provider", 1), ("status", 1), ("payable_amount", 1)], {}),
     ]
     for col, keys, opts in index_jobs:
         try:
