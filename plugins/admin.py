@@ -50,12 +50,49 @@ def extract_chat_id(text: str):
     return int("-100" + m.group(1)) if m else None
 
 
-def _wrong_channel(user_id: int, text: str):
+def _forward_info(message):
     """
-    Chalte hue wizard (add story / ongoing / complete) me admin ne alag channel ka link bheja?
+    Channel se FORWARD ki hui file/message ka (channel_id, message_id). Forward nahi hai to (None, None).
+    Naye aur purane Pyrogram/Kurigram dono ke fields support karta hai.
+    """
+    try:
+        origin = getattr(message, "forward_origin", None)
+        if origin is not None:
+            chat = getattr(origin, "chat", None) or getattr(origin, "sender_chat", None)
+            mid = getattr(origin, "message_id", None)
+            if chat is not None and mid:
+                return chat.id, int(mid)
+        chat = getattr(message, "forward_from_chat", None)
+        mid = getattr(message, "forward_from_message_id", None)
+        if chat is not None and mid:
+            return chat.id, int(mid)
+    except Exception:
+        pass
+    return None, None
+
+
+def get_msg_id(message):
+    """Message ID: channel se forward ki hui file ho, ya link, ya seedha Message ID - teeno chalenge."""
+    _, fwd_id = _forward_info(message)
+    if fwd_id:
+        return fwd_id
+    return extract_msg_id(message.text)
+
+
+def get_chat_id(message):
+    """Channel ID: forward se (asli channel), warna private link (t.me/c/...) se. Sirf ID ho to None."""
+    fwd_chat, _ = _forward_info(message)
+    if fwd_chat is not None:
+        return fwd_chat
+    return extract_chat_id(message.text)
+
+
+def _wrong_channel(user_id: int, message):
+    """
+    Chalte hue wizard (add story / ongoing / complete) me admin ne alag channel ka link/forward bheja?
     Story ki saari files EK hi DB channel me honi chahiye. Galat ho to expected channel lautata hai.
     """
-    chat = extract_chat_id(text)
+    chat = get_chat_id(message)
     if chat is None:
         return None
     for state in (ADD_STATE, ONGOING_STATE, COMPLETE_STATE):
@@ -699,13 +736,13 @@ async def master_input_handler(client, message):
     user_id = message.from_user.id
 
     # Story ki saari files ek hi DB channel me honi chahiye (link ka channel check)
-    if message.text:
-        _expected = _wrong_channel(user_id, message.text)
+    if message.text or _forward_info(message)[1]:
+        _expected = _wrong_channel(user_id, message)
         if _expected:
             return await message.reply_text(
-                f"❌ <b>This link belongs to a different DB channel!</b>\n\n"
+                f"❌ <b>This link / forwarded file belongs to a different DB channel!</b>\n\n"
                 f"All files of one story must be in the same channel: <code>{_expected}</code>\n"
-                f"Please send a link from the correct channel."
+                f"Please send a link or forward a file from the correct channel."
             )
 
     # 1. EDIT STORY NAME INPUT HANDLER
@@ -877,7 +914,7 @@ async def master_input_handler(client, message):
             )
 
         elif step == 'INPUT_NEW_LAST':
-            new_last = extract_msg_id(message.text)
+            new_last = get_msg_id(message)
             if not new_last:
                 return await message.reply_text("❌ Invalid ID/Link! Valid Link/ID भेजें:")
 
@@ -972,7 +1009,7 @@ async def master_input_handler(client, message):
             )
 
         elif step == 'SINGLE_NEW_LAST':
-            l_id = extract_msg_id(message.text)
+            l_id = get_msg_id(message)
             if not l_id:
                 return await message.reply_text("❌ Invalid ID/Link! Valid Message ID/Link भेजें:")
 
@@ -993,7 +1030,7 @@ async def master_input_handler(client, message):
             )
 
         elif step == 'RANGE_FIRST':
-            f_id = extract_msg_id(message.text)
+            f_id = get_msg_id(message)
             if not f_id:
                 return await message.reply_text("❌ Invalid ID/Link! Valid Message ID ya Telegram Link bhejein:")
 
@@ -1005,7 +1042,7 @@ async def master_input_handler(client, message):
             )
 
         elif step == 'RANGE_LAST':
-            l_id = extract_msg_id(message.text)
+            l_id = get_msg_id(message)
             if not l_id:
                 return await message.reply_text("❌ Invalid ID/Link! Valid Message ID ya Telegram Link bhejein:")
 
@@ -1103,12 +1140,12 @@ async def master_input_handler(client, message):
             await message.reply_text("<b>[sᴛᴇᴘ 9/10]</b> क्या आप इस स्टोरी के लिए <b>🎬 View Demo</b> चालू रखना चाहते हैं?", reply_markup=kb)
 
         elif step == 'FIRST_MSG':
-            first_id = extract_msg_id(message.text)
+            first_id = get_msg_id(message)
             if not first_id:
                 return await message.reply_text("❌ Invalid ID/Link! Valid Message ID or Telegram Link enter karein:")
             
             # Channel: link se (t.me/c/...), warna admin ka "active" DB channel (/dbchannels)
-            link_chat = extract_chat_id(message.text)
+            link_chat = get_chat_id(message)
             if link_chat is not None and link_chat not in DB_CHANNEL_IDS:
                 return await message.reply_text(
                     f"❌ <b>This channel (<code>{link_chat}</code>) is not in the allowed list.</b>\n\n"
@@ -1123,7 +1160,7 @@ async def master_input_handler(client, message):
             await message.reply_text(f"📡 <b>DB Channel:</b> <code>{db_channel}</code>\n\n<b>[sᴛᴇᴘ 10/10]</b> DB Channel से स्टोरी की <b>LAST Message ID / Link</b> भेजें:", reply_markup=ForceReply(True))
 
         elif step == 'LAST_MSG':
-            last_id = extract_msg_id(message.text)
+            last_id = get_msg_id(message)
             if not last_id:
                 return await message.reply_text("❌ Invalid ID/Link! Valid Message ID or Telegram Link enter karein:")
 
@@ -1154,7 +1191,7 @@ async def master_input_handler(client, message):
             await message.reply_text("🔢 इस Button के लिए <b>First Message ID / Link</b> भेजें:", reply_markup=ForceReply(True))
 
         elif step == 'RANGE_FIRST':
-            f_id = extract_msg_id(message.text)
+            f_id = get_msg_id(message)
             if not f_id:
                 return await message.reply_text("❌ Invalid ID/Link! Valid Link send karein:")
             
@@ -1163,7 +1200,7 @@ async def master_input_handler(client, message):
             await message.reply_text("🔢 इस Button के लिए <b>Last Message ID / Link</b> भेजें:", reply_markup=ForceReply(True))
 
         elif step == 'RANGE_LAST':
-            l_id = extract_msg_id(message.text)
+            l_id = get_msg_id(message)
             if not l_id:
                 return await message.reply_text("❌ Invalid ID/Link! Valid Link send karein:")
             
