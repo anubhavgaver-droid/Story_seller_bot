@@ -748,6 +748,19 @@ async def find_open_email_orders(amount: float, since_ts: float) -> list:
     return await cur.to_list(length=5)
 
 
+async def count_other_open_email_orders(user_id: int, since_ts: float) -> int:
+    """Open mail-payment orders of OTHER users created since `since_ts` (decides: direct verify or ask for the UTR)."""
+    return await payment_orders_col.count_documents({
+        "provider": "email", "status": "CREATED",
+        "created_at": {"$gte": since_ts}, "user_id": {"$ne": user_id},
+    })
+
+
+async def find_email_credit_by_order(order_id: str):
+    """The payment mail already matched to this order (a delivery retry must not need a second mail)."""
+    return await email_credits_col.find_one({"order_id": order_id, "status": "MATCHED"}, {"_id": 0})
+
+
 async def save_email_credit(doc: dict) -> bool:
     """False when this e-mail was already stored (same msg_key), so one mail is never processed twice."""
     try:
