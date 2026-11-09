@@ -671,6 +671,14 @@ async def get_latest_open_order(user_id: int):
     )
 
 
+async def set_order_utr(order_id: str, utr: str):
+    """Saves the UTR the user submitted for an open order (the mail-payment check reads it from here)."""
+    await payment_orders_col.update_one(
+        {"order_id": order_id, "status": {"$ne": "PAID"}},
+        {"$set": {"submitted_utr": utr, "utr_submitted_at": time.time()}}
+    )
+
+
 async def claim_payment_order(order_id: str, paid_amount: float):
     """
     Order ko atomic tareeke se PAID mark karta hai. Sirf EK caller ko order doc milta hai,
@@ -782,13 +790,21 @@ async def utr_exists(utr: str) -> bool:
     return bool(await used_utrs_col.find_one({"utr": utr}, {"_id": 1}))
 
 
-async def claim_utr(utr: str, user_id: int) -> bool:
+async def claim_utr(utr: str, user_id: int, order_id: str = None) -> bool:
     """True if this UTR was never approved before (and is now recorded). False if it was already used."""
+    doc = {"utr": utr, "user_id": user_id, "at": time.time()}
+    if order_id:
+        doc["order_id"] = order_id
     try:
-        await used_utrs_col.insert_one({"utr": utr, "user_id": user_id, "at": time.time()})
+        await used_utrs_col.insert_one(doc)
         return True
     except DuplicateKeyError:
         return False
+
+
+async def get_utr_doc(utr: str):
+    """The record of a used UTR (user_id, and order_id for UTRs verified from the bank mail), or None."""
+    return await used_utrs_col.find_one({"utr": utr}, {"_id": 0})
 
 
 # -------------------- SUPPORT ("I paid but did not receive") --------------------
