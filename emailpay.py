@@ -2,14 +2,16 @@
 E-mail payment verification (FamPay / bank "payment received" mails in Gmail).
 
 How it works
-  1. The invoice shows a QR for the plain story price (no extra paise). The user pays and taps "Submit UTR".
-  2. The user sends the 12-digit UTR (transaction ID) of the payment.
-  3. The bot reads the admin's Gmail over IMAP (read-only) and looks for a "payment received" mail that
-       - contains this exact UTR,
-       - contains the exact order amount,
-       - arrived AFTER the invoice was created (older mails are ignored).
-  4. When such a mail is found the order is completed and the UTR is saved, so it can never be used again
-     (shared with the manual-approval UTR guard). One mail can also complete only one order.
+  The invoice shows a QR for the plain story price (no extra paise). The user pays and taps "Verify payment".
+
+  A) Only ONE person has an open order  ->  direct verify, no UTR needed.
+     The bot looks in the admin's Gmail (IMAP, read-only) for a "payment received" mail that has the exact
+     order amount and arrived AFTER the invoice was created. The UTR found in that mail is saved.
+  B) Several people have open orders at the same time  ->  the bot asks for the UTR ("Submit UTR").
+     The mail must contain that exact UTR, the exact amount and must be newer than the invoice.
+
+  In both cases the UTR is saved, so it can never be used again (shared with the manual-approval UTR guard),
+  and one payment mail can complete only one order.
 
 Notes
   - Needs a Google APP PASSWORD (16 characters). The normal Gmail password does not work for IMAP any more.
@@ -32,11 +34,15 @@ from database.db import (
     get_recent_email_credits,
     get_utr_doc,
     claim_utr,
+    count_other_open_email_orders,
+    update_email_credit,
+    find_email_credit_by_order,
 )
 
 ORDER_TTL = 30 * 60          # a payment mail must arrive within 30 minutes after the invoice
 CLOCK_SLACK = 60             # small allowance for clock differences between Gmail and this server
 MAX_SCAN = 30                # most mails looked at in one check
+OPEN_GRACE = 5 * 60          # an order still counts as "open" this long after its 30 minutes
 
 _LOCK = None
 
@@ -190,9 +196,9 @@ def parse_email(raw: bytes, internal_ts=None) -> dict:
     }
 
 
-def mail_matches_order(info: dict, utr: str, amount: float, created: float) -> bool:
-    """True only when the mail is a 'payment received' mail with this UTR and this exact amount, after the invoice."""
-    if not info.get("is_credit") or utr not in info.get("utrs", ()):
+def mail_matches_amount_time(info: dict, amount: float, created: float) -> bool:
+    """'Payment received' mail with this exact amount that arrived after the invoice was created (and in time)."""
+    if not info.get("is_credit"):
         return False
     if not any(abs(a - float(amount)) < 0.005 for a in info.get("amounts", [])):
         return False
@@ -200,6 +206,11 @@ def mail_matches_order(info: dict, utr: str, amount: float, created: float) -> b
     if ts is None:
         return False
     return created - CLOCK_SLACK <= ts <= created + ORDER_TTL + CLOCK_SLACK
+
+
+def mail_matches_order(info: dict, utr: str, amount: float, created: float) -> bool:
+    """Same as above AND the mail contains the UTR the user submitted."""
+    return utr in info.get("utrs", ()) and mail_matches_amount_time(info, amount, created)
 
 
 # ------------------------------- IMAP (blocking, run in a thread) -------------------------------
@@ -260,6 +271,24 @@ def _fetch_candidates(cfg: dict, utr: str, since_ts: float) -> list:
             pass
 
 
+def _fetch_recent(cfg: dict, since_ts: float) -> list:
+    """The newest mails since `since_ts`. Returns [(uid, raw, ts)]."""
+    M = _imap_session(cfg)
+    try:
+        _, data = M.uid("SEARCH", None, "SINCE", _imap_date(since_ts))
+        out = []
+        for u in _uids(data)[-MAX_SCAN:]:
+            raw, ts = _fetch_raw(M, u)
+            if raw:
+                out.append((u, raw, ts))
+        return out
+    finally:
+        try:
+            M.logout()
+        except Exception:
+            pass
+
+
 def _fetch_latest(cfg: dict, count: int):
     M = _imap_session(cfg)
     try:
@@ -292,28 +321,93 @@ def _explain_error(e: Exception) -> str:
     return f"{type(e).__name__}: {msg[:150]}"
 
 
+def _credit_doc(info: dict, uid, utr, amount_list, order_id: str) -> dict:
+    return {
+        "msg_key": info["msg_key"], "uid": uid, "subject": info["subject"][:150], "amounts": amount_list,
+        "utr": utr, "received_at": info["date_ts"], "created_at": time.time(),
+        "status": "MATCHED", "reason": None, "order_id": order_id, "matched_at": time.time(),
+    }
+
+
 async def verify_order_utr(order: dict):
     """
-    Checks the UTR the user submitted for this order.
+    Verifies one mail-payment order.
     Returns (status, base_amount) with status:
-      "paid"   a matching payment mail was found and the UTR is now locked to this order
-      "no_utr" the user has not submitted a UTR yet
+      "paid"   a matching payment mail was found; the UTR (and the mail) are now locked to this order
+      "no_utr" other people are paying at the same time: the user must submit the UTR first
       "used"   this UTR (or this payment mail) was already used
-      "wait"   no matching mail yet (not arrived, wrong UTR, wrong amount or older than the invoice)
+      "wait"   no matching mail yet
       "error"  the mailbox could not be read right now
     """
     if not order or order.get("provider") != "email":
         return "wait", 0.0
-    utr = (order.get("submitted_utr") or "").strip()
-    if not utr:
-        return "no_utr", 0.0
     order_id = order["order_id"]
     amount = float(order.get("amount") or 0)
     created = float(order.get("created_at") or 0)
+    utr = (order.get("submitted_utr") or "").strip()
 
+    # A mail was already matched to this order earlier (delivery failed, user taps Verify again) -> still paid.
+    prior = await find_email_credit_by_order(order_id)
+    if prior:
+        return "paid", amount
+
+    if not utr:
+        # Only ONE person with an open order -> direct verify. Several -> ask for the UTR.
+        others = await count_other_open_email_orders(order["user_id"], time.time() - (ORDER_TTL + OPEN_GRACE))
+        if others > 0:
+            return "no_utr", 0.0
+        return await _verify_direct(order, amount, created)
+    return await _verify_with_utr(order, utr, amount, created)
+
+
+async def _verify_direct(order: dict, amount: float, created: float):
+    """No UTR needed: the exact amount, newer than the invoice, from a mail that was not used before."""
+    order_id = order["order_id"]
+    async with _get_lock():
+        cfg = await get_email_cfg()
+        if not cfg_ready(cfg):
+            return "error", 0.0
+        try:
+            batch = await asyncio.to_thread(_fetch_recent, cfg, created - 86400)
+        except Exception as e:
+            reason = _explain_error(e)
+            await _record_status(error=reason)
+            print(f"[emailpay] {reason}")
+            return "error", 0.0
+        await _record_status(error=None, fetched=len(batch))
+
+        found = []
+        for uid, raw, ts in batch:
+            try:
+                info = parse_email(raw, ts)
+            except Exception as e:
+                print(f"[emailpay] mail {uid} parse error: {type(e).__name__}: {e}")
+                continue
+            if mail_matches_amount_time(info, amount, created):
+                found.append((uid, info))
+        found.sort(key=lambda x: x[1]["date_ts"])      # the oldest matching payment first
+
+        for uid, info in found:
+            utr = info["utr"]
+            # Skip payments that were already used (by another order or by a manual approval).
+            if any([await get_utr_doc(u) for u in info["utrs"]]):
+                continue
+            if not await save_email_credit(_credit_doc(info, uid, utr, info["amounts"], order_id)):
+                continue                                # this mail already completed an order
+            if utr and not await claim_utr(utr, order["user_id"], order_id):
+                # The UTR belongs to someone else: this mail must NOT stay linked to this order.
+                await update_email_credit(info["msg_key"], {"status": "REJECTED", "order_id": None})
+                continue
+            return "paid", amount
+    return "wait", 0.0
+
+
+async def _verify_with_utr(order: dict, utr: str, amount: float, created: float):
+    """The user submitted a UTR: it must be in the mail, together with the exact amount, after the invoice."""
+    order_id = order["order_id"]
     existing = await get_utr_doc(utr)
     if existing:
-        # Already locked to THIS order (the delivery failed earlier and the user taps Verify again) -> still paid.
+        # Already locked to THIS order (delivery failed earlier, user taps Verify again) -> still paid.
         if existing.get("order_id") == order_id:
             return "paid", amount
         return "used", 0.0
@@ -339,16 +433,11 @@ async def verify_order_utr(order: dict):
                 continue
             if not mail_matches_order(info, utr, amount, created):
                 continue
-            # One payment mail completes only one order.
-            doc = {
-                "msg_key": info["msg_key"], "uid": uid, "subject": info["subject"][:150], "amounts": info["amounts"],
-                "utr": utr, "received_at": info["date_ts"], "created_at": time.time(),
-                "status": "MATCHED", "reason": None, "order_id": order_id, "matched_at": time.time(),
-            }
-            if not await save_email_credit(doc):
+            # One payment mail completes only one order; the UTR is locked to this order BEFORE anything is delivered.
+            if not await save_email_credit(_credit_doc(info, uid, utr, info["amounts"], order_id)):
                 return "used", 0.0
-            # The UTR is locked to this order BEFORE anything is delivered.
             if not await claim_utr(utr, order["user_id"], order_id):
+                await update_email_credit(info["msg_key"], {"status": "REJECTED", "order_id": None})
                 return "used", 0.0
             return "paid", amount
     return "wait", 0.0
@@ -361,7 +450,7 @@ async def check_for_order(order: dict):
 
 
 async def poll_loop(client):
-    """Not needed any more: payments are checked when the user submits the UTR (or taps Verify)."""
+    """Not needed: payments are checked when the user taps Verify payment (or submits the UTR)."""
     return
 
 
