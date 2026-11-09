@@ -62,20 +62,15 @@ GATEWAYS = {
             {"name": "email", "label": "Gmail address", "secret": False, "show": True, "min": 6,
              "regex": r"^[^@\s]+@[^@\s]+\.[^@\s]+$", "regex_error": "That does not look like an email address."},
             {"name": "app_password", "label": "Gmail App Password", "secret": True, "min": 12},
-            {"name": "sender", "label": "Sender of the payment mails", "secret": False, "show": True, "min": 3},
-            {"name": "auth", "label": "Sender check", "secret": False, "show": True, "min": 1,
-             "choices": ["on", "off"], "optional": True},
         ],
         "note": (
-            "The bot reads the payment-received emails in this Gmail and matches each payment by its exact amount "
-            "(price plus a few paise) and its UTR.\n"
+            "The user pays the plain story price, taps <b>Submit UTR</b> and sends the 12-digit UTR. The bot then looks for "
+            "the payment-received email with that UTR and the exact amount (it must have arrived after the invoice was created).\n"
             "1. Google Account → Security → turn ON 2-Step Verification.\n"
             "2. Security → App passwords → create one → paste the 16 characters here (not your normal password).\n"
             "3. Gmail → Settings → Forwarding and POP/IMAP → turn ON IMAP.\n"
-            "4. <b>Sender</b> = text from the payment mails' From address, for example <code>fampay</code> or the full address.\n"
-            "5. Also set your FamPay UPI ID (main panel → Change UPI ID).\n"
-            "<i>Tip: use a separate Gmail that only receives forwarded payment mails. Keep <b>Sender check</b> ON: it "
-            "stops forged \"payment received\" emails.</i>"
+            "4. Also set your FamPay UPI ID (main panel → Change UPI ID).\n"
+            "<i>Tip: use a separate Gmail that only receives forwarded payment mails.</i>"
         ),
     },
     "cashfree": {
@@ -104,8 +99,6 @@ async def load_config() -> dict:
         "email": {
             "email": (mail.get("email") or "").strip().lower(),
             "app_password": re.sub(r"\s+", "", mail.get("app_password") or ""),
-            "sender": (mail.get("sender") or "").strip().lower(),
-            "auth": (mail.get("auth") or "on").strip().lower(),
         },
         "demotry": {
             "api_key": (demotry.get("api_key") or API_KEY_VALUE or "").strip(),
@@ -367,21 +360,24 @@ async def _check_cashfree(cfg, order_id, ref):
     return False, 0.0, f"Status: {st if st else 'PENDING'}"
 
 
-# ----------------------------- FAMPAY via GMAIL (exact-amount matching) -----------------------------
+# ----------------------------- FAMPAY via GMAIL (UTR submitted by the user) -----------------------------
 async def _create_email(cfg, order_id, name, amount):
-    payable = await emailpay.unique_payable(float(amount))
-    if payable is None:
-        return None, None, "All payment slots are busy right now. Please try again in a minute.", True   # retrying instantly cannot help
-    upi_uri = f"upi://pay?pa={cfg['upi_id']}&pn=StorySeller&am={payable:.2f}&cu=INR&tn={order_id}"
-    return upi_uri, {"payable_amount": payable}, None, False
+    # Plain story price: no extra paise. The payment is matched later by the UTR the user submits.
+    upi_uri = f"upi://pay?pa={cfg['upi_id']}&pn=StorySeller&am={float(amount):.2f}&cu=INR&tn={order_id}"
+    return upi_uri, None, None, False
 
 
 async def _check_email(cfg, order_id, ref):
     order = await get_payment_order(order_id)
-    found, base_amount = await emailpay.check_for_order(order)
-    if found:
-        return True, base_amount, "Payment found in the bank email"
-    return False, 0.0, "Status: PENDING (waiting for the bank email)"
+    status, base_amount = await emailpay.verify_order_utr(order)
+    if status == "paid":
+        return True, base_amount, "Payment verified"
+    messages = {
+        "no_utr": "Please tap Submit UTR and send your 12-digit UTR first.",
+        "used": "This UTR was already used.",
+        "error": "The payment could not be checked right now. Please try again in a minute.",
+    }
+    return False, 0.0, messages.get(status, "Payment not found yet.")
 
 
 _CREATORS = {"demotry": _create_demotry, "razorpay": _create_razorpay, "cashfree": _create_cashfree, "email": _create_email}
