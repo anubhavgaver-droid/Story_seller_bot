@@ -13,6 +13,7 @@ from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from config import ADMIN_ID, BOT_USERNAME, LOG_CHANNEL
 from gateway import create_order, check_order_status, extract_upi_payload, is_quota_error, is_blocked_error, get_upi_id
 from fulfill import fulfill_order
+import emailpay
 from freeflow import start_free_claim
 from bonus import bonus_amount, bonus_hint
 from style import sc
@@ -27,12 +28,15 @@ from database.db import (
     delivery_link,
     utr_exists,
     claim_utr,
+    set_order_utr,
 )
 
 # Global state
 _LAST_QUOTA_ALERT = [0.0]   # the admin gets the "gateway problem" alert at most once per hour
 ACTIVE_PAYMENTS = {}        # only used by the manual-screenshot flow (the real order record lives in the database)
 WALLET_TOPUP_WAITING = {}
+UTR_WAITING = {}            # user_id -> order_id: the user tapped Submit UTR and must now send the 12-digit UTR
+_UTR_LAST = {}              # user_id -> time of the last UTR check (stops spamming the mailbox)
 
 GUIDE_IMAGE_URL = "https://i.ibb.co/359XV31J/photo-2026-10-01-02-31-01-7691521352814455808.jpg"
 UTR_RE = re.compile(r"\b(\d{12})\b")
@@ -115,6 +119,7 @@ async def cancel_payment_callback(client, callback):
     user_id = callback.from_user.id
     ACTIVE_PAYMENTS.pop(user_id, None)
     WALLET_TOPUP_WAITING.pop(user_id, None)
+    UTR_WAITING.pop(user_id, None)
 
     try:
         await callback.message.delete()
@@ -387,20 +392,17 @@ async def generate_qr_after_terms(client, callback):
             f"2. After paying, tap <b>Verify payment</b> below.</i>"
         )
     elif provider == "email":
-        # Exact-amount payment: the unique amount is how the bank email is matched to this order
-        payable = float(gw_meta.get("payable_amount") or price)
-        display_amount = f"{payable:.2f}"
+        # Plain price QR. The payment is verified from the UTR (transaction ID) the user submits.
         qr_image_bytes = await generate_exact_website_qr_card(display_amount, pay_url)
         caption = (
             f"⚡ <b>{sc('Automatic payment checkout')}</b>\n\n"
             f"📖 <b>{sc('Item')}:</b> {title}\n"
-            f"💰 <b>{sc('Pay exactly')}:</b> ₹{display_amount}\n"
+            f"💰 <b>{sc('Amount')}:</b> ₹{display_amount}\n"
             f"🆔 <b>{sc('Order ID')}:</b> <code>{gen_order_id}</code>\n"
             f"⏳ <b>{sc('Time limit')}:</b> 30 minutes\n\n"
-            f"📲 <i>1. Scan the QR code with any UPI app.\n"
-            f"2. Pay <b>exactly ₹{display_amount}</b>. Do not change the amount: it is how your payment is "
-            f"recognised (₹{payable - price:.2f} of it identifies your order).\n"
-            f"3. Your order is delivered automatically within a minute. If it is not, tap <b>Verify payment</b>.</i>"
+            f"📲 <i>1. Scan the QR code with any UPI app and pay ₹{display_amount}.\n"
+            f"2. After paying, tap <b>Submit UTR</b> and send the 12-digit UTR (transaction ID) from your UPI app.\n"
+            f"3. Your payment is verified automatically. If it is not found yet, wait a minute and tap <b>Verify payment</b>.</i>"
         )
     else:
         caption = (
@@ -415,6 +417,8 @@ async def generate_qr_after_terms(client, callback):
     btn_list = []
     if str(pay_url).startswith(("http://", "https://")):
         btn_list.append([InlineKeyboardButton(f"🌐 {sc('Open payment page')}", style=enums.ButtonStyle.PRIMARY, url=pay_url)])
+    if provider == "email":
+        btn_list.append([InlineKeyboardButton(f"🔢 {sc('Submit UTR')}", style=enums.ButtonStyle.PRIMARY, callback_data=f"utr:{gen_order_id}")])
     btn_list.append([InlineKeyboardButton(f"⚡ {sc('Verify payment')}", style=enums.ButtonStyle.SUCCESS, callback_data=f"chk:{gen_order_id}")])
     btn_list.append([InlineKeyboardButton(f"🆘 {sc('I paid but got nothing')}", callback_data=f"sos:{gen_order_id}")])
     btn_list.append([InlineKeyboardButton(f"❌ {sc('Cancel')}", style=enums.ButtonStyle.DANGER, callback_data="cancel_payment_process")])
@@ -453,10 +457,14 @@ async def direct_verify_payment(client, callback):
             show_alert=True
         )
 
+    is_email = order.get("provider") == "email"
+    if is_email and not order.get("submitted_utr"):
+        return await callback.answer("Please tap Submit UTR first and send your 12-digit UTR.", show_alert=True)
+
     await callback.answer("Checking your payment...")
 
     is_valid, actual_paid, msg = await check_order_status(order["order_id"])
-    if not is_valid:
+    if not is_valid and not is_email:
         await asyncio.sleep(2)
         is_valid, actual_paid, msg = await check_order_status(order["order_id"])
 
@@ -471,10 +479,101 @@ async def direct_verify_payment(client, callback):
             )
         return
 
+    if is_email:
+        return await _temp_notice(
+            callback.message,
+            f"❌ <b>{msg}</b>\nIf you paid, wait a minute and tap Verify payment again, or tap Submit UTR to send the UTR again.",
+            10
+        )
+
     await _temp_notice(
         callback.message,
         "❌ <b>Payment not received yet.</b>\nPlease wait 10 to 20 seconds after paying and tap Verify again.",
         8
+    )
+
+
+# ---------------- SUBMIT UTR (mail-verified payments) ----------------
+
+@Client.on_callback_query(filters.regex(r"^utr:"))
+async def ask_utr(client, callback):
+    user_id = callback.from_user.id
+    order = await get_payment_order(callback.data[4:])
+    if not order or order["user_id"] != user_id or order.get("provider") != "email":
+        return await callback.answer("This session has expired. Please try again.", show_alert=True)
+    if order.get("status") == "PAID":
+        return await callback.answer("This payment has already been verified.", show_alert=True)
+
+    UTR_WAITING[user_id] = order["order_id"]
+    await callback.answer()
+    await callback.message.reply_text(
+        f"🔢 <b>{sc('Submit UTR')}</b>\n\n"
+        "Please send the <b>12-digit UTR / transaction ID</b> of your payment.\n"
+        "<i>You can find it in your UPI app under the payment details.</i>",
+        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(f"❌ {sc('Cancel')}", callback_data="cancel_payment_process")]])
+    )
+
+
+@Client.on_message(filters.private & filters.text & ~filters.command(["start", "cancel"]), group=3)
+async def process_utr_input(client, message):
+    user_id = message.from_user.id
+    order_id = UTR_WAITING.get(user_id)
+    if not order_id:
+        message.continue_propagation()
+        return
+
+    utr = re.sub(r"\s+", "", message.text or "")
+    if not re.fullmatch(r"\d{12}", utr):
+        return await message.reply_text(
+            f"❌ <b>{sc('Invalid UTR')}</b>\nThe UTR is exactly 12 digits. Please send it again."
+        )
+
+    if time.time() - _UTR_LAST.get(user_id, 0) < 10:
+        return await message.reply_text("⏳ Please wait a few seconds before sending again.")
+    _UTR_LAST[user_id] = time.time()
+
+    order = await get_payment_order(order_id)
+    if not order or order["user_id"] != user_id or order.get("provider") != "email":
+        UTR_WAITING.pop(user_id, None)
+        return await message.reply_text("This session has expired. Please start the payment again.")
+    if order.get("status") == "PAID":
+        UTR_WAITING.pop(user_id, None)
+        return await message.reply_text("✅ This payment has already been verified.")
+
+    UTR_WAITING.pop(user_id, None)
+    await set_order_utr(order_id, utr)
+    order["submitted_utr"] = utr
+
+    checking = await message.reply_text("🔍 Checking your payment...")
+    status, paid_amount = await emailpay.verify_order_utr(order)
+    try:
+        await checking.delete()
+    except Exception:
+        pass
+
+    if status == "paid":
+        result = await fulfill_order(client, order, paid_amount, "UTR VERIFY")
+        ACTIVE_PAYMENTS.pop(user_id, None)
+        if result == "error":
+            await _temp_notice(
+                message,
+                "⚠️ <b>Your payment was found, but the update failed.</b>\nPlease tap <b>Verify payment</b> again in a minute.",
+                15
+            )
+        return
+
+    if status == "used":
+        return await message.reply_text(
+            f"⚠️ <b>{sc('This UTR was already used')}</b>\nPlease send the UTR of your new payment."
+        )
+    if status == "error":
+        return await message.reply_text(
+            "⚠️ The payment could not be checked right now.\nYour UTR is saved. Please tap <b>Verify payment</b> again in a minute."
+        )
+    await message.reply_text(
+        f"⏳ <b>{sc('Payment not found yet')}</b>\n"
+        "Your UTR is saved. Wait a minute, then tap <b>Verify payment</b>. "
+        "If you sent a wrong UTR, tap <b>Submit UTR</b> again."
     )
 
 
