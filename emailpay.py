@@ -2,55 +2,43 @@
 E-mail payment verification (FamPay / bank "payment received" mails in Gmail).
 
 How it works
-  1. For every order the bot reserves a UNIQUE amount: price + 1..99 paise (for example Rs 100.37). The invoice shows a QR
-     for exactly that amount and tells the user to pay it unchanged.
-  2. The bot reads the admin's Gmail over IMAP (read-only) and looks only at mails from the configured sender.
-  3. From each mail it extracts the amount(s) and the UTR, and stores the mail so it is never processed twice.
-  4. A credit whose amount equals an open order's unique amount belongs to that order. The order is completed
-     automatically (a background check every ~40 seconds, or immediately when the user taps Verify).
-  5. A UTR can be used only once (shared with the manual-approval UTR guard).
+  1. The invoice shows a QR for the plain story price (no extra paise). The user pays and taps "Submit UTR".
+  2. The user sends the 12-digit UTR (transaction ID) of the payment.
+  3. The bot reads the admin's Gmail over IMAP (read-only) and looks for a "payment received" mail that
+       - contains this exact UTR,
+       - contains the exact order amount,
+       - arrived AFTER the invoice was created (older mails are ignored).
+  4. When such a mail is found the order is completed and the UTR is saved, so it can never be used again
+     (shared with the manual-approval UTR guard). One mail can also complete only one order.
 
-Safety
+Notes
   - Needs a Google APP PASSWORD (16 characters). The normal Gmail password does not work for IMAP any more.
-  - Mails count only if the sender matches the configured text AND Gmail's own DKIM/SPF check passed for that
-    sender's domain (so a forged "payment received" mail cannot unlock a story). It can be switched off, not recommended.
   - Only read access is used. Nothing is ever deleted or sent.
-  - The first run records the newest existing mail as the starting point, so old mails are never replayed.
+  - There is no sender name / sender filter any more: any "payment received" mail with the right UTR + amount counts.
 """
 import asyncio
 import email
 import html as _html
 import imaplib
-import random
 import re
 import time
 from email.header import decode_header, make_header
 from email.utils import parsedate_to_datetime
 
-from config import ADMIN_ID
 from database.db import (
     get_setting,
     set_setting,
-    get_open_email_payables,
-    find_open_email_orders,
     save_email_credit,
-    update_email_credit,
-    claim_email_credit,
-    release_email_credit,
-    get_unmatched_email_credits,
     get_recent_email_credits,
-    utr_exists,
+    get_utr_doc,
     claim_utr,
 )
-from fulfill import fulfill_order
 
-ORDER_TTL = 30 * 60          # an e-mail order can be matched for 30 minutes
-CLOCK_SLACK = 5 * 60         # mail clocks differ a little from ours
-POLL_SECONDS = 40
-MAX_BATCH = 30
+ORDER_TTL = 30 * 60          # a payment mail must arrive within 30 minutes after the invoice
+CLOCK_SLACK = 60             # small allowance for clock differences between Gmail and this server
+MAX_SCAN = 30                # most mails looked at in one check
 
 _LOCK = None
-_ALERT = {"t": 0.0}
 
 _CREDIT_WORDS = ("received", "credited", "credit of", "paid you", "sent you", "deposited", "money in", "payment from")
 _DEBIT_WORDS = ("debited", "you paid", "you sent", "paid to", "sent to", "payment to", "withdrawn")
@@ -63,6 +51,7 @@ _UTR_LABELED = re.compile(
     r"(?:UTR|UPI\s*Ref(?:erence)?(?:\s*(?:No\.?|Number|ID))?|Ref(?:erence)?\s*(?:No\.?|Number|ID)|RRN|Txn\s*ID|Transaction\s*ID)"
     r"\s*[:#\-]?\s*([A-Za-z0-9]{9,22})", re.I)
 _UTR_PLAIN = re.compile(r"(?<!\d)(\d{12})(?!\d)")
+_MONTHS = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
 
 
 def _get_lock() -> "asyncio.Lock":
@@ -73,35 +62,16 @@ def _get_lock() -> "asyncio.Lock":
 
 
 # ------------------------------- configuration -------------------------------
-def _clean_sender(value: str) -> str:
-    return re.sub(r"[^a-z0-9@._\-]", "", (value or "").strip().lower())
-
-
 async def get_email_cfg() -> dict:
     raw = ((await get_setting("gateway_config", {}) or {}).get("email")) or {}
     return {
         "email": (raw.get("email") or "").strip().lower(),
         "app_password": re.sub(r"\s+", "", raw.get("app_password") or ""),
-        "sender": _clean_sender(raw.get("sender")),
-        "auth": (raw.get("auth") or "on").strip().lower(),
     }
 
 
 def cfg_ready(cfg: dict) -> bool:
-    return bool(cfg.get("email") and cfg.get("app_password") and cfg.get("sender"))
-
-
-# ------------------------------- unique amount -------------------------------
-async def unique_payable(base: float):
-    """base + 1..99 paise that no other open e-mail order is using. None if all 99 are taken right now."""
-    taken = await get_open_email_payables(time.time() - ORDER_TTL)
-    base_paise = int(round(float(base) * 100))
-    offsets = list(range(1, 100))
-    random.shuffle(offsets)
-    for off in offsets:
-        if base_paise + off not in taken:
-            return (base_paise + off) / 100.0
-    return None
+    return bool(cfg.get("email") and cfg.get("app_password"))
 
 
 # ------------------------------- parsing (pure functions) -------------------------------
@@ -177,6 +147,13 @@ def extract_utr(text: str):
     return m.group(1) if m else None
 
 
+def extract_utrs(text: str) -> set:
+    """Every UTR-like number in the mail (a mail can contain more than one number)."""
+    found = {m.group(1).upper() for m in _UTR_LABELED.finditer(text)}
+    found.update(m.group(1) for m in _UTR_PLAIN.finditer(text))
+    return found
+
+
 def is_credit_mail(subject: str, body: str) -> bool:
     """True for 'money received' mails. An outgoing-payment mail is not a credit."""
     subj, text = subject.lower(), body.lower()
@@ -188,62 +165,41 @@ def is_credit_mail(subject: str, body: str) -> bool:
     return credit_body and not debit
 
 
-def _domain_of(value: str) -> str:
-    """'@famapp.in', 'bounce@x.famapp.in' or 'famapp.in' -> the domain part, lower-case."""
-    return value.strip().strip("<>@").split("@")[-1].lower()
-
-
-def check_auth(msg, sender: str, required: bool = True):
-    """
-    Gmail writes an 'Authentication-Results' header for every mail it receives. The mail is trusted only when one of
-    these passed AND is tied to the configured sender's domain (an attacker's own domain passing DKIM is not enough):
-      - dmarc=pass with header.from = the sender's domain   (the strongest signal: the From address itself is authentic)
-      - dkim=pass with header.d or header.i (Gmail usually writes header.i=@domain) = the sender's domain
-      - spf=pass with smtp.mailfrom = the sender's domain
-    Returns (ok, detail).
-    """
-    if not required:
-        return True, "check disabled"
-    results = " ".join(str(h) for h in (msg.get_all("Authentication-Results") or [])).lower()
-    if not results:
-        return False, "no Authentication-Results header"
-    key = _domain_of(sender)
-    for m in re.finditer(r"dmarc=pass[^;]*?header\.from=([\w.\-]+)", results):
-        if key in _domain_of(m.group(1)):
-            return True, f"dmarc=pass from={m.group(1)}"
-    for m in re.finditer(r"dkim=pass[^;]*?header\.(?:d|i)=([\w.\-+@]+)", results):
-        if key in _domain_of(m.group(1)):
-            return True, f"dkim=pass {m.group(1)}"
-    for m in re.finditer(r"spf=pass[^;]*?smtp\.mailfrom=([\w.\-+@]+)", results):
-        if key in _domain_of(m.group(1)):
-            return True, f"spf=pass {m.group(1)}"
-    return False, "DMARC/DKIM/SPF did not pass for the sender's domain"
-
-
-def parse_email(raw: bytes, cfg: dict) -> dict:
+def parse_email(raw: bytes, internal_ts=None) -> dict:
+    """internal_ts = the time Gmail itself received the mail (more reliable than the Date header)."""
     msg = email.message_from_bytes(raw)
     subject = _decode(msg.get("Subject"))
     sender = _decode(msg.get("From"))
     body = _body_text(msg)
-    try:
-        date_ts = parsedate_to_datetime(msg.get("Date")).timestamp()
-    except Exception:
-        date_ts = time.time()
-    auth_ok, auth_detail = check_auth(msg, cfg["sender"], cfg.get("auth", "on") != "off")
-    sender_ok = cfg["sender"] in sender.lower()
+    date_ts = internal_ts
+    if date_ts is None:
+        try:
+            date_ts = parsedate_to_datetime(msg.get("Date")).timestamp()
+        except Exception:
+            date_ts = None
+    text = subject + "\n" + body
     msg_key = (msg.get("Message-ID") or "").strip() or f"nokey:{abs(hash((subject, date_ts, body[:200])))}"
     return {
         "msg_key": msg_key[:200],
-        "from": sender,
         "subject": subject,
         "date_ts": date_ts,
         "is_credit": is_credit_mail(subject, body),
-        "amounts": extract_amounts(subject + "\n" + body),
+        "amounts": extract_amounts(text),
         "utr": extract_utr(body) or extract_utr(subject),
-        "sender_ok": sender_ok,
-        "auth_ok": auth_ok,
-        "auth_detail": auth_detail,
+        "utrs": extract_utrs(text),
     }
+
+
+def mail_matches_order(info: dict, utr: str, amount: float, created: float) -> bool:
+    """True only when the mail is a 'payment received' mail with this UTR and this exact amount, after the invoice."""
+    if not info.get("is_credit") or utr not in info.get("utrs", ()):
+        return False
+    if not any(abs(a - float(amount)) < 0.005 for a in info.get("amounts", [])):
+        return False
+    ts = info.get("date_ts")
+    if ts is None:
+        return False
+    return created - CLOCK_SLACK <= ts <= created + ORDER_TTL + CLOCK_SLACK
 
 
 # ------------------------------- IMAP (blocking, run in a thread) -------------------------------
@@ -261,30 +217,42 @@ def _uids(data) -> list:
     return sorted(int(x) for x in (data[0] or b"").split())
 
 
+def _imap_date(ts: float) -> str:
+    t = time.gmtime(ts)
+    return f"{t.tm_mday:02d}-{_MONTHS[t.tm_mon - 1]}-{t.tm_year}"
+
+
 def _fetch_raw(M, uid: int):
-    typ, md = M.uid("FETCH", str(uid), "(BODY.PEEK[])")
+    """Returns (raw_mail_bytes, internal_date_timestamp_or_None)."""
+    typ, md = M.uid("FETCH", str(uid), "(INTERNALDATE BODY.PEEK[])")
     for part in md or []:
         if isinstance(part, tuple):
-            return part[1]
-    return None
+            ts = None
+            try:
+                tt = imaplib.Internaldate2tuple(part[0])
+                ts = time.mktime(tt) if tt else None
+            except Exception:
+                ts = None
+            return part[1], ts
+    return None, None
 
 
-def _fetch_new(cfg: dict, last_uid, limit: int):
-    """Returns ([(uid, raw)], newest_uid_seen). With last_uid=None it only records a starting point."""
+def _fetch_candidates(cfg: dict, utr: str, since_ts: float) -> list:
+    """Mails since `since_ts` that contain the UTR (falls back to the newest mails). Returns [(uid, raw, ts)]."""
     M = _imap_session(cfg)
     try:
-        if last_uid is None:
-            _, data = M.uid("SEARCH", None, "ALL")
+        since = _imap_date(since_ts)
+        _, data = M.uid("SEARCH", None, "SINCE", since, "TEXT", utr)
+        uids = _uids(data)
+        if not uids:                       # Gmail's text search can miss numbers: look at the newest mails instead
+            _, data = M.uid("SEARCH", None, "SINCE", since)
             uids = _uids(data)
-            return [], (uids[-1] if uids else 0)
-        _, data = M.uid("SEARCH", None, "UID", f"{last_uid + 1}:*", "FROM", f'"{cfg["sender"]}"')
-        uids = [u for u in _uids(data) if u > last_uid][:limit]
         out = []
-        for u in uids:
-            raw = _fetch_raw(M, u)
+        for u in uids[-MAX_SCAN:]:
+            raw, ts = _fetch_raw(M, u)
             if raw:
-                out.append((u, raw))
-        return out, (uids[-1] if uids else last_uid)
+                out.append((u, raw, ts))
+        return out
     finally:
         try:
             M.logout()
@@ -295,13 +263,13 @@ def _fetch_new(cfg: dict, last_uid, limit: int):
 def _fetch_latest(cfg: dict, count: int):
     M = _imap_session(cfg)
     try:
-        _, data = M.uid("SEARCH", None, "FROM", f'"{cfg["sender"]}"')
+        _, data = M.uid("SEARCH", None, "ALL")
         uids = _uids(data)
         out = []
         for u in uids[-count:]:
-            raw = _fetch_raw(M, u)
+            raw, ts = _fetch_raw(M, u)
             if raw:
-                out.append((u, raw))
+                out.append((u, raw, ts))
         return out, len(uids)
     finally:
         try:
@@ -310,19 +278,9 @@ def _fetch_latest(cfg: dict, count: int):
             pass
 
 
-# ------------------------------- processing -------------------------------
+# ------------------------------- verification -------------------------------
 async def _record_status(error=None, fetched=0):
     await set_setting("email_status", {"t": time.time(), "error": error, "fetched": fetched})
-
-
-async def _alert_admin(client, text: str):
-    if client is None or time.time() - _ALERT["t"] < 3600:
-        return
-    _ALERT["t"] = time.time()
-    try:
-        await client.send_message(ADMIN_ID, text)
-    except Exception:
-        pass
 
 
 def _explain_error(e: Exception) -> str:
@@ -334,140 +292,77 @@ def _explain_error(e: Exception) -> str:
     return f"{type(e).__name__}: {msg[:150]}"
 
 
-async def _find_order(credit: dict):
-    now = time.time()
-    for amount in credit["amounts"]:
-        for order in await find_open_email_orders(amount, now - ORDER_TTL - CLOCK_SLACK):
-            created = order.get("created_at", 0)
-            if created - CLOCK_SLACK <= credit["received_at"] <= created + ORDER_TTL + CLOCK_SLACK:
-                return order
-    return None
-
-
-async def _try_match(client, credit: dict, auto: bool) -> str:
-    key = credit["msg_key"]
-    if credit.get("utr") and await utr_exists(credit["utr"]):
-        await update_email_credit(key, {"status": "IGNORED", "reason": "UTR already used"})
-        return "duplicate"
-    if not auto:                      # user pressed Verify: the order itself will be completed by the caller
-        await update_email_credit(key, {"status": "UNMATCHED"})
-        return "stored"
-    order = await _find_order(credit)
-    if not order:
-        await update_email_credit(key, {"status": "UNMATCHED"})
-        return "unmatched"
-    if not await claim_email_credit(key, order["order_id"]):
-        return "taken"
-    result = await fulfill_order(client, order, float(order["amount"]), "EMAIL")
-    if result in ("done", "already"):
-        if credit.get("utr"):
-            await claim_utr(credit["utr"], order["user_id"])
-        return "matched"
-    await release_email_credit(key)
-    return "error"
-
-
-async def _handle_email(client, uid: int, info: dict, auto: bool) -> str:
-    doc = {
-        "msg_key": info["msg_key"], "uid": uid, "subject": info["subject"][:150], "sender": info["from"][:120],
-        "amounts": info["amounts"], "utr": info["utr"], "received_at": info["date_ts"], "created_at": time.time(),
-        "status": "NEW", "reason": None, "auth": info["auth_detail"][:120],
-    }
-    if not info["sender_ok"]:
-        doc.update(status="IGNORED", reason="sender does not match")
-    elif not info["is_credit"]:
-        doc.update(status="IGNORED", reason="not a payment-received mail")
-    elif not info["auth_ok"]:
-        doc.update(status="IGNORED", reason=f"sender not verified: {info['auth_detail']}")
-    elif not info["amounts"]:
-        doc.update(status="IGNORED", reason="no amount found")
-
-    if not await save_email_credit(doc):
-        return "seen"
-    if doc["status"] != "NEW":
-        return "ignored"
-    return await _try_match(client, doc, auto)
-
-
-async def process_new_mail(client, auto: bool = True) -> dict:
+async def verify_order_utr(order: dict):
     """
-    Reads new mails once. auto=True completes matching orders (background loop).
-    auto=False only stores the credits (used when a user taps Verify, the caller completes the order itself).
+    Checks the UTR the user submitted for this order.
+    Returns (status, base_amount) with status:
+      "paid"   a matching payment mail was found and the UTR is now locked to this order
+      "no_utr" the user has not submitted a UTR yet
+      "used"   this UTR (or this payment mail) was already used
+      "wait"   no matching mail yet (not arrived, wrong UTR, wrong amount or older than the invoice)
+      "error"  the mailbox could not be read right now
     """
-    summary = {"fetched": 0, "matched": 0}
+    if not order or order.get("provider") != "email":
+        return "wait", 0.0
+    utr = (order.get("submitted_utr") or "").strip()
+    if not utr:
+        return "no_utr", 0.0
+    order_id = order["order_id"]
+    amount = float(order.get("amount") or 0)
+    created = float(order.get("created_at") or 0)
+
+    existing = await get_utr_doc(utr)
+    if existing:
+        # Already locked to THIS order (the delivery failed earlier and the user taps Verify again) -> still paid.
+        if existing.get("order_id") == order_id:
+            return "paid", amount
+        return "used", 0.0
+
     async with _get_lock():
         cfg = await get_email_cfg()
         if not cfg_ready(cfg):
-            return summary
-        last = await get_setting("email_last_uid")
+            return "error", 0.0
         try:
-            batch, newest = await asyncio.to_thread(_fetch_new, cfg, last, MAX_BATCH)
+            batch = await asyncio.to_thread(_fetch_candidates, cfg, utr, created - 86400)
         except Exception as e:
             reason = _explain_error(e)
             await _record_status(error=reason)
             print(f"[emailpay] {reason}")
-            await _alert_admin(client, f"⚠️ <b>Gmail payment check failed</b>\n\n{_html.escape(reason)}")
-            return summary
-
-        if last is None:
-            await set_setting("email_last_uid", newest)       # starting point: old mails are never replayed
-            await _record_status(error=None, fetched=0)
-            return summary
-
-        for uid, raw in batch:
-            try:
-                outcome = await _handle_email(client, uid, parse_email(raw, cfg), auto)
-                if outcome == "matched":
-                    summary["matched"] += 1
-            except Exception as e:
-                print(f"[emailpay] mail {uid} error: {type(e).__name__}: {e}")
-        if newest != last:
-            await set_setting("email_last_uid", newest)
-        summary["fetched"] = len(batch)
+            return "error", 0.0
         await _record_status(error=None, fetched=len(batch))
-    return summary
+
+        for uid, raw, ts in batch:
+            try:
+                info = parse_email(raw, ts)
+            except Exception as e:
+                print(f"[emailpay] mail {uid} parse error: {type(e).__name__}: {e}")
+                continue
+            if not mail_matches_order(info, utr, amount, created):
+                continue
+            # One payment mail completes only one order.
+            doc = {
+                "msg_key": info["msg_key"], "uid": uid, "subject": info["subject"][:150], "amounts": info["amounts"],
+                "utr": utr, "received_at": info["date_ts"], "created_at": time.time(),
+                "status": "MATCHED", "reason": None, "order_id": order_id, "matched_at": time.time(),
+            }
+            if not await save_email_credit(doc):
+                return "used", 0.0
+            # The UTR is locked to this order BEFORE anything is delivered.
+            if not await claim_utr(utr, order["user_id"], order_id):
+                return "used", 0.0
+            return "paid", amount
+    return "wait", 0.0
 
 
 async def check_for_order(order: dict):
-    """
-    Used by the Verify button. Reads new mail, then looks for a stored, unused credit with this order's unique amount.
-    Returns (found, base_amount).
-    """
-    if not order or order.get("provider") != "email":
-        return False, 0.0
-    await process_new_mail(None, auto=False)
-    payable = order.get("payable_amount")
-    if payable is None:
-        return False, 0.0
-    created = order.get("created_at", 0)
-    for credit in await get_unmatched_email_credits(created - CLOCK_SLACK):
-        if not any(abs(a - payable) < 0.005 for a in credit.get("amounts", [])):
-            continue
-        if credit["received_at"] > created + ORDER_TTL + CLOCK_SLACK:
-            continue
-        if credit.get("utr") and await utr_exists(credit["utr"]):
-            continue
-        if await claim_email_credit(credit["msg_key"], order["order_id"]):
-            if credit.get("utr"):
-                await claim_utr(credit["utr"], order["user_id"])
-            return True, float(order["amount"])
-    return False, 0.0
-
-
-async def _email_active() -> bool:
-    return ((await get_setting("gateway_config", {}) or {}).get("active")) == "email"
+    """Used by the Verify button. Returns (found, base_amount)."""
+    status, amount = await verify_order_utr(order)
+    return status == "paid", (amount if status == "paid" else 0.0)
 
 
 async def poll_loop(client):
-    """Background task: while the e-mail gateway is the active one, check the mailbox every ~40 seconds."""
-    await asyncio.sleep(20)
-    while True:
-        try:
-            if await _email_active():
-                await process_new_mail(client, auto=True)
-        except Exception as e:
-            print(f"[emailpay] loop error: {type(e).__name__}: {e}")
-        await asyncio.sleep(POLL_SECONDS + random.randint(0, 8))
+    """Not needed any more: payments are checked when the user submits the UTR (or taps Verify)."""
+    return
 
 
 # ------------------------------- admin helpers -------------------------------
@@ -476,7 +371,6 @@ async def status_lines() -> str:
     st = await get_setting("email_status") or {}
     credits = await get_recent_email_credits(100)
     matched = sum(1 for c in credits if c.get("status") == "MATCHED")
-    unmatched = sum(1 for c in credits if c.get("status") == "UNMATCHED")
     if st.get("t"):
         secs = int(time.time() - st["t"])
         ago = f"{secs} seconds ago" if secs < 120 else f"{secs // 60} minutes ago"
@@ -486,32 +380,29 @@ async def status_lines() -> str:
     return (
         f"📡 <b>Last check:</b> {ago}\n"
         f"🩺 <b>Status:</b> {state}\n"
-        f"✅ <b>Payments matched:</b> {matched}\n"
-        f"⏳ <b>Unmatched credits:</b> {unmatched}"
+        f"✅ <b>Payments verified:</b> {matched}"
     )
 
 
 async def run_test(cfg: dict):
-    """Logs in and shows how the newest mails from the sender are understood. Returns (ok, text)."""
+    """Logs in and shows how the newest mails are understood. Returns (ok, text)."""
     if not cfg_ready(cfg):
-        return False, "Save the Gmail address, the app password and the sender first."
+        return False, "Save the Gmail address and the app password first."
     try:
         batch, total = await asyncio.to_thread(_fetch_latest, cfg, 3)
     except Exception as e:
         return False, _explain_error(e)
 
     if not batch:
-        return True, (f"Login works. No mail from “{cfg['sender']}” was found yet. Check the sender text, or make a "
-                      "small payment and test again.")
-    lines = [f"Login works. {total} mails from “{cfg['sender']}”. Newest {len(batch)}:"]
-    for uid, raw in reversed(batch):
-        info = parse_email(raw, cfg)
+        return True, "Login works. The inbox has no mail yet. Make a small payment and test again."
+    lines = [f"Login works. {total} mails in the inbox. Newest {len(batch)}:"]
+    for uid, raw, ts in reversed(batch):
+        info = parse_email(raw, ts)
         amounts = ", ".join(f"₹{a:g}" for a in info["amounts"][:4]) or "none"
         lines.append(
             f"\n• <b>{_html.escape(info['subject'][:60])}</b>\n"
             f"  Payment received mail: {'yes' if info['is_credit'] else 'no'}\n"
             f"  Amounts found: {amounts}\n"
-            f"  UTR found: {info['utr'] or 'none'}\n"
-            f"  Sender check: {'passed' if info['auth_ok'] else 'FAILED'} ({_html.escape(info['auth_detail'])})"
+            f"  UTR found: {info['utr'] or 'none'}"
         )
     return True, "\n".join(lines)
