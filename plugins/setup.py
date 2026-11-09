@@ -326,7 +326,6 @@ SETKEY_USAGE = (
     "<code>/setkey cashfree client_secret VALUE</code>\n"
     "<code>/setkey email email you@gmail.com</code>\n"
     "<code>/setkey email app_password abcdefghijklmnop</code>\n"
-    "<code>/setkey email sender fampay</code>\n"
     "<code>/setkey upi yourname@bank</code>\n"
     "<code>/setkey ads api_url VALUE</code>  (also api_key, min_seconds)\n"
     "<code>/setkey bonus percent 10</code>  (also min_amount)\n\n"
