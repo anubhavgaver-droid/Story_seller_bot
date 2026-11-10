@@ -82,17 +82,18 @@ button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:poin
 .speed .lbl{font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:var(--muted);font-weight:700}
 .speed .val{font-size:34px;font-weight:800;letter-spacing:-.02em;background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent;font-variant-numeric:tabular-nums}
 .speed .tag{font-size:12px;color:var(--muted);margin-left:8px}
-.sw{height:54px;margin:6px -4px 2px}
-.sw canvas{width:100%;height:100%;display:block}
-.slider{display:flex;align-items:center;gap:10px}
-.step{width:38px;height:38px;border-radius:12px;background:var(--glass);border:1px solid var(--glass-b);font-size:20px;line-height:1;display:grid;place-items:center;flex:none}
-.step:active{transform:scale(.92)}
-input[type=range]{-webkit-appearance:none;appearance:none;flex:1;height:38px;background:transparent;margin:0;outline:none}
-input[type=range]::-webkit-slider-runnable-track{height:6px;border-radius:99px;background:linear-gradient(90deg,var(--a1) var(--p,33%),var(--faint) var(--p,33%))}
-input[type=range]::-moz-range-track{height:6px;border-radius:99px;background:var(--faint)}
-input[type=range]::-moz-range-progress{height:6px;border-radius:99px;background:var(--a1)}
-input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:26px;height:26px;border-radius:50%;margin-top:-10px;background:#fff;box-shadow:0 0 0 6px rgba(255,179,71,.25),0 4px 14px rgba(0,0,0,.5)}
-input[type=range]::-moz-range-thumb{width:26px;height:26px;border:0;border-radius:50%;background:#fff;box-shadow:0 0 0 6px rgba(255,179,71,.25),0 4px 14px rgba(0,0,0,.5)}
+.speed .val{cursor:pointer}
+.sw{position:relative;height:92px;margin:4px -4px 0;touch-action:pan-y}
+.sw canvas{position:absolute;inset:0;width:100%;height:100%;display:block;pointer-events:none}
+.sw input[type=range]{-webkit-appearance:none;appearance:none;position:absolute;inset:0;width:100%;height:100%;margin:0;opacity:0;cursor:grab;background:transparent}
+.sw input[type=range]::-webkit-slider-runnable-track{height:100%;background:transparent}
+.sw input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:28px;height:92px;background:transparent;border:0}
+.sw input[type=range]::-moz-range-track{height:100%;background:transparent}
+.sw input[type=range]::-moz-range-thumb{width:28px;height:92px;background:transparent;border:0}
+.ticks{position:relative;height:18px;margin:0 -4px}
+.ticks span{position:absolute;top:0;transform:translateX(-50%);font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums;transition:color .2s}
+.ticks span.on{color:var(--a1);font-weight:700}
+.hint{margin:8px 0 0;text-align:center;font-size:11px;color:rgba(246,244,255,.4)}
 .chips{display:flex;gap:8px;overflow-x:auto;margin:10px -4px 0;padding:2px 4px;scrollbar-width:none}
 .chips::-webkit-scrollbar{display:none}
 .chip{flex:none;padding:8px 13px;border-radius:99px;font-size:13px;font-weight:650;background:var(--glass);border:1px solid var(--glass-b);color:var(--muted);transition:all .2s}
@@ -181,13 +182,12 @@ ul{list-style:none;margin:0;padding:0}
         <span class="lbl">Speed</span>
         <span><span class="val" id="sval">1.00×</span><span class="tag" id="stag">Normal</span></span>
       </div>
-      <div class="sw"><canvas id="sc"></canvas></div>
-      <div class="slider">
-        <button class="step" id="sdn" aria-label="Slower">−</button>
-        <input type="range" id="srange" min="0.5" max="3" step="0.05" value="1">
-        <button class="step" id="sup" aria-label="Faster">+</button>
+      <div class="sw" id="swrap">
+        <canvas id="sc"></canvas>
+        <input type="range" id="srange" min="0.5" max="3" step="0.05" value="1" aria-label="Playback speed">
       </div>
-      <div class="chips" id="schips"></div>
+      <div class="ticks" id="ticks"></div>
+      <p class="hint">Drag the wave left or right to change the speed · tap the number to reset</p>
     </div>
 
     <div class="card sleep">
@@ -258,7 +258,7 @@ ul{list-style:none;margin:0;padding:0}
   /* ---------- state ---------- */
   var media = $("media"), data = null, items = [], idx = -1, filter = "";
   var speed = clamp(parseFloat(store("watch.speed")) || 1, 0.5, 3);
-  var bars = [], dragging = false, dragRatio = 0, lastSave = 0, retried = {}, sleepEnd = 0, sleepTimer = null;
+  var bars = [], dragging = false, dragRatio = 0, lastSave = 0, tries = {}, stallT = 0, sleepEnd = 0, sleepTimer = null;
   var wantPlay = false, pendingSeek = 0;
 
   /* ---------- screens ---------- */
@@ -344,6 +344,7 @@ ul{list-style:none;margin:0;padding:0}
     var saved = keepTime || parseFloat(store("watch.pos." + storyId + "." + it.id)) || 0;
     pendingSeek = saved;
     media.src = it.url; media.load();
+    $("play").classList.add("busy"); armStall();
     applySpeed(false);
     store("watch.last." + storyId, String(it.id));
     highlight(); setMediaSession(it);
@@ -351,10 +352,12 @@ ul{list-style:none;margin:0;padding:0}
   }
 
   function play() {
+    wantPlay = true;                              // the user wants sound: a reload after a hiccup must start playing again
     var p = media.play();
     if (p && p.catch) p.catch(function () { setPlayingUI(false); });
   }
-  function toggle() { haptic(); if (media.paused) play(); else media.pause(); }
+  function pauseByUser() { wantPlay = false; media.pause(); }
+  function toggle() { haptic(); if (media.paused) play(); else pauseByUser(); }
   function setPlayingUI(on) {
     $("ico-play").classList.toggle("hide", on);
     $("ico-pause").classList.toggle("hide", !on);
@@ -374,16 +377,17 @@ ul{list-style:none;margin:0;padding:0}
 
   /* media events */
   media.addEventListener("loadedmetadata", function () {
+    clearStall(); if (media.paused) $("play").classList.remove("busy");
     var d = media.duration;
     if (isFinite(d)) $("dur").textContent = fmt(d);
     if (pendingSeek > 5 && isFinite(d) && pendingSeek < d - 10) { try { media.currentTime = pendingSeek; } catch (e) {} }
     pendingSeek = 0; applySpeed(false);
   });
   media.addEventListener("play", function () { setPlayingUI(true); applySpeed(false); });
-  media.addEventListener("playing", function () { $("play").classList.remove("busy"); setPlayingUI(true); });
-  media.addEventListener("pause", function () { setPlayingUI(false); $("play").classList.remove("busy"); saveNow(); });
-  media.addEventListener("waiting", function () { $("play").classList.add("busy"); });
-  media.addEventListener("canplay", function () { $("play").classList.remove("busy"); });
+  media.addEventListener("playing", function () { clearStall(); if (items[idx]) tries[items[idx].id] = 0; $("play").classList.remove("busy"); setPlayingUI(true); });
+  media.addEventListener("pause", function () { setPlayingUI(false); clearStall(); $("play").classList.remove("busy"); saveNow(); });
+  media.addEventListener("waiting", function () { $("play").classList.add("busy"); armStall(); });
+  media.addEventListener("canplay", function () { clearStall(); $("play").classList.remove("busy"); });
   media.addEventListener("timeupdate", function () {
     if (!dragging) $("cur").textContent = fmt(media.currentTime);
     var now = Date.now(); if (now - lastSave > 3000) { lastSave = now; saveNow(); }
@@ -393,18 +397,33 @@ ul{list-style:none;margin:0;padding:0}
     store("watch.pos." + storyId + "." + items[idx].id, "0");
     if (idx < items.length - 1) load(idx + 1, true); else { setPlayingUI(false); toast("That was the last one 🎉"); }
   });
-  media.addEventListener("error", function () {
+  media.addEventListener("error", function () { reloadCurrent("Reconnecting…"); });
+
+  /* If a file does not start (slow server / busy / expired link), try again by itself instead of spinning forever. */
+  function armStall() { clearTimeout(stallT); stallT = setTimeout(function () { reloadCurrent("Slow connection, retrying…"); }, 15000); }
+  function clearStall() { clearTimeout(stallT); }
+  function reloadCurrent(why) {
     var it = items[idx]; if (!it) return;
-    if (retried[it.id]) { toast("Could not play this file"); return; }
-    retried[it.id] = true;                       // the stream link may have expired: get fresh links once
-    var t = media.currentTime || 0, was = !media.paused || wantPlay;
-    fetchPlaylist().then(function (res) {
-      if (res.status !== 200) return toast("Could not play this file");
-      var fresh = res.body.items || [];
-      for (var i = 0; i < fresh.length; i++) for (var k = 0; k < items.length; k++) if (items[k].id === fresh[i].id) items[k].url = fresh[i].url;
-      load(idx, was, t);
-    }).catch(function () { toast("No connection"); });
-  });
+    clearStall();
+    tries[it.id] = (tries[it.id] || 0) + 1;
+    if (tries[it.id] > 3) { $("play").classList.remove("busy"); toast("Could not load this file. Tap play to try again."); tries[it.id] = 0; return; }
+    toast(why);
+    var t = media.currentTime || pendingSeek || 0, n = tries[it.id], id = it.id;
+    function again() {                                           // decided at the moment of reloading: the user may have tapped play meanwhile
+      if (!items[idx] || items[idx].id !== id) return;
+      load(idx, wantPlay || !media.paused, Math.max(t, media.currentTime || 0));
+    }
+    setTimeout(function () {
+      if (!items[idx] || items[idx].id !== id) return;          // the user already moved to another file
+      fetchPlaylist().then(function (res) {                      // fresh links (the old one may have expired)
+        if (res.status === 200) {
+          var fresh = res.body.items || [];
+          for (var i = 0; i < fresh.length; i++) for (var k = 0; k < items.length; k++) if (items[k].id === fresh[i].id) items[k].url = fresh[i].url;
+        }
+        again();
+      }).catch(again);
+    }, 1000 * n);
+  }
   function saveNow() {
     var it = items[idx]; if (!it || !media.currentTime) return;
     store("watch.pos." + storyId + "." + it.id, String(Math.floor(media.currentTime)));
@@ -470,28 +489,28 @@ ul{list-style:none;margin:0;padding:0}
     try { navigator.mediaSession.setPositionState({ duration: d, playbackRate: media.playbackRate || 1, position: clamp(media.currentTime || 0, 0, d) }); } catch (e) {}
   }
 
-  /* ---------- speed ---------- */
-  var SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2, 3];
+  /* ---------- speed: the wave itself is the control (drag it, 0.5x - 3x) ---------- */
+  var PAD = 14, lastStep = -1;
   function buildSpeedUI() {
-    var box = $("schips"); box.textContent = "";
-    SPEEDS.forEach(function (s) {
-      var b = document.createElement("button"); b.className = "chip"; b.textContent = s + "×"; b.dataset.s = s;
-      b.onclick = function () { haptic(); setSpeed(s); }; box.appendChild(b);
+    var tk = $("ticks"); tk.textContent = "";
+    [0.5, 1, 1.5, 2, 2.5, 3].forEach(function (v) {
+      var sp = document.createElement("span"); sp.textContent = v + "×"; sp.dataset.v = v;
+      sp.style.left = "calc(" + PAD + "px + " + ((v - 0.5) / 2.5) + " * (100% - " + (PAD * 2) + "px))"; tk.appendChild(sp);
     });
-    $("srange").oninput = function () { setSpeed(parseFloat(this.value), true); };
-    $("sdn").onclick = function () { haptic(); setSpeed(speed - 0.05); };
-    $("sup").onclick = function () { haptic(); setSpeed(speed + 0.05); };
+    $("srange").oninput = function () { setSpeed(parseFloat(this.value)); };
+    $("sval").onclick = function () { haptic(); setSpeed(1); };
     setSpeed(speed);
   }
-  function setSpeed(s, fromSlider) {
+  function setSpeed(s) {
     speed = Math.round(clamp(s, 0.5, 3) * 20) / 20;
     store("watch.speed", String(speed));
-    var r = $("srange"); if (!fromSlider) r.value = speed;
-    r.style.setProperty("--p", ((speed - 0.5) / 2.5 * 100) + "%");
+    var step = Math.round(speed * 20);
+    if (step !== lastStep) { lastStep = step; try { tg && tg.HapticFeedback && tg.HapticFeedback.selectionChanged(); } catch (e) {} }
+    $("srange").value = speed;
     $("sval").textContent = speed.toFixed(2) + "×"; $("stag").textContent = speedTag(speed);
-    var chips = $("schips").children;
-    for (var i = 0; i < chips.length; i++) chips[i].classList.toggle("on", Math.abs(parseFloat(chips[i].dataset.s) - speed) < 0.001);
-    applySpeed(true);
+    var tk = $("ticks").children;
+    for (var i = 0; i < tk.length; i++) tk[i].classList.toggle("on", Math.abs(parseFloat(tk[i].dataset.v) - speed) < 0.001);
+    applySpeed();
   }
   function applySpeed() {
     try {
@@ -504,21 +523,30 @@ ul{list-style:none;margin:0;padding:0}
     var r = sc.getBoundingClientRect(); SW = r.width; SH = r.height;
     sc.width = Math.round(SW * dpr); sc.height = Math.round(SH * dpr); sx.setTransform(dpr, 0, 0, dpr, 0, 0);
   }
-  function drawSpeedWave(t) {                       // a living wave: faster speed = more waves, moving faster
+  function drawSpeedWave(t) {              // a living wave: faster speed = more waves, moving faster. A knob rides on it.
     if (!SW) return;
     sx.clearRect(0, 0, SW, SH);
-    var mid = SH / 2, amp = SH * (0.22 + 0.2 * (speed - 0.5) / 2.5), freq = 1.2 + speed * 1.6, ph = t / 1000 * (1.5 + speed * 2.2);
-    for (var k = 0; k < 3; k++) {
-      var g = sx.createLinearGradient(0, 0, SW, 0);
-      g.addColorStop(0, "rgba(255,179,71," + (0.9 - k * 0.3) + ")"); g.addColorStop(0.55, "rgba(255,95,143," + (0.9 - k * 0.3) + ")"); g.addColorStop(1, "rgba(139,108,255," + (0.9 - k * 0.3) + ")");
-      sx.strokeStyle = g; sx.lineWidth = 3 - k * 0.8; sx.lineCap = "round"; sx.beginPath();
-      for (var x = 0; x <= SW; x += 3) {
-        var env = Math.sin(Math.PI * x / SW);       // calm at both edges
-        var y = mid + Math.sin(x / SW * Math.PI * 2 * freq + ph + k * 0.9) * amp * env * (1 - k * 0.25);
-        if (x === 0) sx.moveTo(x, y); else sx.lineTo(x, y);
+    var mid = SH / 2, amp = SH * (0.16 + 0.2 * (speed - 0.5) / 2.5), freq = 1.2 + speed * 1.6, ph = t / 1000 * (1.5 + speed * 2.2);
+    var span = SW - PAD * 2, kx = PAD + (speed - 0.5) / 2.5 * span;
+    function yAt(x, k) { var env = Math.sin(Math.PI * x / SW); return mid + Math.sin(x / SW * Math.PI * 2 * freq + ph + k * 0.9) * amp * env * (1 - k * 0.25); }
+    var g = sx.createLinearGradient(0, 0, SW, 0);
+    g.addColorStop(0, "#ffb347"); g.addColorStop(0.55, "#ff5f8f"); g.addColorStop(1, "#8b6cff");
+    sx.lineCap = "round"; sx.lineJoin = "round";
+    for (var k = 2; k >= 0; k--) {          // soft background waves first, the main wave last (on top)
+      for (var pass = 0; pass < 2; pass++) { // pass 0 = part after the knob (dim), pass 1 = part up to the knob (bright)
+        if (k > 0 && pass === 0) continue;
+        sx.beginPath();
+        var x0 = pass === 0 ? kx : 0, x1 = pass === 0 ? SW : kx, first = true;
+        for (var x = x0; x <= x1; x += 3) { var y = yAt(x, k); if (first) { sx.moveTo(x, y); first = false; } else sx.lineTo(x, y); }
+        if (k === 0) { sx.strokeStyle = pass === 0 ? "rgba(255,255,255,.28)" : g; sx.lineWidth = pass === 0 ? 3 : 4.5; }
+        else { sx.strokeStyle = g; sx.globalAlpha = 0.3 - k * 0.08; sx.lineWidth = 2; }
+        sx.stroke(); sx.globalAlpha = 1;
       }
-      sx.stroke();
     }
+    var ky = yAt(kx, 0);                    // the knob
+    sx.save(); sx.shadowColor = "rgba(255,95,143,.95)"; sx.shadowBlur = 22;
+    sx.fillStyle = "rgba(255,179,71,.28)"; sx.beginPath(); sx.arc(kx, ky, 17, 0, Math.PI * 2); sx.fill();
+    sx.fillStyle = "#fff"; sx.beginPath(); sx.arc(kx, ky, 10.5, 0, Math.PI * 2); sx.fill(); sx.restore();
   }
 
   /* ---------- sleep timer ---------- */
@@ -541,7 +569,7 @@ ul{list-style:none;margin:0;padding:0}
   function tickSleep() {
     var left = Math.round((sleepEnd - Date.now()) / 1000);
     if (left <= 0) {
-      clearInterval(sleepTimer); sleepEnd = 0; media.pause(); $("sleftt").textContent = "";
+      clearInterval(sleepTimer); sleepEnd = 0; pauseByUser(); $("sleftt").textContent = "";
       var c = $("zchips").children; for (var i = 0; i < c.length; i++) c[i].classList.toggle("on", i === 0);
       return toast("Sleep timer ended 🌙");
     }
@@ -586,7 +614,7 @@ ul{list-style:none;margin:0;padding:0}
       navigator.mediaSession.metadata = new MediaMetadata({ title: it.title, artist: data.title || "", album: "Stream", artwork: art });
       var ms = navigator.mediaSession;
       ms.setActionHandler("play", function () { play(); });
-      ms.setActionHandler("pause", function () { media.pause(); });
+      ms.setActionHandler("pause", function () { pauseByUser(); });
       ms.setActionHandler("previoustrack", function () { go(-1); });
       ms.setActionHandler("nexttrack", function () { go(1); });
       ms.setActionHandler("seekbackward", function () { seekBy(-15); });
