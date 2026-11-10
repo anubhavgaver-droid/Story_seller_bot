@@ -25,6 +25,35 @@ settings_col = db["settings"]                # Admin switches (auto-pay maintena
 claim_tokens_col = db["claim_tokens"]        # Free-story ad-gate tokens
 used_utrs_col = db["used_utrs"]              # Manual-payment UTRs already approved (duplicate guard)
 email_credits_col = db["email_credits"]      # Payment-received emails read from Gmail (one document per email)
+deliveries_col = db["deliveries"]            # Audio/video files delivered to each user per story (what the Stream player shows)
+
+
+# -------------------- DELIVERED FILES (Stream player) --------------------
+async def record_delivered(user_id: int, story_id: str, items: list):
+    """
+    Saves the audio/video files that were delivered to this user for this story (id, title, size, file_id ...).
+    The Stream player shows exactly these files and needs NO Telegram call to open.
+    New items are added; an item that is delivered again just replaces its old entry.
+    """
+    if not items:
+        return
+    doc = await deliveries_col.find_one({"user_id": user_id, "story_id": story_id}, {"items": 1}) or {}
+    merged = {it["id"]: it for it in (doc.get("items") or [])}
+    for it in items:
+        merged[it["id"]] = it
+    ordered = [merged[k] for k in sorted(merged)]
+    await deliveries_col.update_one(
+        {"user_id": user_id, "story_id": story_id},
+        {"$set": {"items": ordered, "updated_at": time.time()}},
+        upsert=True
+    )
+
+
+async def get_delivered(user_id: int, story_id: str):
+    """List of delivered files for this user+story, or None when nothing was recorded (delivered before this feature)."""
+    doc = await deliveries_col.find_one({"user_id": user_id, "story_id": story_id}, {"items": 1})
+    items = (doc or {}).get("items")
+    return items or None
 
 
 # -------------------- SETTINGS (admin switches) --------------------
@@ -921,6 +950,7 @@ async def init_db():
         (claim_tokens_col, [("token", 1)], {"unique": True}),
         (used_utrs_col, [("utr", 1)], {"unique": True}),
         (email_credits_col, [("msg_key", 1)], {"unique": True}),
+        (deliveries_col, [("user_id", 1), ("story_id", 1)], {"unique": True}),
         (payment_orders_col, [("provider", 1), ("status", 1), ("payable_amount", 1)], {}),
     ]
     for col, keys, opts in index_jobs:
