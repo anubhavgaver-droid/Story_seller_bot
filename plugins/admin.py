@@ -53,17 +53,28 @@ def extract_chat_id(text: str):
 def _forward_info(message):
     """
     Channel se FORWARD ki hui file/message ka (channel_id, message_id). Forward nahi hai to (None, None).
-    Naye aur purane Pyrogram/Kurigram dono ke fields support karta hai.
+    Naya `forward_origin` pehle padhta hai (purane forward_from_chat / forward_from_message_id "deprecated" warning
+    dete hain, isliye woh sirf tab use hote hain jab library me forward_origin hota hi nahi).
     """
+    _missing = object()
     try:
-        origin = getattr(message, "forward_origin", None)
-        if origin is not None:
-            chat = getattr(origin, "chat", None) or getattr(origin, "sender_chat", None)
+        origin = getattr(message, "forward_origin", _missing)
+        if origin is not _missing:
+            if origin is None:
+                return None, None
             mid = getattr(origin, "message_id", None)
-            if chat is not None and mid:
-                return chat.id, int(mid)
-        chat = getattr(message, "forward_from_chat", None)
-        mid = getattr(message, "forward_from_message_id", None)
+            inner = getattr(origin, "chat", None)
+            for cand in (getattr(inner, "sender_chat", None), getattr(origin, "sender_chat", None), inner):
+                cid = getattr(cand, "id", None)
+                if cid is not None and mid:
+                    return cid, int(mid)
+            return None, None
+        # very old library without forward_origin
+        import warnings
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            chat = getattr(message, "forward_from_chat", None)
+            mid = getattr(message, "forward_from_message_id", None)
         if chat is not None and mid:
             return chat.id, int(mid)
     except Exception:
