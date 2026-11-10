@@ -1,4 +1,3 @@
-
 """
 WATCH / STREAM module  (folder: watch/)
 
@@ -7,6 +6,14 @@ What it does
   * The button opens a Telegram Mini App (watch/watch.html) with a premium player: speed control from 0.5x to 3x,
     waveform seek bar, +-15s, next/previous, sleep timer, resume position and the full playlist of the story.
   * Files are streamed straight from the DB channel through the bot (HTTP Range supported, so seeking works).
+
+Speed + reliability
+  * The files that were delivered to the user are saved in the database at delivery time (start.py), together with
+    the Telegram file_id. The player therefore lists EXACTLY the delivered files and opens WITHOUT any Telegram call
+    (Telegram's "GetMessages" flood limit can no longer make the player wait).
+  * Every stream link carries the file info, so a stream starts with one Telegram download call.
+  * One response is limited to 8 MB (the player simply asks for the next part), a busy server answers "busy"
+    instead of making the player wait forever.
 
 Security
   * The user is identified ONLY by the signed Telegram "initData" (same check as /api/user_purchases).
@@ -32,7 +39,7 @@ from urllib.parse import parse_qsl
 from aiohttp import web
 
 from config import BOT_TOKEN, ADMIN_ID, WEB_APP_URL
-from database.db import get_story_by_id, is_story_unlocked, story_channel
+from database.db import get_story_by_id, is_story_unlocked, story_channel, get_delivered
 
 try:
     from pyrogram.errors import FloodWait
@@ -46,7 +53,11 @@ TOKEN_TTL = 6 * 3600              # a stream link works for 6 hours
 PLAYLIST_TTL = 10 * 60            # story file list is cached for 10 minutes
 INFO_TTL = 30 * 60                # file info (file_id, size) is cached for 30 minutes
 MAX_FILES = 1500                  # most files listed for one story
-MAX_STREAMS = 8                   # parallel streams (protects a small server)
+MAX_STREAMS = 20                  # parallel stream responses (each one is at most MAX_RESPONSE bytes)
+MAX_RESPONSE = 8 * 1024 * 1024    # one HTTP response never sends more than this; the player asks for the next part
+SLOT_WAIT = 15                    # seconds a request may wait for a free stream slot, then "busy"
+FIRST_CHUNK_TIMEOUT = 25          # seconds Telegram gets to deliver the first chunk
+SCAN_TIMEOUT = 25                 # seconds the (rare) Telegram scan of a story may take
 
 _KEY = hashlib.sha256(("watch-v1|" + str(BOT_TOKEN)).encode()).digest()
 _PLAYLISTS = {}                   # story_id -> (time, chat_id, [items])
@@ -90,8 +101,10 @@ def verify_init_data(init_data: str, bot_token: str = None, max_age: int = 86400
         return None
 
 
-def make_token(user_id: int, story_id: str, chat_id: int, msg_id: int, ttl: int = TOKEN_TTL) -> str:
-    payload = {"u": int(user_id), "s": str(story_id), "c": int(chat_id), "m": int(msg_id), "e": int(time.time() + ttl)}
+def make_token(user_id: int, story_id: str, chat_id: int, msg_id: int,
+               file_id: str = "", size: int = 0, mime: str = "", ttl: int = TOKEN_TTL) -> str:
+    payload = {"u": int(user_id), "s": str(story_id), "c": int(chat_id), "m": int(msg_id),
+               "f": file_id or "", "z": int(size or 0), "t": mime or "", "e": int(time.time() + ttl)}
     raw = base64.urlsafe_b64encode(json.dumps(payload, separators=(",", ":")).encode()).rstrip(b"=")
     sig = hmac.new(_KEY, raw, hashlib.sha256).hexdigest()[:32]
     return raw.decode() + "." + sig
@@ -229,7 +242,7 @@ async def _build_playlist(bot, story: dict):
             items.append({
                 "id": msg.id, "title": _title_for(msg, media, len(items) + 1), "kind": kind,
                 "mime": mime, "size": int(getattr(media, "file_size", 0) or 0),
-                "duration": int(getattr(media, "duration", 0) or 0),
+                "duration": int(getattr(media, "duration", 0) or 0), "file_id": media.file_id,
             })
     items.sort(key=lambda x: x["id"])
     return chat_id, items
@@ -256,6 +269,25 @@ async def _get_info(bot, chat_id: int, msg_id: int, force: bool = False):
         return None
     _remember(chat_id, msg_id, *found)
     return _INFO.get((chat_id, msg_id))
+
+
+def describe_media(msg, index: int = 0):
+    """
+    One delivered audio/video file as a small dict (None for other file types). start.py saves it when the file is
+    delivered, so the Stream player can list it later without asking Telegram.
+    """
+    try:
+        found = media_of(msg)
+        if not found:
+            return None
+        kind, media, mime = found
+        return {
+            "id": msg.id, "title": _title_for(msg, media, index or 1), "kind": kind, "mime": mime,
+            "size": int(getattr(media, "file_size", 0) or 0), "duration": int(getattr(media, "duration", 0) or 0),
+            "file_id": media.file_id,
+        }
+    except Exception:
+        return None
 
 
 # ------------------------------- the button under each file -------------------------------
@@ -326,15 +358,24 @@ async def handle_playlist(request):
     if uid != int(ADMIN_ID) and not await is_story_unlocked(uid, title, sid):
         return _json({"error": "not_purchased"}, 403)
 
-    bot = request.app.get("watch_bot_getter", lambda: None)()
-    if bot is None:
-        return _json({"error": "starting"}, 503)
+    chat_id = story_channel(story)
+    items = await get_delivered(uid, sid)          # exactly the files the bot delivered to this user
+    if not items:
+        # Nothing recorded (delivered before this update, or the admin previewing): list the story's files once.
+        bot = request.app.get("watch_bot_getter", lambda: None)()
+        if bot is None:
+            return _json({"error": "starting"}, 503)
+        try:
+            chat_id, items = await asyncio.wait_for(_playlist(bot, story), SCAN_TIMEOUT)
+        except asyncio.TimeoutError:
+            return _json({"error": "busy"}, 503)
 
-    chat_id, items = await _playlist(bot, story)
     out = []
     for it in items:
-        row = dict(it)
-        row["url"] = "/watch/stream/" + make_token(uid, sid, chat_id, it["id"])
+        if not it.get("file_id"):
+            continue
+        row = {k: v for k, v in it.items() if k != "file_id"}      # the file_id stays on the server side of the token
+        row["url"] = "/watch/stream/" + make_token(uid, sid, chat_id, it["id"], it["file_id"], it.get("size", 0), it.get("mime", ""))
         out.append(row)
     photo = story.get("photo")
     return _json({
@@ -352,7 +393,7 @@ async def _open_stream(bot, chat_id: int, msg_id: int, info: dict, start: int, n
     for attempt in (0, 1):
         agen = bot.stream_media(info["file_id"], limit=limit, offset=first_chunk_no)
         try:
-            first = await agen.__anext__()
+            first = await asyncio.wait_for(agen.__anext__(), FIRST_CHUNK_TIMEOUT)
             return agen, first, info
         except StopAsyncIteration:
             return agen, b"", info
@@ -363,7 +404,10 @@ async def _open_stream(bot, chat_id: int, msg_id: int, info: dict, start: int, n
             except Exception:
                 pass
             if attempt == 0:
-                fresh = await _get_info(bot, chat_id, msg_id, force=True)
+                try:
+                    fresh = await asyncio.wait_for(_get_info(bot, chat_id, msg_id, force=True), 15)
+                except Exception:
+                    fresh = None
                 if not fresh:
                     break
                 info = fresh
@@ -376,12 +420,15 @@ async def handle_stream(request):
         return web.Response(status=403, text="Link expired. Please reopen the player.")
     bot = request.app.get("watch_bot_getter", lambda: None)()
     if bot is None:
-        return web.Response(status=503, text="Starting, try again")
+        return web.Response(status=503, headers={"Retry-After": "3"}, text="Starting, try again")
 
     chat_id, msg_id = int(tok["c"]), int(tok["m"])
-    info = await _get_info(bot, chat_id, msg_id)
-    if not info:
-        return web.Response(status=404, text="File not found")
+    if tok.get("f"):                                          # the link carries the file info: no Telegram call needed
+        info = {"file_id": tok["f"], "size": int(tok.get("z") or 0), "mime": tok.get("t") or "application/octet-stream"}
+    else:                                                     # old-style link
+        info = await _get_info(bot, chat_id, msg_id)
+        if not info:
+            return web.Response(status=404, text="File not found")
 
     size = info["size"]
     headers = {
@@ -400,16 +447,21 @@ async def handle_stream(request):
             start, end, status = 0, size - 1, 200
         else:
             (start, end), status = rng, 206
+            end = min(end, start + MAX_RESPONSE - 1)          # a part at a time; the player asks for the next one
             headers["Content-Range"] = f"bytes {start}-{end}/{size}"
         need = end - start + 1
         headers["Content-Length"] = str(need)
-    else:                                                   # size unknown: send everything, no ranges
+    else:                                                     # size unknown: send everything, no ranges
         start, need, status = 0, None, 200
 
     if request.method == "HEAD":
         return web.Response(status=status, headers=headers)
 
-    async with _slots():
+    try:
+        await asyncio.wait_for(_slots().acquire(), SLOT_WAIT)
+    except asyncio.TimeoutError:
+        return web.Response(status=503, headers={"Retry-After": "3"}, text="Busy, try again")
+    try:
         try:
             agen, first, info = await _open_stream(bot, chat_id, msg_id, info, start, need)
         except Exception as e:
@@ -437,7 +489,7 @@ async def handle_stream(request):
                 except StopAsyncIteration:
                     break
         except (ConnectionResetError, asyncio.CancelledError):
-            pass                                            # the player closed the connection (seek / stop)
+            pass                                              # the player closed the connection (seek / stop)
         except Exception as e:
             print(f"[watch] stream error: {type(e).__name__}: {e}")
         finally:
@@ -450,6 +502,8 @@ async def handle_stream(request):
         except Exception:
             pass
         return resp
+    finally:
+        _slots().release()
 
 
 def setup_watch_routes(app, get_bot):
