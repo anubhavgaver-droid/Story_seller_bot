@@ -20,6 +20,11 @@ from version import VERSION
 from richui import install as install_richui
 from emailpay import poll_loop as email_poll_loop
 from fulfill import fulfill_order
+try:
+    from watch.watch import setup_watch_routes      # 🎧 Stream / Watch player
+except Exception as _watch_err:                      # the bot must still start if the watch/ folder is missing
+    setup_watch_routes = None
+    print(f"⚠️ Stream player (watch/) not loaded: {_watch_err}")
 
 
 # Plugins setup
@@ -246,6 +251,10 @@ async def start_web_server():
     
     app_web.router.add_get("/api/stories", handle_get_stories)
     app_web.router.add_get("/api/user_purchases", handle_get_user_purchases)
+
+    # 🎧 Stream / Watch player (watch/ folder): /watch, /api/watch/playlist, /watch/stream/<token>
+    if setup_watch_routes:
+        setup_watch_routes(app_web, lambda: bot_instance)
 
     if os.path.exists(WEB_DIR):
         app_web.router.add_static("/web/", path=WEB_DIR, name="web")
