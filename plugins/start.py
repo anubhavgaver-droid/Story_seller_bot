@@ -20,6 +20,7 @@ from pyrogram.enums import ParseMode
 
 # Required Database functions
 from database.db import (
+    record_delivered,
     story_channel,
     get_story_by_title,
     get_story_by_key,
@@ -39,10 +40,32 @@ from database.db import (
 )
 # 🎧 Stream button under every audio/video file (watch/ folder). If it ever fails, delivery works exactly as before.
 try:
-    from watch.watch import stream_markup
+    from watch.watch import stream_markup, describe_media
 except Exception:
     def stream_markup(story, msg):
         return None
+
+    def describe_media(msg, index=0):
+        return None
+
+# A button that is answered too late (or twice) raises QUERY_ID_INVALID. That must never crash a handler or skip its work
+# (for example "Clean chat" used to stop before deleting anything). Every callback_query.answer() in every plugin is safe now.
+try:
+    from pyrogram.types import CallbackQuery as _CQ
+    from pyrogram.errors import QueryIdInvalid as _QueryIdInvalid
+    if not getattr(_CQ, "_safe_answer_patched", False):
+        _orig_cq_answer = _CQ.answer
+
+        async def _safe_cq_answer(self, *args, **kwargs):
+            try:
+                return await _orig_cq_answer(self, *args, **kwargs)
+            except _QueryIdInvalid:
+                return None
+
+        _CQ.answer = _safe_cq_answer
+        _CQ._safe_answer_patched = True
+except Exception as _cq_err:
+    print(f"Could not enable safe callback answers: {_cq_err}")
 
 # Config file imports
 from config import (
@@ -240,6 +263,34 @@ async def send_story_files_start(client, user_id, story, first_id, last_id, clea
     )
 
     is_stopped_by_user = False
+    delivered_items = []          # audio/video files delivered now: saved for the Stream player
+    _fetched = {}                 # message_id -> message (None = empty)
+
+    async def _get_story_msg(mid):
+        """
+        One Telegram call fetches the next 100 messages. (The old code asked for every file separately, so many
+        users at once triggered "Waiting for 30 seconds ... channels.GetMessages" flood waits in the logs.)
+        """
+        if mid not in _fetched:
+            ids = list(range(mid, min(mid + 99, last_id) + 1))
+            res = []
+            while True:
+                try:
+                    res = await client.get_messages(chat_id=story_channel(story), message_ids=ids)
+                    break
+                except FloodWait as e:
+                    await asyncio.sleep(e.value + 1)
+                except Exception as e:
+                    print(f"Error fetching msgs {ids[0]}-{ids[-1]}: {e}")
+                    break
+            if not isinstance(res, list):
+                res = [res]
+            for m in res:
+                if m is not None and not getattr(m, "empty", False):
+                    _fetched[m.id] = m
+            for i in ids:
+                _fetched.setdefault(i, None)
+        return _fetched.get(mid)
 
     for msg_id in range(first_id, last_id + 1):
         if user_id in STOP_DELIVERY_USERS:
@@ -247,16 +298,7 @@ async def send_story_files_start(client, user_id, story, first_id, last_id, clea
             STOP_DELIVERY_USERS.remove(user_id)
             break
 
-        msg = None
-        while True:
-            try:
-                msg = await client.get_messages(chat_id=story_channel(story), message_ids=msg_id)
-                break
-            except FloodWait as e:
-                await asyncio.sleep(e.value + 1)
-            except Exception as e:
-                print(f"Error fetching msg {msg_id}: {e}")
-                break
+        msg = await _get_story_msg(msg_id)
 
         if not msg or msg.empty:
             continue
@@ -280,6 +322,9 @@ async def send_story_files_start(client, user_id, story, first_id, last_id, clea
                 sent_messages_obj.append(sent_msg)
                 sent_message_ids.append(sent_msg.id)
                 success_count += 1
+                _item = describe_media(msg, len(delivered_items) + 1)
+                if _item:
+                    delivered_items.append(_item)
 
                 if success_count % 3 == 0:
                     try:
@@ -300,6 +345,12 @@ async def send_story_files_start(client, user_id, story, first_id, last_id, clea
                 break
 
         await asyncio.sleep(1.8)
+
+    if delivered_items:                                   # the Stream player shows exactly these files for this user
+        try:
+            await record_delivered(user_id, str(story.get("story_id") or story.get("_id")), delivered_items)
+        except Exception as e:
+            print(f"Could not save delivered files for the Stream player: {e}")
 
     try:
         if status_sticker: await status_sticker.delete()
