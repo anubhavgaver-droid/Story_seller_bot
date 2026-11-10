@@ -37,6 +37,13 @@ from database.db import (
     get_referred_users_count,
     users_col
 )
+# 🎧 Stream button under every audio/video file (watch/ folder). If it ever fails, delivery works exactly as before.
+try:
+    from watch.watch import stream_markup
+except Exception:
+    def stream_markup(story, msg):
+        return None
+
 # Config file imports
 from config import (
     BOT_USERNAME, 
@@ -267,7 +274,8 @@ async def send_story_files_start(client, user_id, story, first_id, last_id, clea
                     chat_id=user_id,
                     from_chat_id=story_channel(story),
                     message_id=msg.id,
-                    protect_content=True
+                    protect_content=True,
+                    reply_markup=stream_markup(story, msg)
                 )
                 sent_messages_obj.append(sent_msg)
                 sent_message_ids.append(sent_msg.id)
