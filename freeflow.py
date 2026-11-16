@@ -108,12 +108,16 @@ async def _send_access(client, user_id: int, story, text: str):
 
 
 async def _grant(client, user_id: int, story, via: str = "FREE"):
+    from cards import send_success
     clean_title = _clean_title(story)
     await add_user_purchase(user_id, clean_title, story_id=story.get("story_id"))
-    await _send_access(
-        client, user_id, story,
-        f"🎉 <b>{sc('Claimed successfully')}</b>\n\n📖 <b>{sc('Story')}:</b> {clean_title}\n\nTap the button below to get your files."
-    )
+    link = delivery_link(story.get("story_id")) if story.get("story_id") else None
+    # Same congratulations card as a purchase (the old plain message is only the fallback).
+    if not await send_success(client, user_id, story=story, paid="FREE 🎁", method="Free", link=link):
+        await _send_access(
+            client, user_id, story,
+            f"🎉 <b>{sc('Claimed successfully')}</b>\n\n📖 <b>{sc('Story')}:</b> {clean_title}\n\nTap the button below to get your files."
+        )
     try:
         await send_log(client, f"🎁 <b>[{via}] {sc('Free story claimed')}</b>\n\n👤 <code>{user_id}</code>\n📖 {clean_title}")
     except Exception:
@@ -127,7 +131,13 @@ async def start_free_claim(client, user_id: int, story) -> str:
     story_id = story.get("story_id")
 
     if await is_story_unlocked(user_id, clean_title, story_id):
-        await _send_access(client, user_id, story, f"✅ <b>{clean_title}</b> is already unlocked on your account.")
+        from cards import notify_owned
+        try:
+            user = await client.get_users(user_id)
+        except Exception:
+            from types import SimpleNamespace
+            user = SimpleNamespace(id=user_id, first_name=None)
+        await notify_owned(client, user, story)          # "already purchased" card with Get files / Stream
         return "already"
 
     try:
