@@ -68,7 +68,7 @@ except Exception as _cq_err:
     print(f"Could not enable safe callback answers: {_cq_err}")
 
 # Story card templates (rich table look / classic look, changeable with /template)
-from cards import send_card
+from cards import send_card, notify_owned, send_event_card, story_buttons, fmt_time, mention
 
 # Config file imports
 from config import (
@@ -668,10 +668,8 @@ async def process_wallet_payment(client, callback_query):
 
         # Never charge twice for a story the user already owns
         if await is_story_unlocked(user_id, clean_title, story_id):
-            return await callback_query.answer(
-                "✅ You have already bought this story! Open 'My Account' to get your files.",
-                show_alert=True
-            )
+            await notify_owned(client, callback_query.from_user, story, callback=callback_query)
+            return
 
         # Atomic deduction: balance kam ho to kuch nahi katta, double-click par double nahi katta
         new_balance = await deduct_wallet_if_enough(user_id, price)
@@ -691,6 +689,26 @@ async def process_wallet_payment(client, callback_query):
 
         await callback_query.answer("🎉 Purchase successful! Story unlocked.", show_alert=True)
         
+        # Success card (3 looks, Hindi + English boxes). If anything fails the old message below is used.
+        try:
+            values = {
+                "story": clean_title,
+                "paid": f"₹{price:g}",
+                "method": "Wallet",
+                "balance": f"₹{new_balance}",
+                "date": fmt_time(),
+                "user": mention(user_id, callback_query.from_user.first_name),
+            }
+            markup = await story_buttons("success", story, delivery_link, account=True)
+            await send_event_card(client, user_id, "success", values, photo=story.get("photo"), markup=markup)
+            try:
+                await callback_query.message.delete()      # the old story card still has Buy buttons
+            except Exception:
+                pass
+            return
+        except Exception as card_err:
+            print(f"Success card failed, using the plain message: {card_err}")
+
         success_text = (
             f"✅ <b>ᴘᴜʀᴄʜᴀsᴇ sᴜᴄᴄᴇssғᴜʟ!</b>\n\n"
             f"📖 <b>sᴛᴏʀʏ:</b> {clean_title}\n"
