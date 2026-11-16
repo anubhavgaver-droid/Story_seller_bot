@@ -68,7 +68,8 @@ except Exception as _cq_err:
     print(f"Could not enable safe callback answers: {_cq_err}")
 
 # Story card templates (rich table look / classic look, changeable with /template)
-from cards import send_card, notify_owned, send_event_card, story_buttons, fmt_time, mention
+from cards import send_card, notify_owned, send_success, mention
+from style import sc
 
 # Config file imports
 from config import (
@@ -689,25 +690,27 @@ async def process_wallet_payment(client, callback_query):
 
         await callback_query.answer("🎉 Purchase successful! Story unlocked.", show_alert=True)
         
-        # Success card (3 looks, Hindi + English boxes). If anything fails the old message below is used.
+        # Message for the admin's log channel: wallet purchases are approved automatically.
         try:
-            values = {
-                "story": clean_title,
-                "paid": f"₹{price:g}",
-                "method": "Wallet",
-                "balance": f"₹{new_balance}",
-                "date": fmt_time(),
-                "user": mention(user_id, callback_query.from_user.first_name),
-            }
-            markup = await story_buttons("success", story, delivery_link, account=True)
-            await send_event_card(client, user_id, "success", values, photo=story.get("photo"), markup=markup)
+            await send_log(
+                client,
+                f"✅ <b>[WALLET · AUTO APPROVED] {sc('Story bought')}</b>\n\n"
+                f"👤 <b>User:</b> {mention(user_id, callback_query.from_user.first_name)} (<code>{user_id}</code>)\n"
+                f"📖 <b>Story:</b> {clean_title}\n"
+                f"💸 <b>Deducted:</b> ₹{price:g}\n"
+                f"👛 <b>Balance left:</b> ₹{new_balance}"
+            )
+        except Exception as log_err:
+            print(f"Wallet purchase log failed: {log_err}")
+
+        # Congratulations card (3 looks, Hindi + English boxes). If it fails the old message below is used.
+        if await send_success(client, user_id, story=story, paid=f"₹{price:g}", method="Wallet",
+                              balance=f"₹{new_balance}", link=delivery_link, user=callback_query.from_user):
             try:
                 await callback_query.message.delete()      # the old story card still has Buy buttons
             except Exception:
                 pass
             return
-        except Exception as card_err:
-            print(f"Success card failed, using the plain message: {card_err}")
 
         success_text = (
             f"✅ <b>ᴘᴜʀᴄʜᴀsᴇ sᴜᴄᴄᴇssғᴜʟ!</b>\n\n"
@@ -790,7 +793,27 @@ async def process_cart_payment(client, callback_query):
             return await callback_query.answer("❌ Something went wrong. Your money was returned to your wallet. Please try again.", show_alert=True)
 
         await callback_query.answer("🎉 Cart checkout successful! All stories unlocked.", show_alert=True)
-        
+
+        try:
+            await send_log(
+                client,
+                f"✅ <b>[CART · WALLET · AUTO APPROVED] {sc('Stories bought')}</b>\n\n"
+                f"👤 <b>User:</b> {mention(user_id, callback_query.from_user.first_name)} (<code>{user_id}</code>)\n"
+                f"📚 <b>Stories:</b>\n{purchased_list_text}"
+                f"💸 <b>Deducted:</b> ₹{total_price:g}\n"
+                f"👛 <b>Balance left:</b> ₹{new_balance}"
+            )
+        except Exception as log_err:
+            print(f"Cart purchase log failed: {log_err}")
+
+        if await send_success(client, user_id, titles=[t for _, t in to_buy], paid=f"₹{total_price:g}", method="Wallet (cart)",
+                              balance=f"₹{new_balance}", user=callback_query.from_user):
+            try:
+                await callback_query.message.delete()
+            except Exception:
+                pass
+            return
+
         success_text = (
             f"✅ <b>ᴄᴀʀᴛ ᴄʜᴇᴄᴋᴏᴜᴛ sᴜᴄᴄᴇssғᴜʟ!</b>\n\n"
             f"📚 <b>Unlocked Stories:</b>\n{purchased_list_text}\n"
