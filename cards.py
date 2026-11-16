@@ -5,6 +5,8 @@ STORY CARDS (templates) - one place for every story card the bot shows or posts.
   card   the story card a user sees (mini app order, /start link, search, "view story")
                                                                               (plugins/start.py, search.py, payment.py)
   added  the "Story added successfully" message for the admin                 (plugins/admin.py)
+  success  the card a user gets right after buying a story (3 looks, /tplstyle)  (fulfill.py, plugins/start.py)
+  owned    "you already own this story" card + pop-up                           (plugins/payment.py, start.py)
 
 Two looks, same content
   rich     Telegram Rich Message: photo block + bordered table (every field in its own box) + buttons under it.
@@ -54,6 +56,15 @@ FIELD_DEFAULTS = {
     "link":      ("🔗", "Shareable Link"),
 }
 
+FIELD_DEFAULTS.update({
+    "paid":      ("💰", "Paid"),
+    "method":    ("💳", "Method"),
+    "balance":   ("👛", "New balance"),
+    "order_id":  ("🧾", "Order ID"),
+    "date":      ("🕒", "Date"),
+    "bought_on": ("🗓️", "Bought on"),
+})
+
 _STORY_GROUP = ["story", "status", "platform", "genre", "episodes", "id"]
 
 TEMPLATES = {
@@ -78,13 +89,29 @@ TEMPLATES = {
         "heading": "✅ " + sc("Story added successfully!"),
         "footer": "",
     },
+    "success": {
+        "name": "Purchase success (user)",
+        "groups": [["story", "paid", "method", "balance", "order_id", "date"]],
+        "hidden": [],
+        "heading": "",
+        "footer": "",
+    },
+    "owned": {
+        "name": "Already purchased (user)",
+        "groups": [["story", "bought_on"]],
+        "hidden": [],
+        "heading": "",
+        "footer": "",
+    },
 }
 
 ALIASES = {
     "name": "story", "title": "story", "state": "status", "ep": "episodes", "episode": "episodes",
     "eps": "episodes", "storyid": "id", "cost": "price", "freelink": "free_link", "demoids": "demo_ids",
-    "sharelink": "link", "share": "link",
+    "sharelink": "link", "share": "link", "amount": "paid", "orderid": "order_id", "order": "order_id",
+    "time": "date", "boughton": "bought_on", "wallet_balance": "balance", "newbalance": "balance",
 }
+STYLES = ("1", "2", "3")
 MODES = ("auto", "rich", "classic")
 MAX_FAILS = 3
 _STATE = {"fails": 0, "told": False}
@@ -143,7 +170,11 @@ def resolve(name: str, raw: dict, heading=None, footer=None) -> dict:
         foot = raw["footer"]
     else:
         foot = footer if footer is not None else base["footer"]
+    style = str((raw or {}).get("style", "1"))
     return {"name": name, "groups": groups, "heading": head or "", "footer": foot or "",
+            "heading_set": "heading" in (raw or {}),
+            "style": style if style in STYLES else "1",
+            "stream": bool((raw or {}).get("stream", True)),
             "mode": (raw or {}).get("mode", "auto") if (raw or {}).get("mode") in MODES else "auto"}
 
 
@@ -372,6 +403,21 @@ async def _send_classic(client, chat_id, caption, photo, markup, reply_to, quote
     return await send_text()
 
 
+async def _deliver(client, chat_id, mode, make_rich, classic, photo, markup, reply_to, quote, fallback_photo):
+    """Rich message when allowed (and it works), otherwise the classic photo/text. Never loses the message."""
+    if await _use_rich(chat_id, mode):
+        try:
+            photo_html, media = _photo_parts(photo)
+            body = make_rich(photo_html)
+            if well_formed(body):
+                sent = await _try_rich(client, chat_id, body, media, markup, reply_to, quote)
+                if sent is not None:
+                    return sent
+        except Exception as e:
+            print(f"[cards] rich card error: {type(e).__name__}: {e}")
+    return await _send_classic(client, chat_id, classic, photo, markup, reply_to, quote, fallback_photo)
+
+
 async def send_card(client, chat_id, name: str, values: dict, *, photo=None, markup=None,
                     heading=None, footer=None, reply_to=None, quote=None, fallback_photo=None):
     """
@@ -380,17 +426,8 @@ async def send_card(client, chat_id, name: str, values: dict, *, photo=None, mar
     reply_to = the Message to reply to (keeps the old message.reply_photo behaviour).
     """
     res = resolve(name, await saved_for(name), heading, footer)
-    if await _use_rich(chat_id, res["mode"]):
-        try:
-            photo_html, media = _photo_parts(photo)
-            body = render_rich(res, values, photo_html)
-            if well_formed(body):
-                sent = await _try_rich(client, chat_id, body, media, markup, reply_to, quote)
-                if sent is not None:
-                    return sent
-        except Exception as e:
-            print(f"[cards] rich card error: {type(e).__name__}: {e}")
-    return await _send_classic(client, chat_id, render_classic(res, values), photo, markup, reply_to, quote, fallback_photo)
+    return await _deliver(client, chat_id, res["mode"], lambda ph: render_rich(res, values, ph),
+                          render_classic(res, values), photo, markup, reply_to, quote, fallback_photo)
 
 
 async def send_text_card(client, chat_id, name: str, values: dict, *, heading=None, footer=None, markup=None, reply_to=None):
@@ -405,3 +442,188 @@ def status() -> dict:
 def reset_failures():
     _STATE["fails"] = 0
     _STATE["told"] = False
+
+
+# =====================================================================================================
+#  SUCCESS card (after a purchase) and OWNED card (the story is already bought)
+#  Rich look: heading, a bordered table and collapsible <details> boxes in Hindi + English (tap to open / close).
+#  Classic look: the same words as plain text, everything visible.
+# =====================================================================================================
+_HI_GET = "नीचे दिए बटन से अपनी फाइलें पाएँ। फाइलें इसी चैट में आएँगी। आप कभी भी <b>My Account</b> से इन्हें दोबारा पा सकते हैं।"
+_EN_GET = "Tap the button below to get your files. They arrive in this chat. You can get them again anytime from <b>My Account</b>."
+_HI_STREAM = "ऑडियो फाइलों के नीचे 🎧 <b>Stream</b> बटन होता है। उसे दबाने पर प्लेयर खुलता है, जहाँ आप स्पीड 0.5× से 3× तक बदल सकते हैं।"
+_EN_STREAM = "Audio files have a 🎧 <b>Stream</b> button under them. It opens a player where you can change the speed from 0.5× to 3×."
+_HI_OWNED = "ऊपर वाले बटन से अपनी फाइलें फिर से पाएँ। इसके लिए दोबारा पैसे नहीं लगेंगे।"
+_EN_OWNED = "Use the button below to get your files again. You do not need to pay again."
+
+
+def fmt_time(ts=None) -> str:
+    """Date and time in Indian time, for example 16 Nov 2026, 06:30 PM."""
+    from datetime import datetime, timedelta, timezone
+    ist = timezone(timedelta(hours=5, minutes=30))
+    return datetime.fromtimestamp(ts or time.time(), ist).strftime("%d %b %Y, %I:%M %p")
+
+
+def mention(user_id, name=None) -> Raw:
+    return Raw(f'<a href="tg://user?id={int(user_id)}">{_html.escape(str(name or "Friend"), quote=False)}</a>')
+
+
+def _table_html(res: dict, values: dict) -> str:
+    rows = ""
+    for group in _visible(res, values):
+        for f in group:
+            val = _v(values[f["key"]])
+            if f["key"] in ("story", "paid"):
+                val = f"<b>{val}</b>"
+            emoji = f"{f['emoji']} " if f["emoji"] else ""
+            rows += f"<tr><td>{emoji}{_html.escape(f['label'], quote=False)}</td><td>{val}</td></tr>"
+    return f"<table bordered>{rows}</table>" if rows else ""
+
+
+def _event_plan(kind: str, res: dict, values: dict) -> dict:
+    """What the card contains: heading, sub heading, intro line(s), where the table goes and the collapsible boxes."""
+    style = res["style"] if kind == "success" else "1"
+    who = values.get("user")
+    who_txt = f"{_v(who)}, " if who else ""
+    story = _v(values.get("story", ""))
+    if kind == "owned":
+        return {
+            "style": "1", "heading": "📚 पहले से आपकी लाइब्रेरी में", "sub": "",
+            "intro": [f"{who_txt}आपने यह स्टोरी पहले ही खरीद रखी है ✅", "<i>You already own this story.</i>"],
+            "table_in_box": None, "photo": False,
+            "boxes": [("🇮🇳 हिंदी", _HI_OWNED, False), ("🇬🇧 English", _EN_OWNED, False)],
+        }
+    if style == "2":
+        return {
+            "style": "2", "heading": "✅ Purchase Successful", "sub": "खरीदारी सफल",
+            "intro": [], "table_in_box": None, "photo": False,
+            "boxes": [("📂 फाइलें कैसे पाएँ", _HI_GET, False), ("📂 How to get your files", _EN_GET, False),
+                      ("🎧 Stream कैसे करें / How to stream", _HI_STREAM + "<br/><br/>" + _EN_STREAM, False)],
+        }
+    if style == "3":
+        return {
+            "style": "3", "heading": story, "sub": "",
+            "intro": ["🔓 Unlocked · अनलॉक हो गई"],
+            "table_in_box": ("🧾 ऑर्डर विवरण / Order details", True), "photo": True,
+            "boxes": [("🇮🇳 हिंदी", _HI_GET, False), ("🇬🇧 English", _EN_GET, False)],
+        }
+    return {
+        "style": "1", "heading": "🎉 बधाई हो! Congratulations!", "sub": "",
+        "intro": [f"{who_txt}आपकी स्टोरी अनलॉक हो गई है 🔓"], "table_in_box": None, "photo": False,
+        "boxes": [("🇮🇳 हिंदी में देखें", _HI_GET, True), ("🇬🇧 View in English", _EN_GET, False)],
+    }
+
+
+def render_event_rich(kind: str, res: dict, values: dict, photo_html: str = "") -> str:
+    plan = _event_plan(kind, res, values)
+    # The admin's own heading (escaped) wins; otherwise the built-in one (already safe html).
+    head_html = _html.escape(pretty_title(res["heading"]), quote=False) if res["heading_set"] else plan["heading"]
+    out = photo_html if plan["photo"] else ""
+    if head_html:
+        out += f"<h1>{head_html}</h1>"
+    if plan["sub"] and not res["heading_set"]:
+        out += f"<h3>{plan['sub']}</h3>"
+    for line in plan["intro"]:
+        out += f"<p>{line}</p>"
+    table = _table_html(res, values)
+    if plan["table_in_box"]:
+        title, opened = plan["table_in_box"]
+        if table:
+            out += f"<details{' open' if opened else ''}><summary>{title}</summary>{table}</details>"
+    else:
+        out += table
+    for summary, body, opened in plan["boxes"]:
+        out += f"<details{' open' if opened else ''}><summary>{summary}</summary><p>{body}</p></details>"
+    if res["footer"]:
+        out += f"<p><i>{_html.escape(res['footer'], quote=False)}</i></p>"
+    return out
+
+
+def render_event_classic(kind: str, res: dict, values: dict) -> str:
+    plan = _event_plan(kind, res, values)
+    heading = res["heading"] if res["heading_set"] else plan["heading"]
+    blocks = []
+    if heading:
+        head = heading if not res["heading_set"] else _html.escape(heading, quote=False)
+        blocks.append(f"<b>{head}</b>" + (f"\n<i>{plan['sub']}</i>" if plan["sub"] and not res["heading_set"] else ""))
+    if plan["intro"]:
+        blocks.append("\n".join(plan["intro"]))
+    lines = []
+    for group in _visible(res, values):
+        for f in group:
+            emoji = f"{f['emoji']} " if f["emoji"] else ""
+            lines.append(f"{emoji}<b>{_html.escape(f['label'], quote=False)} :</b> {_v(values[f['key']])}")
+    if lines:
+        blocks.append("\n".join(lines))
+    for summary, body, _opened in plan["boxes"]:
+        blocks.append(f"<b>{summary}</b>\n{body.replace('<br/>', chr(10))}")
+    if res["footer"]:
+        blocks.append(f"<i>{_html.escape(res['footer'], quote=False)}</i>")
+    return "\n\n".join(blocks)
+
+
+async def event_text(kind: str, values: dict) -> str:
+    """The classic text of a success / owned card."""
+    return render_event_classic(kind, resolve(kind, await saved_for(kind)), values)
+
+
+async def story_buttons(kind: str, story: dict, link=None, account: bool = False):
+    """Get files + Stream (+ My Account) buttons for a success / owned card."""
+    from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
+    res = resolve(kind, await saved_for(kind))
+    row = []
+    try:
+        from pyrogram import enums
+        style = {"style": enums.ButtonStyle.PRIMARY}
+    except Exception:
+        style = {}
+    if link:
+        try:
+            row.append(InlineKeyboardButton(f"📂 {sc('Get files')}", url=link, **style))
+        except TypeError:
+            row.append(InlineKeyboardButton(f"📂 {sc('Get files')}", url=link))
+    sid = (story or {}).get("story_id")
+    try:
+        from config import WEB_APP_URL
+    except Exception:
+        WEB_APP_URL = ""
+    if res["stream"] and sid and WEB_APP_URL:
+        row.append(InlineKeyboardButton(f"🎧 {sc('Stream')}", web_app=WebAppInfo(url=f"{WEB_APP_URL.rstrip('/')}/watch?s={sid}")))
+    rows = [row] if row else []
+    if account:
+        rows.append([InlineKeyboardButton(f"👤 {sc('My account')}", callback_data="open_account_cb")])
+    return InlineKeyboardMarkup(rows) if rows else None
+
+
+async def send_event_card(client, chat_id, kind: str, values: dict, *, photo=None, markup=None, reply_to=None):
+    """Sends the 'success' or 'owned' card (rich with collapsible boxes, or the classic text)."""
+    res = resolve(kind, await saved_for(kind))
+    use_photo = _event_plan(kind, res, values)["photo"]
+    return await _deliver(client, chat_id, res["mode"], lambda ph: render_event_rich(kind, res, values, ph),
+                          render_event_classic(kind, res, values), photo if use_photo else None, markup, reply_to, None, None)
+
+
+async def notify_owned(client, user, story: dict, *, callback=None):
+    """
+    The user tried to buy a story he already owns: pop-up on the button (if any) + the 'already purchased' card
+    with Get files / Stream. Nothing is charged. Never raises.
+    """
+    try:
+        from database.db import get_purchase, delivery_link
+        title = (story.get("title") or "Story").strip().split("\n")[0]
+        sid = story.get("story_id")
+        name = getattr(user, "first_name", None) or "Friend"
+        if callback is not None:
+            note = f"ℹ️ {name}, आपने “{title[:40]}” पहले ही खरीद रखी है। दोबारा पैसे नहीं लगेंगे।\nYou already own this story."
+            try:
+                await callback.answer(note[:200], show_alert=True)
+            except Exception:
+                pass
+        purchase = await get_purchase(user.id, title, sid) or {}
+        ts = purchase.get("first_bought_at") or purchase.get("timestamp")
+        values = {"story": title, "bought_on": fmt_time(ts) if ts else None, "user": mention(user.id, name)}
+        link = delivery_link(sid) if sid else None
+        markup = await story_buttons("owned", story, link)
+        await send_event_card(client, user.id, "owned", values, markup=markup)
+    except Exception as e:
+        print(f"[cards] notify_owned error: {type(e).__name__}: {e}")
