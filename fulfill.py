@@ -18,7 +18,7 @@ from database.db import (
 )
 from bonus import bonus_amount
 from style import sc
-from cards import send_event_card, story_buttons, fmt_time, mention
+from cards import send_success, fmt_time
 
 
 async def _log(client, text: str):
@@ -146,19 +146,10 @@ async def fulfill_order(client, order: dict, paid_amount: float, source: str = "
     # Messages: even if they fail, the money / story is already handled, so there is no rollback.
     sent_card = False
     if success:
-        try:
-            s_story, s_link, s_values = success
-            try:
-                user = await client.get_users(user_id)
-                name = user.first_name
-            except Exception:
-                name = None
-            s_values["user"] = mention(user_id, name)
-            markup = await story_buttons("success", s_story, s_link, account=True)
-            await send_event_card(client, user_id, "success", s_values, photo=s_story.get("photo"), markup=markup)
-            sent_card = True
-        except Exception as e:
-            print(f"fulfill_order: success card failed, sending the plain message: {e}")
+        s_story, s_link, s_values = success
+        sent_card = await send_success(
+            client, user_id, story=s_story, paid=s_values["paid"], order_id=s_values["order_id"], link=s_link
+        )
     if not sent_card:
         try:
             await client.send_message(chat_id=user_id, text=notice, reply_markup=notice_markup, protect_content=False)
