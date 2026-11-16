@@ -13,6 +13,9 @@ from config import (
     ADMIN_ID
 )
 
+# Story card templates (rich table look / classic look, changeable with /template)
+from cards import send_card
+
 # Database helper function imports
 from database.db import get_all_stories, get_story_by_title
 
@@ -96,31 +99,18 @@ async def send_story_to_channel(client: Client, story_data: dict, delay_seconds:
 
         buttons = InlineKeyboardMarkup(button_rows)
 
-        # Caption Layout
-        post_caption = (
-            f"♨️ <b>Story :</b> {clean_title}\n"
-            f"🔰 <b>Status :</b> {status}\n"
-            f"🖥️ <b>Platform :</b> {platform_display}\n"
-            f"🧩 <b>Genre :</b> {genre}\n"
-            f"🎬 <b>Episodes :</b> {episodes}\n\n"
-            f"░▒▓█ PRICE - {'FREE 🎁' if not price else '₹' + str(price)} █▓▒░\n\n"
-            f"👇 <i>नीचे दिए गए बटन पर क्लिक करके स्टोरी अनलॉक करें:</i>"
-        )
-
-        # Send Message / Photo
-        if photo:
-            sent_msg = await client.send_photo(
-                chat_id=target_channel,
-                photo=photo,
-                caption=post_caption,
-                reply_markup=buttons
-            )
-        else:
-            sent_msg = await client.send_message(
-                chat_id=target_channel,
-                text=post_caption,
-                reply_markup=buttons
-            )
+        # Post = story card template "post": rich table when the rich look is on, otherwise the classic caption.
+        # Change emoji / text / fields with /template (plugins/template.py).
+        values = {
+            "story": clean_title,
+            "status": status,
+            "platform": platform_display,
+            "genre": genre,
+            "episodes": episodes,
+            "id": sid or "",
+            "price": 'FREE 🎁' if not price else '₹' + str(price),
+        }
+        sent_msg = await send_card(client, target_channel, "post", values, photo=photo, markup=buttons)
 
         print(f"✅ Post successfully sent for [{clean_title}] to Channel: {target_channel}")
         return sent_msg
