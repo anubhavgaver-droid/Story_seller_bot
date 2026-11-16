@@ -627,3 +627,34 @@ async def notify_owned(client, user, story: dict, *, callback=None):
         await send_event_card(client, user.id, "owned", values, markup=markup)
     except Exception as e:
         print(f"[cards] notify_owned error: {type(e).__name__}: {e}")
+
+
+async def send_success(client, user_id: int, *, story=None, titles=None, paid, method=None, balance=None,
+                       order_id=None, link=None, user=None, account=True) -> bool:
+    """
+    The congratulations card, the SAME for every way of getting a story: gateway payment, wallet, admin approval,
+    cart, free claim. `story` = one story (Get files + Stream buttons, cover photo), `titles` = several stories (cart).
+    Returns True when the card was sent, False when it failed (the caller then sends its old plain message).
+    """
+    try:
+        name = getattr(user, "first_name", None) if user is not None else None
+        if name is None and user is None:
+            try:
+                name = (await client.get_users(user_id)).first_name
+            except Exception:
+                name = None
+        if titles:
+            shown = [str(t) for t in titles[:4]]
+            story_text = ", ".join(shown) + (f" +{len(titles) - 4} more" if len(titles) > 4 else "")
+        else:
+            story_text = ((story or {}).get("title") or "Story").strip().split("\n")[0]
+        values = {
+            "story": story_text, "paid": paid, "method": method, "balance": balance, "order_id": order_id,
+            "date": fmt_time(), "user": mention(user_id, name),
+        }
+        markup = await story_buttons("success", story or {}, link, account=account)
+        await send_event_card(client, user_id, "success", values, photo=(story or {}).get("photo"), markup=markup)
+        return True
+    except Exception as e:
+        print(f"[cards] success card failed: {type(e).__name__}: {e}")
+        return False
