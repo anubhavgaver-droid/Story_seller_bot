@@ -67,6 +67,9 @@ try:
 except Exception as _cq_err:
     print(f"Could not enable safe callback answers: {_cq_err}")
 
+# Story card templates (rich table look / classic look, changeable with /template)
+from cards import send_card
+
 # Config file imports
 from config import (
     BOT_USERNAME, 
@@ -562,22 +565,20 @@ async def web_app_data_handler(client, message):
             btn = InlineKeyboardMarkup(inline_buttons)
             photo_url = story.get('photo', 'https://picsum.photos/400/200')
 
-            caption_text = (
-                f"🛒 <b>ᴏʀᴅᴇʀ ɪɴɪᴛɪᴀᴛᴇᴅ ғʀᴏᴍ ᴍɪɴɪ ᴀᴘᴘ</b>\n\n"
-                f"♨️ <b>Story :</b> {clean_title}\n"
-                f"🔰 <b>Status :</b> {story.get('status', 'Completed')}\n"
-                f"🖥️ <b>Platform :</b> {story.get('category', 'Pocket FM')}\n"
-                f"🧩 <b>Genre :</b> {story.get('genre', 'Drama')}\n"
-                f"🎬 <b>Episodes :</b> {story.get('episodes', 'N/A')}\n\n"
-                f"░▒▓█ PRICE - ₹{price} █▓▒░\n\n"
-                f"👛 <b>ʏᴏᴜʀ ᴡᴀʟʟᴇᴛ:</b> ₹{wallet_bal}\n\n"
-                f"👇 <b>Select payment method to complete purchase:</b>"
+            values = {
+                "story": clean_title,
+                "status": story.get('status', 'Completed'),
+                "platform": story.get('category', 'Pocket FM'),
+                "genre": story.get('genre', 'Drama'),
+                "episodes": story.get('episodes', 'N/A'),
+                "id": story.get('story_id') or "",
+                "price": price_label(price),
+                "wallet": f"₹{wallet_bal}",
+            }
+            await send_card(
+                client, message.chat.id, "card", values, photo=photo_url, markup=btn, reply_to=message,
+                heading="🛒 Order initiated from Mini App", footer="Select payment method to complete purchase:"
             )
-            
-            try:
-                await message.reply_photo(photo=photo_url, caption=caption_text, reply_markup=btn)
-            except Exception:
-                await message.reply_text(caption_text, reply_markup=btn)
     except Exception as e:
         print(f"WebApp Data Error: {e}")
 
@@ -1168,21 +1169,20 @@ async def start_handler(client, message):
             
             btn = InlineKeyboardMarkup(buttons)
             
-            caption_text = (
-                f"♨️ <b>Story :</b> {clean_title}\n"
-                f"🔰 <b>Status :</b> {story.get('status', 'Completed')}\n"
-                f"🖥️ <b>Platform :</b> {story.get('category', 'Pocket FM')}\n"
-                f"🧩 <b>Genre :</b> {story.get('genre', 'Drama')}\n"
-                f"🎬 <b>Episodes :</b> {story.get('episodes', 'N/A')}\n\n"
-                f"░▒▓█ PRICE - {price_label(story.get('price', 0))} █▓▒░\n\n"
-                f"👛 <b>ʏᴏᴜʀ ᴡᴀʟʟᴇᴛ:</b> ₹{wallet_bal}\n\n"
-                f"<i>👇 Choose an option below to view or purchase:</i>"
+            values = {
+                "story": clean_title,
+                "status": story.get('status', 'Completed'),
+                "platform": story.get('category', 'Pocket FM'),
+                "genre": story.get('genre', 'Drama'),
+                "episodes": story.get('episodes', 'N/A'),
+                "id": story.get('story_id') or "",
+                "price": price_label(story.get('price', 0)),
+                "wallet": f"₹{wallet_bal}",
+            }
+            return await send_card(
+                client, message.chat.id, "card", values, photo=photo_url, markup=btn, reply_to=message,
+                footer="Choose an option below to view or purchase:"
             )
-            
-            try:
-                return await message.reply_photo(photo=photo_url, caption=caption_text, reply_markup=btn)
-            except Exception:
-                return await message.reply_text(caption_text, reply_markup=btn)
         else:
             return await message.reply_text("❌ <b>ᴛʜɪs sᴛᴏʀʏ ɪs ɴᴏᴛ ᴀᴠᴀɪʟᴀʙʟᴇ.</b>", reply_markup=MAIN_MENU)
 
