@@ -336,7 +336,8 @@ async def add_user_purchase(user_id: int, story_title: str, story_link: str = "#
     else:
         query = {"user_id": user_id, "story_title": clean_title}
 
-    await purchases_col.update_one(query, {"$set": set_fields}, upsert=True)
+    # first_bought_at is written only when the purchase is created, so "Bought on" never moves later.
+    await purchases_col.update_one(query, {"$set": set_fields, "$setOnInsert": {"first_bought_at": set_fields["timestamp"]}}, upsert=True)
 
     # Users Collection में भी purchased_stories की लिस्ट में जोड़ना ताकि /addepisodes नोटिफिकेशन काम कर सके
     add_to_set = {"purchased_stories": clean_title}
@@ -355,6 +356,17 @@ async def is_story_unlocked(user_id: int, story_title: str, story_id: str = None
     pattern = re.compile(f"^{re.escape(clean_title)}$", re.IGNORECASE)
     purchase = await purchases_col.find_one({"user_id": user_id, "story_title": pattern})
     return bool(purchase)
+
+
+async def get_purchase(user_id: int, story_title: str, story_id: str = None):
+    """The purchase record of this user for this story (story_id first, then title), or None."""
+    if story_id:
+        doc = await purchases_col.find_one({"user_id": user_id, "story_id": str(story_id)})
+        if doc:
+            return doc
+    clean_title = (story_title or "").strip().split("\n")[0]
+    pattern = re.compile(f"^{re.escape(clean_title)}$", re.IGNORECASE)
+    return await purchases_col.find_one({"user_id": user_id, "story_title": pattern})
 
 
 async def get_user_purchases(user_id: int):
