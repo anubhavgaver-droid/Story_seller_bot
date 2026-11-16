@@ -5,6 +5,7 @@ import difflib
 import time
 from pyrogram import Client, filters, enums
 from freeflow import buy_rows, price_label
+from cards import send_card
 from pyrogram.types import (
     ReplyKeyboardMarkup, 
     KeyboardButton, 
@@ -268,29 +269,21 @@ async def story_selected_handler(client, message):
     raw_photo = story.get('photo', '').strip() if story.get('photo') else ''
     photo_url = raw_photo if raw_photo.startswith(("http://", "https://")) or len(raw_photo) > 10 else DEFAULT_STORY_PHOTO
     
-    caption_text = (
-        f"📖 <b>sᴛᴏʀʏ :</b> {clean_title}\n"
-        f"🔰 <b>sᴛᴀᴛᴜs :</b> {story.get('status', 'Completed')}\n"
-        f"🖥️ <b>ᴘʟᴀᴛғᴏʀᴍ :</b> {story.get('category', story.get('platform', 'Pocket FM'))}\n"
-        f"🎭 <b>ɢᴇɴʀᴇ :</b> {story.get('genre', 'Drama')}\n"
-        f"🎧 <b>ᴇᴘɪsᴏᴅᴇs :</b> {story.get('episodes', 'N/A')}\n\n"
-        f"░▒▓█ ᴘʀɪᴄᴇ - ₹{story['price']} █▓▒░\n\n"
-        f"👛 <b>ʏᴏᴜʀ ᴡᴀʟʟᴇᴛ :</b> ₹{wallet_bal}\n\n"
-        f"<i>👇 sᴇʟᴇᴄᴛ ᴀ ᴘᴀʏᴍᴇɴᴛ ᴍᴇᴛʜᴏᴅ ʙᴇʟᴏᴡ:</i>"
+    values = {
+        "story": clean_title,
+        "status": story.get('status', 'Completed'),
+        "platform": story.get('category', story.get('platform', 'Pocket FM')),
+        "genre": story.get('genre', 'Drama'),
+        "episodes": story.get('episodes', 'N/A'),
+        "id": story.get('story_id') or "",
+        "price": price_label(story.get('price', 0)),
+        "wallet": f"₹{wallet_bal}",
+    }
+    # Story card template "card" (rich table or classic); if the story photo fails, the default photo is used, then plain text.
+    await send_card(
+        client, message.chat.id, "card", values, photo=photo_url, markup=btn, reply_to=message, quote=True,
+        fallback_photo=DEFAULT_STORY_PHOTO, footer="Select a payment method below:"
     )
-    
-    # Try sending with DB Photo
-    try:
-        await message.reply_photo(photo=photo_url, caption=caption_text, reply_markup=btn, quote=True)
-    except Exception as e:
-        print(f"Failed to send story photo ({photo_url}): {e}")
-        # Fallback to Default Image
-        try:
-            await message.reply_photo(photo=DEFAULT_STORY_PHOTO, caption=caption_text, reply_markup=btn, quote=True)
-        except Exception as err:
-            print(f"Fallback photo also failed: {err}")
-            # Final Text Fallback
-            await message.reply_text(caption_text, reply_markup=btn, quote=True)
 
 
 # (View Demo / Wallet Payment callbacks ab sirf plugins/start.py me hain - duplicate hata diya gaya)
