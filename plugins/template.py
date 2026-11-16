@@ -11,8 +11,11 @@ Admin commands to change how the story cards look (post in the channel, card for
   /tplmode    <tpl> auto|rich|classic  auto = follows /richui, rich = boxes, classic = the old bold text
   /tplreset   <tpl> [field]          back to the default look
   /tplpreview <tpl>                  sends you a preview (with a sample button)
+  /tplstyle   success 1|2|3          look of the "purchase successful" card (1 celebration, 2 receipt, 3 cover)
+  /tplstream  <tpl> on|off           Stream button in the success / owned card
 
-<tpl> = post | card | added      <field> = story status platform genre episodes id price wallet ...
+<tpl> = post | card | added | success | owned
+<field> = story status platform genre episodes id price wallet paid method balance order_id date bought_on ...
 """
 import html as _html
 
@@ -23,8 +26,10 @@ import cards
 from config import ADMIN_ID
 from database.db import get_all_stories
 
-TPL_ALIASES = {"channel": "post", "users": "card", "user": "card", "admin": "added", "add": "added"}
-COMMANDS = ["template", "tplemoji", "tpllabel", "tplshow", "tplheading", "tplfooter", "tplmode", "tplreset", "tplpreview"]
+TPL_ALIASES = {"channel": "post", "users": "card", "user": "card", "admin": "added", "add": "added",
+               "bought": "success", "buy": "success", "purchase": "success", "own": "owned", "already": "owned"}
+COMMANDS = ["template", "tplemoji", "tpllabel", "tplshow", "tplheading", "tplfooter", "tplmode", "tplreset", "tplpreview",
+            "tplstyle", "tplstream"]
 E = lambda s: _html.escape(str(s), quote=False)
 
 
@@ -56,9 +61,12 @@ def _usage():
         "<code>/tplfooter post Tap Buy Now 👇</code>  (line under the card)\n"
         "<code>/tplmode post auto</code>  (auto | rich | classic)\n"
         "<code>/tplreset post</code>  (back to default)\n"
-        "<code>/tplpreview post</code>  (see it)\n\n"
+        "<code>/tplpreview post</code>  (see it)\n"
+        "<code>/tplstyle success 2</code>  (look of the purchase-success card: 1, 2 or 3)\n"
+        "<code>/tplstream success off</code>  (hide the Stream button)\n\n"
         "Templates: <code>post</code> = channel post, <code>card</code> = story card for users, "
-        "<code>added</code> = story added (admin)."
+        "<code>added</code> = story added (admin), <code>success</code> = purchase successful card, "
+        "<code>owned</code> = already purchased card."
     )
 
 
@@ -70,6 +78,10 @@ async def _describe(tpl):
         f"<b>Heading:</b> {E(res['heading']) or '—'}",
         f"<b>Footer:</b> {E(res['footer']) or '—'}",
     ]
+    if tpl == "success":
+        lines.append(f"<b>Style:</b> {res['style']}  (1 celebration · 2 receipt · 3 cover photo)")
+    if tpl in ("success", "owned"):
+        lines.append(f"<b>Stream button:</b> {'on' if res['stream'] else 'off'}")
     for group in res["groups"]:
         for f in group:
             lines.append(f"<b>{E(f['key'])}:</b> {E(f['emoji']) or '(no emoji)'} · {E(f['label'])} · {'shown' if f['show'] else 'hidden'}")
@@ -79,7 +91,7 @@ async def _describe(tpl):
     return "\n".join(lines)
 
 
-async def _sample(tpl):
+async def _sample(tpl):  # returns (values, photo, story)
     """Sample values built from the newest story (or made-up ones), shaped like the real cards."""
     story = {}
     try:
@@ -91,6 +103,7 @@ async def _sample(tpl):
     price = story.get("price", 49)
     price_text = "FREE 🎁" if not price else f"₹{price}"
     values = {
+        "user": cards.mention(1, "Rahul"),
         "story": title,
         "status": story.get("status") or "Completed",
         "platform": story.get("platform") or story.get("category") or "Pocket FM",
@@ -105,8 +118,14 @@ async def _sample(tpl):
         "files": "120 (Msg 1 to 120)",
         "ranges": "2 Configured",
         "link": cards.Raw("<code>https://t.me/YourBot?start=story_ab12cd34</code>"),
+        "paid": price_text,
+        "method": "Wallet",
+        "balance": "₹120",
+        "order_id": "ord_8f3a21",
+        "date": cards.fmt_time(),
+        "bought_on": cards.fmt_time(),
     }
-    return values, story.get("photo")
+    return values, story.get("photo"), story
 
 
 def _only_admin():
@@ -140,15 +159,44 @@ async def template_commands(client, message):
     raw = await cards.saved_for(tpl)
 
     if cmd == "tplpreview":
-        values, photo = await _sample(tpl)
+        values, photo, story = await _sample(tpl)
+        cards.reset_failures()
+        if tpl in ("success", "owned"):
+            values["user"] = cards.mention(message.from_user.id, message.from_user.first_name)
+            sample_story = dict(story or {})
+            sample_story.setdefault("story_id", "preview")
+            markup = await cards.story_buttons(tpl, sample_story, "https://t.me", account=(tpl == "success"))
+            await cards.send_event_card(client, message.chat.id, tpl, values, photo=photo, markup=markup)
+            return
         markup = None
         if tpl in ("post", "card"):
             markup = InlineKeyboardMarkup([
                 [InlineKeyboardButton("🛒 Buy Now (sample)", style=enums.ButtonStyle.PRIMARY, url="https://t.me")],
             ])
-        cards.reset_failures()
         await cards.send_card(client, message.chat.id, tpl, values, photo=photo, markup=markup)
         return
+
+    if cmd == "tplstyle":
+        if tpl != "success":
+            return await message.reply_text("❌ Styles exist only for the purchase-success card: <code>/tplstyle success 1</code> (or 2, 3)")
+        style = (args[1] if len(args) > 1 else "").strip()
+        if style not in cards.STYLES:
+            return await message.reply_text("❌ Use <code>/tplstyle success 1</code>, <code>2</code> or <code>3</code>\n"
+                                            "1 = celebration (Hindi box open) · 2 = receipt · 3 = cover photo")
+        raw["style"] = style
+        cards.reset_failures()
+        await cards.save_template(tpl, raw)
+        return await message.reply_text(f"✅ Success card style: <b>{style}</b>\nSee it: <code>/tplpreview success</code>")
+
+    if cmd == "tplstream":
+        if tpl not in ("success", "owned"):
+            return await message.reply_text("❌ The Stream button is in <code>success</code> and <code>owned</code> only.")
+        value = (args[1] if len(args) > 1 else "").lower()
+        if value not in ("on", "off"):
+            return await message.reply_text(f"❌ Example: <code>/tplstream {tpl} off</code>")
+        raw["stream"] = value == "on"
+        await cards.save_template(tpl, raw)
+        return await message.reply_text(f"✅ Stream button in <b>{tpl}</b>: <b>{value}</b>")
 
     if cmd == "tplreset":
         if len(args) >= 2:
