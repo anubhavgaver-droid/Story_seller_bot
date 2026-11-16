@@ -17,6 +17,8 @@ import emailpay
 from freeflow import start_free_claim
 from bonus import bonus_amount, bonus_hint
 from style import sc
+from cards import send_card
+from freeflow import price_label
 from database.db import (
     get_setting,
     get_story_by_key,
@@ -154,19 +156,19 @@ async def view_story(client, callback):
     clean_title = _clean(story['title'])
     btn = InlineKeyboardMarkup([[InlineKeyboardButton(f"💳 {sc('Buy now')}", style=enums.ButtonStyle.PRIMARY, callback_data=f"buy:{_skey(story)}")]])
 
-    caption_text = (
-        f"♨️ <b>Story :</b> {clean_title}\n"
-        f"🔰 <b>Status :</b> {story.get('status', 'Completed')}\n"
-        f"🖥️ <b>Platform :</b> {story.get('category', 'Pocket FM')}\n"
-        f"🧩 <b>Genre :</b> {story.get('genre', 'Drama')}\n"
-        f"🎬 <b>Episodes :</b> {story.get('episodes', 'N/A')}\n\n"
-        f"░▒▓█ PRICE - {'FREE 🎁' if not story.get('price') else '₹' + str(story['price'])} █▓▒░"
+    values = {
+        "story": clean_title,
+        "status": story.get('status', 'Completed'),
+        "platform": story.get('category', 'Pocket FM'),
+        "genre": story.get('genre', 'Drama'),
+        "episodes": story.get('episodes', 'N/A'),
+        "id": story.get('story_id') or "",
+        "price": price_label(story.get('price', 0)),
+    }
+    await send_card(
+        client, callback.message.chat.id, "card", values, markup=btn, reply_to=callback.message,
+        photo=story.get('photo', 'https://picsum.photos/400/200'), footer=""
     )
-
-    try:
-        await callback.message.reply_photo(photo=story.get('photo', 'https://picsum.photos/400/200'), caption=caption_text, reply_markup=btn)
-    except Exception:
-        await callback.message.reply_text(caption_text, reply_markup=btn)
     await callback.answer()
 
 
