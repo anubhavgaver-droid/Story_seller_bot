@@ -17,6 +17,7 @@ from database.db import (
     get_active_db_channel
 )
 from plugins.post import send_story_to_channel
+from cards import send_text_card, classic_text, Raw
 from plugins.notification import notify_story_buyers
 
 # State Trackers
@@ -468,42 +469,29 @@ async def finalize_add_story(client, message, data):
     ranges_count = len(data.get('custom_ranges', []))
     free_link_text = data.get('free_link') if data.get('free_link') else "N/A"
 
-    log_msg = (
-        f"<b>➕ ɴᴇᴡ sᴛᴏʀʏ ᴀᴅᴅᴇᴅ!</b>\n\n"
-        f"♨️ <b>Story :</b> {data['title']}\n"
-        f"🔰 <b>Status :</b> {data.get('status', 'Completed')}\n"
-        f"🖥️️ <b>Platform :</b> {data.get('category', 'Pocket FM')}\n"
-        f"🧩 <b>Genre :</b> {data.get('genre', 'Drama')}\n"
-        f"🎬 <b>Episodes :</b> {data.get('episodes', 'N/A')}\n"
-        f"🔗 <b>Free Link :</b> {free_link_text}\n\n"
-        f"░▒▓█ PRICE - ₹{data['price']} █▓▒░\n\n"
-        f"<b>🎬 Demo Status:</b> {demo_status}\n"
-        f"<b>🎧 Demo IDs:</b> {demo_msg_ids}\n"
-        f"<b>📦 Files:</b> {total_files} (Msg {data['first_msg_id']} to {data['last_msg_id']})\n"
-        f"<b>🎯 Custom Ranges:</b> {ranges_count} Configured\n\n"
-        f"🔗 <b>sʜᴀʀᴇᴀʙʟᴇ ʟɪɴᴋ:</b>\n<code>{bot_share_link}</code>"
-    )
+    # Template "added" (change emoji / text / fields with /template). The same values feed the log and the reply.
+    card_values = {
+        "story": data['title'],
+        "status": data.get('status', 'Completed'),
+        "platform": data.get('category', 'Pocket FM'),
+        "genre": data.get('genre', 'Drama'),
+        "episodes": data.get('episodes', 'N/A'),
+        "id": data.get('story_id') or "",
+        "free_link": free_link_text,
+        "price": f"₹{data['price']}",
+        "demo": demo_status,
+        "demo_ids": str(demo_msg_ids),
+        "files": f"{total_files} (Msg {data['first_msg_id']} to {data['last_msg_id']})",
+        "ranges": f"{ranges_count} Configured",
+        "link": Raw(f"<code>{bot_share_link}</code>"),
+    }
     try:
-        await send_log(client, log_msg)
+        log_text = await classic_text("added", card_values, heading="➕ New story added!")
+        await send_log(client, log_text)
     except Exception:
         pass
-    
-    await message.reply_text(
-        f"✅ <b>sᴛᴏʀʏ ᴀᴅᴅᴇᴅ sᴜᴄᴄᴇssғᴜʟʟʏ!</b>\n\n"
-        f"♨️ <b>Story :</b> {data['title']}\n"
-        f"🔰 <b>Status :</b> {data.get('status', 'Completed')}\n"
-        f"🖥️ <b>Platform :</b> {data.get('category', 'Pocket FM')}\n"
-        f"🧩 <b>Genre :</b> {data.get('genre', 'Drama')}\n"
-        f"🎬 <b>Episodes :</b> {data.get('episodes', 'N/A')}\n"
-        f"🔗 <b>Free Link :</b> {free_link_text}\n\n"
-        f"░▒▓█ PRICE - ₹{data['price']} █▓▒░\n\n"
-        f"<b>🎬 Demo Status:</b> {demo_status}\n"
-        f"<b>🎧 Demo Files IDs:</b> {demo_msg_ids}\n"
-        f"<b>📦 Total Files:</b> {total_files}\n"
-        f"<b>🎯 Custom Buttons:</b> {ranges_count} Configured\n\n"
-        f"🔗 <b>sʜᴀʀᴇᴀʙʟᴇ ʟɪɴᴋ:</b>\n<code>{bot_share_link}</code>",
-        disable_web_page_preview=True
-    )
+
+    await send_text_card(client, message.chat.id, "added", card_values, reply_to=message)
 
 # ------------------ ONGOING STORY ADD EPISODES WIZARD ------------------
 
