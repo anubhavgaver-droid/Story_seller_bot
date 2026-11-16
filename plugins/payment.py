@@ -17,7 +17,7 @@ import emailpay
 from freeflow import start_free_claim
 from bonus import bonus_amount, bonus_hint
 from style import sc
-from cards import send_card, notify_owned
+from cards import send_card, notify_owned, send_success
 from freeflow import price_label
 from database.db import (
     is_story_unlocked,
@@ -838,15 +838,17 @@ async def approve_order(client, callback):
     await add_user_purchase(user_id, clean_title_full, story_id=story_id)
     access_btn = InlineKeyboardMarkup([[InlineKeyboardButton(f"📂 {sc('Get files')}", style=enums.ButtonStyle.PRIMARY, url=link)]]) if link else None
 
-    try:
-        await client.send_message(
-            chat_id=user_id,
-            text=f"🎉 <b>{sc('Your payment has been approved')}</b>\n📖 Story: {clean_title_full}",
-            reply_markup=access_btn,
-            protect_content=False
-        )
-    except Exception as e:
-        print(f"Approve: could not message the user: {e}")
+    # The same congratulations card as every other purchase (the old plain message is only the fallback).
+    if not await send_success(client, user_id, story=story, paid=f"₹{price:g}", method="Manual approval", link=link):
+        try:
+            await client.send_message(
+                chat_id=user_id,
+                text=f"🎉 <b>{sc('Your payment has been approved')}</b>\n📖 Story: {clean_title_full}",
+                reply_markup=access_btn,
+                protect_content=False
+            )
+        except Exception as e:
+            print(f"Approve: could not message the user: {e}")
     await callback.message.edit_caption(caption=f"{callback.message.caption.html}\n\n✅ <b>APPROVED BY ADMIN</b>")
     await callback.answer("Approved.", show_alert=True)
 
