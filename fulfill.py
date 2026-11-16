@@ -18,6 +18,7 @@ from database.db import (
 )
 from bonus import bonus_amount
 from style import sc
+from cards import send_event_card, story_buttons, fmt_time, mention
 
 
 async def _log(client, text: str):
@@ -51,6 +52,7 @@ async def fulfill_order(client, order: dict, paid_amount: float, source: str = "
     notice = None           # message for the user
     notice_markup = None
     log_msg = None
+    success = None          # (story, link, values) for the success card of a story purchase
 
     try:
         # ---------------- WALLET TOP-UP ----------------
@@ -122,6 +124,9 @@ async def fulfill_order(client, order: dict, paid_amount: float, source: str = "
                         notice_markup = InlineKeyboardMarkup([[
                             InlineKeyboardButton(f"📂 {sc('Get files')}", style=enums.ButtonStyle.PRIMARY, url=link)
                         ]])
+                    success = (story, link, {
+                        "story": clean_title, "paid": f"₹{paid:g}", "order_id": order_id, "date": fmt_time(),
+                    })
                     log_msg = (
                         f"⚡ <b>[{source}] {sc('Story bought')}</b>\n\n"
                         f"👤 <b>User:</b> {user_mention} (<code>{user_id}</code>)\n"
@@ -139,10 +144,26 @@ async def fulfill_order(client, order: dict, paid_amount: float, source: str = "
         return "error"
 
     # Messages: even if they fail, the money / story is already handled, so there is no rollback.
-    try:
-        await client.send_message(chat_id=user_id, text=notice, reply_markup=notice_markup, protect_content=False)
-    except Exception as e:
-        print(f"fulfill_order: could not message user {user_id}: {e}")
+    sent_card = False
+    if success:
+        try:
+            s_story, s_link, s_values = success
+            try:
+                user = await client.get_users(user_id)
+                name = user.first_name
+            except Exception:
+                name = None
+            s_values["user"] = mention(user_id, name)
+            markup = await story_buttons("success", s_story, s_link, account=True)
+            await send_event_card(client, user_id, "success", s_values, photo=s_story.get("photo"), markup=markup)
+            sent_card = True
+        except Exception as e:
+            print(f"fulfill_order: success card failed, sending the plain message: {e}")
+    if not sent_card:
+        try:
+            await client.send_message(chat_id=user_id, text=notice, reply_markup=notice_markup, protect_content=False)
+        except Exception as e:
+            print(f"fulfill_order: could not message user {user_id}: {e}")
 
     if log_msg:
         await _log(client, log_msg)
