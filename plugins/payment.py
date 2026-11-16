@@ -17,9 +17,10 @@ import emailpay
 from freeflow import start_free_claim
 from bonus import bonus_amount, bonus_hint
 from style import sc
-from cards import send_card
+from cards import send_card, notify_owned
 from freeflow import price_label
 from database.db import (
+    is_story_unlocked,
     get_setting,
     get_story_by_key,
     add_user_purchase,
@@ -202,6 +203,12 @@ async def show_payment_methods(client, callback):
     story_title = _clean(story["title"])
     sid = _skey(story)
     user_id = callback.from_user.id
+
+    # Already bought: tell the user by name, charge nothing (pop-up + "already purchased" card).
+    if await is_story_unlocked(user_id, story_title, story.get("story_id")):
+        await notify_owned(client, callback.from_user, story, callback=callback)
+        return
+
     ACTIVE_PAYMENTS[user_id] = {"title": story_title, "story_id": sid, "price": price, "timestamp": time.time(), "type": "STORY"}
 
     mediator_caption = (
@@ -270,6 +277,10 @@ async def generate_qr_after_terms(client, callback):
         return await callback.answer("This story was not found or has been removed.", show_alert=True)
     if price <= 0:
         return await callback.answer("Invalid amount.", show_alert=True)
+
+    if kind == "STORY" and await is_story_unlocked(user_id, _clean(story["title"]), story.get("story_id")):
+        await notify_owned(client, callback.from_user, story, callback=callback)
+        return
 
     # The admin put Auto UPI under maintenance -> popup (turn it back on with /setup or /autopay on)
     if await get_setting("auto_pay_maintenance", True):
