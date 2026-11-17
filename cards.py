@@ -145,7 +145,7 @@ async def saved_for(name: str) -> dict:
     return dict((await _saved()).get(name) or {})
 
 
-def resolve(name: str, raw: dict, heading=None, footer=None) -> dict:
+def resolve(name: str, raw: dict, heading=None, footer=None, lang=None) -> dict:
     """The template as it looks right now: defaults + the admin's changes."""
     base = TEMPLATES[name]
     over = (raw or {}).get("fields") or {}
@@ -155,6 +155,12 @@ def resolve(name: str, raw: dict, heading=None, footer=None) -> dict:
         for key in group:
             emoji, label = FIELD_DEFAULTS[key]
             o = over.get(key) or {}
+            if lang == "hi":                                # default label in Hindi; a label the admin chose is kept as typed
+                try:
+                    import lang_hi
+                    label = lang_hi.LABELS.get(key, label)
+                except Exception:
+                    pass
             fields.append({
                 "key": key,
                 "emoji": o.get("emoji", emoji),
@@ -318,6 +324,15 @@ def _photo_parts(photo):
     return "", []
 
 
+async def _chat_lang(chat_id):
+    """'hi' | 'en' | None for a private chat (cards in a channel are never translated)."""
+    try:
+        import lang
+        return await lang.lang_of_chat(chat_id)
+    except Exception:
+        return None
+
+
 async def _use_rich(chat_id, mode: str) -> bool:
     if mode == "classic" or _STATE["fails"] >= MAX_FAILS:
         return False
@@ -357,6 +372,11 @@ async def _try_rich(client, chat_id, html_body, media, markup, reply_to, quote):
     rm = markup_to_json(markup)
     if rm is None:
         return None
+    if await _chat_lang(chat_id) == "hi":                 # the rich card goes straight to the Bot API: translate here
+        import lang
+        await lang._extra()
+        html_body = lang.translate(html_body, "hi")
+        rm = lang.translate_buttons_json(rm, "hi")
     rich = {"html": html_body}
     if media:
         rich["media"] = media
@@ -425,7 +445,7 @@ async def send_card(client, chat_id, name: str, values: dict, *, photo=None, mar
     `values` = {field_key: text}. `heading` / `footer` are the defaults of THIS place; the admin's own text wins.
     reply_to = the Message to reply to (keeps the old message.reply_photo behaviour).
     """
-    res = resolve(name, await saved_for(name), heading, footer)
+    res = resolve(name, await saved_for(name), heading, footer, lang=await _chat_lang(chat_id))
     return await _deliver(client, chat_id, res["mode"], lambda ph: render_rich(res, values, ph),
                           render_classic(res, values), photo, markup, reply_to, quote, fallback_photo)
 
@@ -597,7 +617,7 @@ async def story_buttons(kind: str, story: dict, link=None, account: bool = False
 
 async def send_event_card(client, chat_id, kind: str, values: dict, *, photo=None, markup=None, reply_to=None):
     """Sends the 'success' or 'owned' card (rich with collapsible boxes, or the classic text)."""
-    res = resolve(kind, await saved_for(kind))
+    res = resolve(kind, await saved_for(kind), lang=await _chat_lang(chat_id))
     use_photo = _event_plan(kind, res, values)["photo"]
     return await _deliver(client, chat_id, res["mode"], lambda ph: render_event_rich(kind, res, values, ph),
                           render_event_classic(kind, res, values), photo if use_photo else None, markup, reply_to, None, None)

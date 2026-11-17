@@ -18,6 +18,7 @@ from database.db import (
 from gateway import check_order_status
 from version import VERSION
 from richui import install as install_richui
+from lang import install as install_lang
 from emailpay import poll_loop as email_poll_loop
 from fulfill import fulfill_order
 try:
@@ -275,6 +276,7 @@ async def main():
 
     # Rich Messages for the whole bot: one hook on Client.send_message / edit_message_text (safe fallbacks inside)
     install_richui()
+    install_lang()          # Hindi / English: must come after install_richui()
 
     bot_instance = Client(
         "StorySellerBot",
