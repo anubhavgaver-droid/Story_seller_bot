@@ -26,6 +26,17 @@ claim_tokens_col = db["claim_tokens"]        # Free-story ad-gate tokens
 used_utrs_col = db["used_utrs"]              # Manual-payment UTRs already approved (duplicate guard)
 email_credits_col = db["email_credits"]      # Payment-received emails read from Gmail (one document per email)
 deliveries_col = db["deliveries"]            # Audio/video files delivered to each user per story (what the Stream player shows)
+user_langs_col = db["user_langs"]            # Language each user chose (hi / en). A separate collection: choosing a language must not "register" the user
+
+
+# -------------------- USER LANGUAGE --------------------
+async def get_user_lang(user_id: int):
+    doc = await user_langs_col.find_one({"user_id": int(user_id)}, {"lang": 1})
+    return (doc or {}).get("lang")
+
+
+async def set_user_lang(user_id: int, lang: str):
+    await user_langs_col.update_one({"user_id": int(user_id)}, {"$set": {"lang": lang, "updated_at": time.time()}}, upsert=True)
 
 
 # -------------------- DELIVERED FILES (Stream player) --------------------
@@ -963,6 +974,7 @@ async def init_db():
         (used_utrs_col, [("utr", 1)], {"unique": True}),
         (email_credits_col, [("msg_key", 1)], {"unique": True}),
         (deliveries_col, [("user_id", 1), ("story_id", 1)], {"unique": True}),
+        (user_langs_col, [("user_id", 1)], {"unique": True}),
         (payment_orders_col, [("provider", 1), ("status", 1), ("payable_amount", 1)], {}),
     ]
     for col, keys, opts in index_jobs:
