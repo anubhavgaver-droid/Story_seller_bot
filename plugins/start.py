@@ -70,6 +70,7 @@ except Exception as _cq_err:
 # Story card templates (rich table look / classic look, changeable with /template)
 from cards import send_card, notify_owned, send_success, mention
 from style import sc
+from lang import needs_choice, PENDING as LANG_PENDING
 
 # Config file imports
 from config import (
@@ -954,6 +955,13 @@ async def handle_range_reply_buttons(client, message):
 async def start_handler(client, message):
     user = message.from_user
     args = message.text.split(maxsplit=1)
+
+    # Language: a user who has not chosen one yet picks it first. When he taps a language, plugins/language.py
+    # calls this handler again with the same message, so registration, referral, deep links and the menu all run as before.
+    if await needs_choice(user.id):
+        from plugins.language import ask_language
+        LANG_PENDING[user.id] = message
+        return await ask_language(client, message)
     
     try:
         registered = await is_user_registered(user.id)
@@ -1283,7 +1291,8 @@ async def start_handler(client, message):
                 style=enums.ButtonStyle.PRIMARY,
                 icon_custom_emoji_id=6305082483826233985
             )
-        ]
+        ],
+        [InlineKeyboardButton("🌐 ʟᴀɴɢᴜᴀɢᴇ / भाषा", callback_data="open_language_cb", style=enums.ButtonStyle.PRIMARY)]
     ])
 
     await sent_msg.edit_text(welcome_text, reply_markup=start_inline_kb)

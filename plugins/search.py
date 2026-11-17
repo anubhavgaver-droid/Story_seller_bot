@@ -216,7 +216,8 @@ async def back_to_menu_handler(client, message):
         [
             InlineKeyboardButton("ᴜᴘᴅᴀᴛᴇs", url="https://t.me/freestoryhubMR", style=enums.ButtonStyle.PRIMARY, icon_custom_emoji_id=6305082483826233985),
             InlineKeyboardButton("sᴜᴘᴘᴏʀᴛ", url="https://t.me/pratilipifm0900", style=enums.ButtonStyle.PRIMARY, icon_custom_emoji_id=5424818078833715060)
-        ]
+        ],
+        [InlineKeyboardButton("🌐 ʟᴀɴɢᴜᴀɢᴇ / भाषा", callback_data="open_language_cb", style=enums.ButtonStyle.PRIMARY)]
     ])
 
     await message.reply_text(
