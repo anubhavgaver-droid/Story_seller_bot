@@ -9,8 +9,9 @@ What it does
 
 Speed + reliability
   * The files that were delivered to the user are saved in the database at delivery time (start.py), together with
-    the Telegram file_id. The player therefore lists EXACTLY the delivered files and opens WITHOUT any Telegram call
-    (Telegram's "GetMessages" flood limit can no longer make the player wait).
+    the Telegram file_id and the id of the message in the user's chat. The player lists EXACTLY the files that are in
+    the chat right now: "Clean / delete all files" removes them from the list too, a file delivered yesterday and
+    cleaned is never shown again. It opens WITHOUT any Telegram call (no "GetMessages" flood waits).
   * Every stream link carries the file info, so a stream starts with one Telegram download call.
   * One response is limited to 8 MB (the player simply asks for the next part), a busy server answers "busy"
     instead of making the player wait forever.
@@ -248,6 +249,23 @@ async def _build_playlist(bot, story: dict):
     return chat_id, items
 
 
+async def _single_item(bot, story: dict, msg_id: int) -> list:
+    """Playlist of one file (the one that was tapped), only when it really belongs to this story."""
+    if msg_id not in set(story_file_ids(story)):
+        return []
+    chat_id = story_channel(story)
+    msg = await _get_messages(bot, chat_id, msg_id)
+    found = media_of(msg) if msg and not getattr(msg, "empty", False) else None
+    if not found:
+        return []
+    kind, media, mime = found
+    return [{
+        "id": msg_id, "title": _title_for(msg, media, 1), "kind": kind, "mime": mime,
+        "size": int(getattr(media, "file_size", 0) or 0), "duration": int(getattr(media, "duration", 0) or 0),
+        "file_id": media.file_id,
+    }]
+
+
 async def _playlist(bot, story: dict):
     sid = str(story.get("story_id") or story.get("_id"))
     cached = _PLAYLISTS.get(sid)
@@ -359,14 +377,23 @@ async def handle_playlist(request):
         return _json({"error": "not_purchased"}, 403)
 
     chat_id = story_channel(story)
-    items = await get_delivered(uid, sid)          # exactly the files the bot delivered to this user
-    if not items:
-        # Nothing recorded (delivered before this update, or the admin previewing): list the story's files once.
+    # exactly the files that are in this user's chat right now ([] after "Clean", None = not tracked yet)
+    items = await get_delivered(uid, sid)
+    if items is None:
         bot = request.app.get("watch_bot_getter", lambda: None)()
         if bot is None:
             return _json({"error": "starting"}, 503)
         try:
-            chat_id, items = await asyncio.wait_for(_playlist(bot, story), SCAN_TIMEOUT)
+            if uid == int(ADMIN_ID):
+                # The admin previewing a story: every file of the story.
+                chat_id, items = await asyncio.wait_for(_playlist(bot, story), SCAN_TIMEOUT)
+            else:
+                # Delivered before this update (nothing tracked): only the file whose Stream button was tapped.
+                try:
+                    wanted = int(body.get("msg_id") or 0)
+                except (TypeError, ValueError):
+                    wanted = 0
+                items = await asyncio.wait_for(_single_item(bot, story, wanted), SCAN_TIMEOUT) if wanted else []
         except asyncio.TimeoutError:
             return _json({"error": "busy"}, 503)
 
@@ -374,7 +401,7 @@ async def handle_playlist(request):
     for it in items:
         if not it.get("file_id"):
             continue
-        row = {k: v for k, v in it.items() if k != "file_id"}      # the file_id stays on the server side of the token
+        row = {k: v for k, v in it.items() if k not in ("file_id", "chat_msg_id")}   # these stay on the server side
         row["url"] = "/watch/stream/" + make_token(uid, sid, chat_id, it["id"], it["file_id"], it.get("size", 0), it.get("mime", ""))
         out.append(row)
     photo = story.get("photo")

@@ -288,7 +288,7 @@ ul{list-style:none;margin:0;padding:0}
   function fetchPlaylist() {
     return fetch("/api/watch/playlist", {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ init_data: initData, story_id: storyId })
+      body: JSON.stringify({ init_data: initData, story_id: storyId, msg_id: startId })
     }).then(function (r) {
       return r.json().catch(function () { return {}; }).then(function (j) { return { status: r.status, body: j }; });
     });
@@ -304,7 +304,7 @@ ul{list-style:none;margin:0;padding:0}
       if (res.status === 404) return fail("🔎", "Story not found", "This story is no longer available.", false);
       if (res.status !== 200) return fail("⚠️", "Server is waking up", "Please try again in a few seconds.", true);
       data = res.body; items = data.items || [];
-      if (!items.length) return fail("🎧", "No audio yet", "There are no playable files in this story.", false);
+      if (!items.length) return fail("🎧", "No files in your chat", "The player shows the files that are in your bot chat right now. Get the story files from the bot first, then tap Stream again.", false);
       start();
     }).catch(function () { fail("📡", "No connection", "Check your internet and try again.", true); });
   }
