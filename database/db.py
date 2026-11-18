@@ -42,29 +42,42 @@ async def set_user_lang(user_id: int, lang: str):
 # -------------------- DELIVERED FILES (Stream player) --------------------
 async def record_delivered(user_id: int, story_id: str, items: list):
     """
-    Saves the audio/video files that were delivered to this user for this story (id, title, size, file_id ...).
-    The Stream player shows exactly these files and needs NO Telegram call to open.
-    New items are added; an item that is delivered again just replaces its old entry.
+    Saves the audio/video files that were delivered to this user for this story (id, title, size, file_id and
+    chat_msg_id = the id of the message in the user's chat). The Stream player shows exactly the files that are
+    still in the chat: pressing "Clean / delete all files" removes them again (remove_delivered_by_chat_ids).
+    An item that is delivered again just replaces its old entry. Old entries without chat_msg_id are dropped.
     """
     if not items:
         return
     doc = await deliveries_col.find_one({"user_id": user_id, "story_id": story_id}, {"items": 1}) or {}
-    merged = {it["id"]: it for it in (doc.get("items") or [])}
+    merged = {it["id"]: it for it in (doc.get("items") or []) if it.get("chat_msg_id")}
     for it in items:
         merged[it["id"]] = it
     ordered = [merged[k] for k in sorted(merged)]
     await deliveries_col.update_one(
         {"user_id": user_id, "story_id": story_id},
-        {"$set": {"items": ordered, "updated_at": time.time()}},
+        {"$set": {"items": ordered, "tracked": True, "updated_at": time.time()}},
         upsert=True
     )
 
 
 async def get_delivered(user_id: int, story_id: str):
-    """List of delivered files for this user+story, or None when nothing was recorded (delivered before this feature)."""
-    doc = await deliveries_col.find_one({"user_id": user_id, "story_id": story_id}, {"items": 1})
-    items = (doc or {}).get("items")
-    return items or None
+    """
+    The files of this story that are in the user's chat right now (a list, empty after "Clean").
+    None = nothing tracked yet (delivered before this feature): the player then shows only the file that was tapped.
+    """
+    doc = await deliveries_col.find_one({"user_id": user_id, "story_id": story_id}, {"items": 1, "tracked": 1})
+    if not doc or not doc.get("tracked"):
+        return None
+    return [it for it in (doc.get("items") or []) if it.get("chat_msg_id")]
+
+
+async def remove_delivered_by_chat_ids(user_id: int, first_chat_id: int, last_chat_id: int):
+    """The user cleaned his chat (messages first..last were deleted): those files leave the Stream playlist too."""
+    await deliveries_col.update_many(
+        {"user_id": user_id, "tracked": True},
+        {"$pull": {"items": {"chat_msg_id": {"$gte": int(first_chat_id), "$lte": int(last_chat_id)}}}}
+    )
 
 
 # -------------------- SETTINGS (admin switches) --------------------
