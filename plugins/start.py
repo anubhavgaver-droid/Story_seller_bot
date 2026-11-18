@@ -21,6 +21,7 @@ from pyrogram.enums import ParseMode
 # Required Database functions
 from database.db import (
     record_delivered,
+    remove_delivered_by_chat_ids,
     story_channel,
     get_story_by_title,
     get_story_by_key,
@@ -329,6 +330,7 @@ async def send_story_files_start(client, user_id, story, first_id, last_id, clea
                 success_count += 1
                 _item = describe_media(msg, len(delivered_items) + 1)
                 if _item:
+                    _item["chat_msg_id"] = sent_msg.id          # the file's message in the user's chat (Clean removes it again)
                     delivered_items.append(_item)
 
                 if success_count % 3 == 0:
@@ -480,6 +482,11 @@ async def range_clean_chat_handler(client, callback_query):
                 await asyncio.sleep(e.value + 1)
             except Exception as e:
                 print(f"Error deleting batch: {e}")
+
+        try:
+            await remove_delivered_by_chat_ids(user_id, start_id, end_id)     # the Stream player forgets these files too
+        except Exception as e:
+            print(f"Could not clear the Stream playlist: {e}")
 
         try:
             await client.send_message(
