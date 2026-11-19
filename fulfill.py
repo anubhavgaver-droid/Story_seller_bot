@@ -153,6 +153,11 @@ async def fulfill_order(client, order: dict, paid_amount: float, source: str = "
     if not sent_card:
         try:
             await client.send_message(chat_id=user_id, text=notice, reply_markup=notice_markup, protect_content=False)
+            try:                                       # wallet top-up verified: random emoji reaction
+                from reactions import payment_verified
+                payment_verified(client, user_id)
+            except Exception:
+                pass
         except Exception as e:
             print(f"fulfill_order: could not message user {user_id}: {e}")
 
