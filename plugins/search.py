@@ -6,6 +6,7 @@ import time
 from pyrogram import Client, filters, enums
 from freeflow import buy_rows, price_label
 from cards import send_card
+from reactions import fire as react_fire          # random emoji reactions
 from pyrogram.types import (
     ReplyKeyboardMarkup, 
     KeyboardButton, 
@@ -249,6 +250,7 @@ async def story_selected_handler(client, message):
     
     if not story:
         return await message.reply_text("❌ <b>ᴛʜɪs sᴛᴏʀʏ ɪs ᴄᴜʀʀᴇɴᴛʟʏ ᴜɴᴀᴠᴀɪʟᴀʙʟᴇ.</b>", quote=True)
+    react_fire(client, message, "story")          # the user picked a story
         
     clean_title = story['title'].strip().splitlines()[0]
     # Button me title nahi, random story_id (64-byte callback limit + emoji safe)
@@ -322,6 +324,7 @@ async def process_search(client, message):
 
     query = message.text.strip()
     SEARCH_WAITING.pop(user_id, None)
+    react_fire(client, message, "search")          # the user typed a keyword
     
     all_stories = await get_all_stories()
     matched_stories = []

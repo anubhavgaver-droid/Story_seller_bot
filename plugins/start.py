@@ -72,6 +72,7 @@ except Exception as _cq_err:
 from cards import send_card, notify_owned, send_success, mention
 from style import sc
 from lang import needs_choice, PENDING as LANG_PENDING
+from reactions import fire as react_fire          # random emoji reactions
 
 # Config file imports
 from config import (
@@ -503,6 +504,7 @@ async def range_clean_chat_handler(client, callback_query):
 # ------------------ Mini App Web Data Receiver ------------------
 @Client.on_message(filters.service & filter_webapp & filters.private)
 async def web_app_data_handler(client, message):
+    react_fire(client, message, "story")          # the user ordered a story from the mini app
     try:
         data = json.loads(message.web_app_data.data)
         action = data.get("action")
@@ -866,6 +868,7 @@ async def process_start_range_input(client, message):
         return await message.reply_text("❌ <b>ɪɴᴠᴀʟɪᴅ ʀᴀɴɢᴇ!</b> Start number cannot be less than 1 or greater than end number.")
 
     START_RANGE_WAITING.pop(user_id, None)
+    react_fire(client, message, "range")          # a valid file range was typed
 
     clean_title = story['title'].strip().split("\n")[0]
     
@@ -925,6 +928,7 @@ async def handle_range_reply_buttons(client, message):
         return await message.reply_text("👁️‍🗨️ <b>Aʟʟ Aᴠᴀɪʟᴀʙʟᴇ Fɪʟᴇ Rᴀɴɢes:</b>", reply_markup=reply_kb)
 
     elif re.search(r"(?i)(full delivery|all files|📦)", text):
+        react_fire(client, message, "range")
         USER_ACTIVE_STORY.pop(user_id, None)
         USER_PAGINATION_PAGE.pop(user_id, None)
         await send_story_files_start(
@@ -941,6 +945,7 @@ async def handle_range_reply_buttons(client, message):
         target_range = next((r for r in custom_ranges if r['name'] == range_name), None)
         
         if target_range:
+            react_fire(client, message, "range")
             USER_ACTIVE_STORY.pop(user_id, None)
             USER_PAGINATION_PAGE.pop(user_id, None)
             await send_story_files_start(
@@ -969,6 +974,8 @@ async def start_handler(client, message):
         from plugins.language import ask_language
         LANG_PENDING[user.id] = message
         return await ask_language(client, message)
+
+    react_fire(client, message, "start")          # random emoji reaction on the user's /start
     
     try:
         registered = await is_user_registered(user.id)
