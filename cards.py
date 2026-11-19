@@ -673,7 +673,12 @@ async def send_success(client, user_id: int, *, story=None, titles=None, paid, m
             "date": fmt_time(), "user": mention(user_id, name),
         }
         markup = await story_buttons("success", story or {}, link, account=account)
-        await send_event_card(client, user_id, "success", values, photo=(story or {}).get("photo"), markup=markup)
+        sent = await send_event_card(client, user_id, "success", values, photo=(story or {}).get("photo"), markup=markup)
+        try:                                           # random emoji reaction: the story is unlocked
+            from reactions import payment_verified
+            payment_verified(client, user_id, getattr(sent, "id", None))
+        except Exception:
+            pass
         return True
     except Exception as e:
         print(f"[cards] success card failed: {type(e).__name__}: {e}")
