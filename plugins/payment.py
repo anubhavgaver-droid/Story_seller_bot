@@ -2,6 +2,7 @@ import io
 import re
 import time
 import asyncio
+import copy
 import gc
 from PIL import Image
 import qrcode
@@ -18,6 +19,12 @@ from freeflow import start_free_claim
 from bonus import bonus_amount, bonus_hint
 from style import sc
 from cards import send_card, notify_owned, send_success
+
+# "Pay with any UPI app" button (opens a checkout page in Chrome). If the pay/ folder is missing the invoice just has no such button.
+try:
+    from pay.pay import checkout_button
+except Exception:
+    checkout_button = None
 from freeflow import price_label
 from database.db import (
     is_story_unlocked,
@@ -442,6 +449,13 @@ async def generate_qr_after_terms(client, callback):
         if crowded > 0:
             btn_list.append([InlineKeyboardButton(f"🔢 {sc('Submit UTR')}", style=enums.ButtonStyle.PRIMARY, callback_data=f"utr:{gen_order_id}")])
     btn_list.append([InlineKeyboardButton(f"⚡ {sc('Verify payment')}", style=enums.ButtonStyle.SUCCESS, callback_data=f"chk:{gen_order_id}")])
+    if checkout_button:                                   # QR-only payments: pay from the phone itself, in any UPI app
+        pay_btn = checkout_button(
+            {"order_id": gen_order_id, "user_id": user_id, "provider": provider, "kind": kind, "status": "CREATED"},
+            f"📲 {sc('Pay with any UPI app')}"
+        )
+        if pay_btn:
+            btn_list.append([pay_btn])
     btn_list.append([InlineKeyboardButton(f"🆘 {sc('I paid but got nothing')}", callback_data=f"sos:{gen_order_id}")])
     btn_list.append([InlineKeyboardButton(f"❌ {sc('Cancel')}", style=enums.ButtonStyle.DANGER, callback_data="cancel_payment_process")])
 
@@ -458,6 +472,67 @@ async def generate_qr_after_terms(client, callback):
 
 
 # ---------------- STEP 3: VERIFY THE PAYMENT ----------------
+
+_MOONS = ["🌑", "🌒", "🌓", "🌔", "🌕", "🌖", "🌗", "🌘"]
+
+
+class _MoonButton:
+    """
+    While a payment is being checked the Verify button shows a moving moon (🌑 🌒 🌓 🌔 🌕 🌖 🌗 🌘) instead of a pop-up.
+    When the check ends the button goes back to normal, or shows "🌕 ✅ Verified" when the payment was found.
+    Nothing here can break the check: every error is ignored.
+    """
+    INTERVAL = 0.9
+
+    def __init__(self, message, callback_data: str):
+        self.message = message
+        self.data = callback_data
+        self.original = getattr(message, "reply_markup", None)
+        self.task = None
+
+    def _markup(self, prefix: str, label: str = None):
+        rows = []
+        for row in (getattr(self.original, "inline_keyboard", None) or []):
+            new_row = []
+            for button in row:
+                nb = copy.copy(button)
+                cb = button.callback_data.decode() if isinstance(button.callback_data, bytes) else button.callback_data
+                if cb == self.data:
+                    nb.text = f"{prefix} {label or sc('Verify payment')}"
+                new_row.append(nb)
+            rows.append(new_row)
+        return InlineKeyboardMarkup(rows)
+
+    async def _run(self):
+        i = 0
+        while True:
+            try:
+                await self.message.edit_reply_markup(self._markup(_MOONS[i % 8]))
+            except Exception:
+                pass
+            i += 1
+            await asyncio.sleep(self.INTERVAL)
+
+    def start(self):
+        if self.original is not None and getattr(self.original, "inline_keyboard", None):
+            self.task = asyncio.create_task(self._run())
+
+    async def stop(self, paid: bool = False):
+        if self.task:
+            self.task.cancel()
+            try:
+                await self.task
+            except (asyncio.CancelledError, Exception):
+                pass
+            self.task = None
+            try:
+                if paid:
+                    await self.message.edit_reply_markup(self._markup("🌕", f"✅ {sc('Verified')}"))
+                else:
+                    await self.message.edit_reply_markup(self.original)
+            except Exception:
+                pass
+
 
 @Client.on_callback_query(filters.regex(r"^(chk:|auto_check_payment_)"))
 async def direct_verify_payment(client, callback):
@@ -480,20 +555,27 @@ async def direct_verify_payment(client, callback):
         )
 
     is_email = order.get("provider") == "email"
-    await callback.answer("Checking your payment...")
+    await callback.answer()                      # no pop-up: the moon on the button shows that the payment is being checked
 
-    if is_email:
-        # One payer at a time: direct check (amount + time). Several payers at once: ask for the UTR.
-        status, actual_paid = await emailpay.verify_order_utr(order)
-        if status == "no_utr":
-            return await _ask_utr(callback.message, user_id, order, busy=True)
-        is_valid = status == "paid"
-        msg = _EMAIL_NOTICE.get(status, "Payment not found yet.")
-    else:
-        is_valid, actual_paid, msg = await check_order_status(order["order_id"])
-        if not is_valid:
-            await asyncio.sleep(2)
+    moon = _MoonButton(callback.message, data)
+    moon.start()
+    is_valid = False
+    try:
+        if is_email:
+            # One payer at a time: direct check (amount + time). Several payers at once: ask for the UTR.
+            status, actual_paid = await emailpay.verify_order_utr(order)
+            if status == "no_utr":
+                await moon.stop(False)
+                return await _ask_utr(callback.message, user_id, order, busy=True)
+            is_valid = status == "paid"
+            msg = _EMAIL_NOTICE.get(status, "Payment not found yet.")
+        else:
             is_valid, actual_paid, msg = await check_order_status(order["order_id"])
+            if not is_valid:
+                await asyncio.sleep(2)
+                is_valid, actual_paid, msg = await check_order_status(order["order_id"])
+    finally:
+        await moon.stop(is_valid)
 
     if is_valid:
         result = await fulfill_order(client, order, actual_paid, "AUTO VERIFY")
