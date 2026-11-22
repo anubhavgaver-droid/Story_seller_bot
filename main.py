@@ -22,6 +22,11 @@ from lang import install as install_lang
 from emailpay import poll_loop as email_poll_loop
 from fulfill import fulfill_order
 try:
+    from pay.pay import setup_pay_routes            # 📲 Pay with any UPI app (checkout page in Chrome)
+except Exception as _pay_err:
+    setup_pay_routes = None
+    print(f"⚠️ UPI app checkout (pay/) not loaded: {_pay_err}")
+try:
     from watch.watch import setup_watch_routes      # 🎧 Stream / Watch player
 except Exception as _watch_err:                      # the bot must still start if the watch/ folder is missing
     setup_watch_routes = None
@@ -256,6 +261,8 @@ async def start_web_server():
     # 🎧 Stream / Watch player (watch/ folder): /watch, /api/watch/playlist, /watch/stream/<token>
     if setup_watch_routes:
         setup_watch_routes(app_web, lambda: bot_instance)
+    if setup_pay_routes:
+        setup_pay_routes(app_web, lambda: bot_instance)
 
     if os.path.exists(WEB_DIR):
         app_web.router.add_static("/web/", path=WEB_DIR, name="web")
