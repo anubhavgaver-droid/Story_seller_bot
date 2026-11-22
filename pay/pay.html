@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="referrer" content="no-referrer">
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#07070d">
+<title>Secure payment</title>
+<style>
+:root{--bg:#07070d;--ink:#f6f4ff;--muted:rgba(246,244,255,.62);--faint:rgba(246,244,255,.14);--a1:#ffb347;--a2:#ff5f8f;--a3:#8b6cff;--ok:#2fd18b;
+  --grad:linear-gradient(135deg,var(--a1),var(--a2) 55%,var(--a3));--glass:rgba(255,255,255,.06);--glass-b:rgba(255,255,255,.12)}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;min-height:100%;background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Noto Sans Devanagari","Helvetica Neue",Arial,sans-serif;-webkit-font-smoothing:antialiased}
+body{min-height:100dvh;background:radial-gradient(120% 70% at 50% -10%,#1d1336 0%,#07070d 62%)}
+button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:pointer}
+.wrap{max-width:480px;margin:0 auto;padding:max(16px,env(safe-area-inset-top)) 16px max(28px,env(safe-area-inset-bottom))}
+.top{display:flex;align-items:center;justify-content:space-between;padding:6px 2px 14px}
+.brand{font-size:11px;letter-spacing:.26em;text-transform:uppercase;font-weight:800;color:var(--muted)}
+.lock{font-size:12px;padding:6px 12px;border-radius:99px;background:var(--glass);border:1px solid var(--glass-b);color:var(--muted)}
+.card{background:var(--glass);border:1px solid var(--glass-b);border-radius:24px;backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);box-shadow:0 20px 60px rgba(0,0,0,.35)}
+.order{padding:20px 18px 16px;position:relative;overflow:hidden}
+.order::before{content:"";position:absolute;inset:-40% -20% auto auto;width:260px;height:260px;background:var(--grad);filter:blur(70px);opacity:.22;pointer-events:none}
+.lbl{font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--muted);font-weight:700}
+.story{font-size:20px;font-weight:750;line-height:1.3;margin:4px 0 14px;word-break:break-word}
+.row{display:flex;align-items:flex-end;justify-content:space-between;gap:12px}
+.amount{font-size:44px;font-weight:850;letter-spacing:-.02em;line-height:1;background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent;font-variant-numeric:tabular-nums}
+.tbar{margin-top:12px;padding:12px 14px 13px;border-radius:14px;background:rgba(0,0,0,.25);border:1px solid var(--glass-b)}
+.tbar .tl{display:flex;align-items:center;justify-content:space-between;font-size:13px;color:var(--muted)}
+.tbar b{font-size:22px;color:var(--ink);font-variant-numeric:tabular-nums;letter-spacing:.02em}
+.tbar .track{margin-top:9px;height:6px;border-radius:99px;background:var(--faint);overflow:hidden}
+.tbar .track i{display:block;height:100%;width:100%;border-radius:99px;background:var(--grad);transition:width .5s linear}
+.tbar.low b{color:#ff7b7b}.tbar.low .track i{background:#ff6b6b}
+.oid{margin-top:14px;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;border-radius:14px;background:rgba(0,0,0,.25);border:1px solid var(--glass-b)}
+.oid code{font-size:13px;color:#e9e4ff;word-break:break-all}
+.copy{font-size:12px;font-weight:700;color:var(--a1);padding:4px 8px}
+h2{font-size:13px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);margin:22px 4px 4px;font-weight:800}
+.sub{margin:0 4px 12px;color:rgba(246,244,255,.5);font-size:12.5px}
+.apps{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.app{display:flex;align-items:center;gap:11px;padding:13px 12px;border-radius:18px;background:var(--glass);border:1px solid var(--glass-b);text-align:left;transition:transform .15s,background .2s}
+.app:active{transform:scale(.96);background:var(--faint)}
+.app .ic{width:40px;height:40px;border-radius:12px;display:grid;place-items:center;font-weight:900;font-size:13px;color:#fff;flex:none;box-shadow:0 6px 16px rgba(0,0,0,.35)}
+.app b{display:block;font-size:14.5px}.app small{color:var(--muted);font-size:11.5px}
+.app.other{grid-column:1 / -1;justify-content:center}
+.app.other .ic{background:linear-gradient(135deg,#444,#222);font-size:18px}
+.pp{background:#5f259f}.gp{background:linear-gradient(135deg,#4285f4,#34a853 55%,#fbbc05)}.pt{background:#00b9f1}.bh{background:linear-gradient(135deg,#f58220,#138808)}
+.verify{margin-top:20px;width:100%;padding:17px 16px;border-radius:20px;font-weight:800;font-size:17px;color:#04170f;background:linear-gradient(135deg,#59e3a8,#2fd18b);box-shadow:0 16px 40px rgba(47,209,139,.35);display:flex;align-items:center;justify-content:center;gap:12px;transition:transform .15s,opacity .2s}
+.verify:active{transform:scale(.98)}
+.verify[disabled]{opacity:.9;cursor:default}
+.verify .m{font-size:26px;line-height:1;width:30px;text-align:center}
+.verify small{display:block;font-weight:600;font-size:12px;opacity:.75}
+.status{min-height:22px;margin:12px 6px 0;text-align:center;font-size:13.5px;color:var(--muted);line-height:1.5}
+.status.err{color:#ff9d9d}
+.utr{margin-top:14px;padding:16px}
+.utr p{margin:0 0 10px;font-size:13.5px;color:var(--muted);line-height:1.5}
+.utr input{width:100%;padding:14px 16px;border-radius:14px;border:1px solid var(--glass-b);background:rgba(0,0,0,.3);color:var(--ink);font:inherit;font-size:18px;letter-spacing:.12em;outline:none}
+.utr input:focus{border-color:rgba(255,179,71,.6)}
+.utr button{margin-top:10px;width:100%;padding:13px;border-radius:14px;background:var(--grad);font-weight:800}
+.note{margin:16px 6px 0;padding:11px 14px;border-radius:14px;background:rgba(255,179,71,.1);border:1px solid rgba(255,179,71,.25);color:#ffd9a3;font-size:12.5px;line-height:1.5}
+.done{text-align:center;padding:34px 20px 26px}
+.done .big{font-size:64px;display:block;margin-bottom:6px}
+.done h1{margin:0 0 6px;font-size:24px}.done p{margin:0 0 4px;color:var(--muted);line-height:1.5}
+.back{display:block;margin-top:20px;padding:16px;border-radius:18px;background:var(--grad);font-weight:800;font-size:16px;color:#fff;text-decoration:none;box-shadow:0 14px 40px rgba(255,95,143,.35)}
+.back.ghost{background:var(--glass);border:1px solid var(--glass-b);box-shadow:none;margin-top:10px}
+.error{text-align:center;padding:34px 20px}.error h1{font-size:21px;margin:8px 0}.error p{color:var(--muted);line-height:1.55;margin:0}
+.hide{display:none!important}
+.skel{height:150px;border-radius:24px;background:linear-gradient(90deg,var(--glass),var(--glass-b),var(--glass));background-size:200% 100%;animation:sh 1.4s infinite}
+@keyframes sh{to{background-position:-200% 0}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top"><div class="brand">● Secure payment</div><div class="lock" id="lock">🔒 Encrypted</div></div>
+  <div id="loading"><div class="skel"></div></div>
+  <div id="error" class="card error hide"></div>
+
+  <div id="main" class="hide">
+    <div class="card order">
+      <div class="lbl">Order · ऑर्डर</div>
+      <div class="story" id="story">—</div>
+      <div class="row">
+        <div><div class="lbl">Amount to pay · भुगतान</div><div class="amount" id="amount">₹0</div></div>
+      </div>
+      <div class="oid"><div><div class="lbl">Order ID</div><code id="oid">—</code></div><button class="copy" id="copy">Copy</button></div>
+      <div class="tbar" id="timer"><div class="tl"><span>⏳ Time left · बचा हुआ समय</span><b id="time">--:--</b></div><div class="track"><i id="ring"></i></div></div>
+    </div>
+
+    <div id="desktop" class="note hide">📱 UPI apps open only on a phone. Please open this page on your phone, or scan the QR code in the bot with your UPI app.</div>
+
+    <h2>Pay with any UPI app</h2>
+    <p class="sub">किसी भी UPI ऐप से पेमेंट करें · the app opens with the amount and order ID already filled in</p>
+    <div class="apps" id="apps"></div>
+
+    <button class="verify" id="verify"><span class="m" id="vm">🌑</span><span><span id="vt">Verify payment</span><small id="vs">पेमेंट वेरिफाई करें</small></span></button>
+    <div class="status" id="status">After paying, you come back to this page. It checks your payment by itself.</div>
+
+    <div class="card utr hide" id="utrbox">
+      <p>Many people are paying right now. Please type the <b>12-digit UTR / transaction ID</b> of your payment (find it in your UPI app).</p>
+      <input id="utr" inputmode="numeric" maxlength="14" placeholder="123456789012" autocomplete="off">
+      <button id="utrgo">Check with this UTR</button>
+    </div>
+    <a class="back ghost hide" id="back0" rel="noopener">↩ Back to the bot · बॉट पर वापस</a>
+  </div>
+
+  <div id="success" class="card done hide">
+    <span class="big" id="sm">🌕</span>
+    <h1>Payment verified ✅</h1>
+    <p>पेमेंट वेरिफाई हो गया</p>
+    <p id="sp">Your story is unlocked. The files are waiting for you in the bot.</p>
+    <a class="back" id="back" rel="noopener">↩ Return to the bot · बॉट पर वापस जाएँ</a>
+    <p style="margin-top:14px;font-size:12.5px;opacity:.7" id="auto"></p>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+  var $ = function (id) { return document.getElementById(id); };
+  var K = new URLSearchParams(location.search).get("k") || "";
+  var MOONS = ["🌑", "🌒", "🌓", "🌔", "🌕", "🌖", "🌗", "🌘"];
+  var UA = navigator.userAgent || "";
+  var ANDROID = /Android/i.test(UA), IOS = /iPhone|iPad|iPod/i.test(UA);
+  var order = null, offset = 0, leftForPay = false, busy = false, done = false, moonT = 0, timerT = 0, total = 1;
+
+  /* ---------- helpers ---------- */
+  function api(path, body) {
+    return fetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(Object.assign({ k: K }, body || {})) })
+      .then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { j._http = r.status; return j; }); });
+  }
+  function show(id) { ["loading", "error", "main", "success"].forEach(function (x) { $(x).classList.toggle("hide", x !== id); }); }
+  function fail(icon, title, text) {
+    var e = $("error"); e.textContent = "";
+    var a = document.createElement("div"); a.style.fontSize = "46px"; a.textContent = icon;
+    var b = document.createElement("h1"); b.textContent = title;
+    var c = document.createElement("p"); c.textContent = text;
+    e.appendChild(a); e.appendChild(b); e.appendChild(c); show("error");
+  }
+  function pad(n) { return (n < 10 ? "0" : "") + n; }
+  function setStatus(text, isErr) { var s = $("status"); s.textContent = text; s.classList.toggle("err", !!isErr); }
+  function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+
+  /* ---------- the moon on the Verify button ---------- */
+  function moonStart() { var i = 0; clearInterval(moonT); $("vm").textContent = MOONS[0]; moonT = setInterval(function () { i = (i + 1) % 8; $("vm").textContent = MOONS[i]; }, 210); }
+  function moonStop(final) { clearInterval(moonT); $("vm").textContent = final || "🌑"; }
+  function setBusy(on) {
+    busy = on; var b = $("verify"); b.disabled = on;
+    $("vt").textContent = on ? "Checking your payment…" : "Verify payment";
+    $("vs").textContent = on ? "पेमेंट जाँचा जा रहा है" : "पेमेंट वेरिफाई करें";
+    if (on) moonStart(); else moonStop();
+  }
+
+  /* ---------- the countdown ---------- */
+  function startTimer() {
+    clearInterval(timerT);
+    var ring = $("ring");
+    function tick() {
+      var now = Date.now() / 1000 + offset, left = Math.max(0, order.expires_at - now);
+      $("time").textContent = pad(Math.floor(left / 60)) + ":" + pad(Math.floor(left % 60));
+      ring.style.width = (Math.min(1, left / total) * 100) + "%";
+      $("timer").classList.toggle("low", left < 60);
+      if (left <= 0 && !done) {
+        clearInterval(timerT); $("time").textContent = "00:00";
+        if (!busy) setStatus("Time is over. If you already paid, tap Verify. Otherwise go back to the bot and start a new payment.", true);
+      }
+    }
+    tick(); timerT = setInterval(tick, 500);
+  }
+
+  /* ---------- UPI app buttons ---------- */
+  var APPS = [
+    { id: "phonepe", name: "PhonePe", cls: "pp", ic: "पे", pkg: "com.phonepe.app", ios: "phonepe://pay?" },
+    { id: "gpay", name: "Google Pay", cls: "gp", ic: "G", pkg: "com.google.android.apps.nbu.paisa.user", ios: "gpay://upi/pay?" },
+    { id: "paytm", name: "Paytm", cls: "pt", ic: "P", pkg: "net.one97.paytm", ios: "paytmmp://pay?" },
+    { id: "bhim", name: "BHIM", cls: "bh", ic: "B", pkg: "in.org.npci.upiapp", ios: "upi://pay?" }
+  ];
+  function appLink(app) {
+    var q = order.upi.split("?")[1] || "";
+    if (!app) return "upi://pay?" + q;                                   // any UPI app: the phone shows its chooser
+    if (ANDROID) {
+      return "intent://pay?" + q + "#Intent;scheme=upi;package=" + app.pkg + ";S.browser_fallback_url=" + encodeURIComponent(location.href) + ";end";
+    }
+    return app.ios + q;
+  }
+  function openApp(app) {
+    if (done) return;
+    leftForPay = true;
+    setStatus("Complete the payment in your UPI app, then come back to this page.", false);
+    location.href = appLink(app);
+  }
+  function buildApps() {
+    var box = $("apps"); box.textContent = "";
+    APPS.forEach(function (app) {
+      var b = document.createElement("button"); b.className = "app";
+      var ic = document.createElement("span"); ic.className = "ic " + app.cls; ic.textContent = app.ic;
+      var t = document.createElement("span"); var n = document.createElement("b"); n.textContent = app.name; var s = document.createElement("small"); s.textContent = "Tap to pay";
+      t.appendChild(n); t.appendChild(s); b.appendChild(ic); b.appendChild(t); b.onclick = function () { openApp(app); }; box.appendChild(b);
+    });
+    var o = document.createElement("button"); o.className = "app other";
+    var oi = document.createElement("span"); oi.className = "ic"; oi.textContent = "⋯";
+    var ot = document.createElement("span"); var on = document.createElement("b"); on.textContent = "Other UPI app · दूसरा ऐप"; ot.appendChild(on);
+    o.appendChild(oi); o.appendChild(ot); o.onclick = function () { openApp(null); }; box.appendChild(o);
+    $("desktop").classList.toggle("hide", ANDROID || IOS);
+  }
+
+  /* ---------- checking the payment ---------- */
+  function handle(res) {
+    if (res.status === "paid") { success(); return "stop"; }
+    if (res.status === "no_utr") { $("utrbox").classList.remove("hide"); setStatus("Please send your UTR so we can match your payment.", false); return "stop"; }
+    if (res.status === "wait") return "again";
+    if (res.status === "used") { $("utrbox").classList.remove("hide"); setStatus(res.message || "This UTR was already used.", true); return "stop"; }
+    if (res.status === "update_failed") { setStatus("Your payment was found, but the update failed. Tap Verify again in a minute.", true); return "stop"; }
+    setStatus(res.message || "The payment could not be checked right now. Please try again in a minute.", true);
+    return "stop";
+  }
+  function run(call) {
+    if (busy || done) return;
+    setBusy(true); setStatus("Checking with the bank… this takes a few seconds.", false);
+    (async function () {
+      var tries = 0, verdict = "again";
+      while (verdict === "again" && tries < 9 && !done) {
+        tries++;
+        var res;
+        try { res = await call(); } catch (e) { res = { status: "error", message: "No internet connection. Please try again." }; }
+        if (res._http === 401) { setBusy(false); return fail("⏰", "Link expired", "Please open the payment again from the bot."); }
+        verdict = handle(res);
+        if (verdict === "again" && tries < 9) {
+          setStatus("Not found yet. Checking again… (" + tries + "/8)", false);
+          await sleep(6500);
+        }
+      }
+      if (!done) {
+        setBusy(false);
+        if (verdict === "again") setStatus("Payment not found yet. Wait a minute after paying, then tap Verify again.", false);
+      }
+    })();
+  }
+  function verifyNow() { run(function () { return api("/api/pay/verify"); }); }
+
+  function success() {
+    done = true; clearInterval(timerT); setBusy(false); moonStop("🌕");
+    show("success"); $("sm").textContent = "🌕";
+    var back = $("back");
+    if (order.bot_url) {
+      back.href = order.bot_url;
+      var n = 4; $("auto").textContent = "Returning to the bot in " + n + "…";
+      var t = setInterval(function () { n--; if (n <= 0) { clearInterval(t); $("auto").textContent = ""; location.href = order.bot_url; } else $("auto").textContent = "Returning to the bot in " + n + "…"; }, 1000);
+    } else { back.classList.add("hide"); $("sp").textContent = "Your story is unlocked. Open Telegram: the files are in your bot chat."; }
+  }
+
+  /* ---------- start ---------- */
+  function init() {
+    if (!K) return fail("🔗", "Link not valid", "Please open the payment from the bot again.");
+    api("/api/pay/order").then(function (res) {
+      if (res._http === 401) return fail("⏰", "Link expired", "Please open the payment again from the bot.");
+      if (!res.order_id) return fail("⚠️", "Order not found", "Please go back to the bot and start the payment again.");
+      order = res; offset = res.now - Date.now() / 1000; total = Math.max(60, res.expires_at - res.now);
+      $("story").textContent = res.title; $("amount").textContent = "₹" + res.amount; $("oid").textContent = res.order_id;
+      if (res.bot_url) { $("back0").href = res.bot_url; $("back0").classList.remove("hide"); }
+      if (res.status === "paid") { show("main"); return success(); }
+      buildApps(); startTimer(); show("main");
+      if (!res.supported) { setStatus("This payment does not use UPI apps. Use the QR code or the payment page in the bot.", true); }
+    }).catch(function () { fail("📡", "No connection", "Check your internet and open the link again."); });
+  }
+  $("verify").onclick = verifyNow;
+  $("copy").onclick = function () {
+    var v = $("oid").textContent;
+    try { navigator.clipboard.writeText(v); } catch (e) {}
+    $("copy").textContent = "Copied ✓"; setTimeout(function () { $("copy").textContent = "Copy"; }, 1600);
+  };
+  $("utrgo").onclick = function () {
+    var utr = $("utr").value.replace(/\s+/g, "");
+    if (!/^\d{12}$/.test(utr)) return setStatus("The UTR is exactly 12 digits.", true);
+    run(function () { return api("/api/pay/utr", { utr: utr }); });
+  };
+  document.addEventListener("visibilitychange", function () {       // back from the UPI app: check by itself
+    if (document.visibilityState === "visible" && leftForPay && !done && !busy) { leftForPay = false; verifyNow(); }
+  });
+  window.addEventListener("pageshow", function (e) { if (e.persisted && leftForPay && !done && !busy) { leftForPay = false; verifyNow(); } });
+  window.__pay = { appLink: function (id) { var a = APPS.filter(function (x) { return x.id === id; })[0]; return appLink(a || null); } };   // for the automatic tests
+  init();
+})();
+</script>
+</body>
+</html>
