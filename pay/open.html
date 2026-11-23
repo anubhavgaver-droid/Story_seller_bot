@@ -4,29 +4,31 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
 <meta name="referrer" content="no-referrer">
-<title>Opening checkout</title>
+<title>Open checkout</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <style>
 html,body{margin:0;height:100%;background:#07070d;color:#f6f4ff;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Noto Sans Devanagari",sans-serif;-webkit-font-smoothing:antialiased}
 body{display:grid;place-items:center;text-align:center;padding:24px;background:radial-gradient(120% 80% at 50% -10%,#1a1230 0%,#07070d 60%)}
-.box{max-width:340px}
-.moon{font-size:54px;display:block;margin-bottom:12px}
-h1{font-size:21px;margin:0 0 6px}
-p{margin:0 0 20px;color:rgba(246,244,255,.65);font-size:14px;line-height:1.5}
-a.btn,button{display:block;width:100%;padding:15px 18px;border-radius:16px;border:0;font:inherit;font-weight:700;font-size:16px;color:#fff;text-decoration:none;
-  background:linear-gradient(135deg,#ffb347,#ff5f8f 55%,#8b6cff);box-shadow:0 14px 40px rgba(255,95,143,.4);cursor:pointer}
-.small{margin-top:14px;font-size:12px;color:rgba(246,244,255,.45)}
+.box{max-width:340px;width:100%}
+.ic{font-size:54px;display:block;margin-bottom:10px}
+h1{font-size:21px;margin:0 0 8px}
+p{margin:0 0 22px;color:rgba(246,244,255,.65);font-size:14px;line-height:1.55}
+button,a.btn{display:block;width:100%;box-sizing:border-box;padding:16px 18px;border-radius:16px;border:0;font:inherit;font-weight:800;font-size:17px;color:#fff;text-decoration:none;cursor:pointer;
+  background:linear-gradient(135deg,#ffb347,#ff5f8f 55%,#8b6cff);box-shadow:0 14px 40px rgba(255,95,143,.4)}
+button:active{transform:scale(.98)}
+a.btn{margin-top:10px;background:rgba(255,255,255,.08);box-shadow:none;font-size:14px;font-weight:600;color:rgba(246,244,255,.75)}
+.done{margin-top:16px;font-size:13px;color:#7be0b0;min-height:20px;line-height:1.5}
 .hide{display:none}
 </style>
 </head>
 <body>
 <div class="box">
-  <span class="moon" id="moon">🌑</span>
-  <h1 id="h">Opening in Chrome…</h1>
-  <p id="p">Your payment page opens in the browser, where your UPI apps can be opened directly.<br>पेमेंट पेज ब्राउज़र में खुल रहा है।</p>
-  <button id="go" class="hide">Open in Chrome · Chrome में खोलें</button>
-  <a id="link" class="btn hide" target="_blank" rel="noopener">Open in browser</a>
-  <div class="small hide" id="note">If nothing happens, tap the button above.</div>
+  <span class="ic">🌐</span>
+  <h1>Pay with any UPI app</h1>
+  <p>Tap the button. The payment page opens in <b>Chrome</b>, where your UPI apps open directly with the amount and order ID filled in.<br>बटन दबाएँ, पेमेंट पेज Chrome में खुलेगा।</p>
+  <button id="go">Open in Chrome · Chrome में खोलें</button>
+  <a id="link" class="btn" target="_blank" rel="noopener">Open here instead · यहीं खोलें</a>
+  <div class="done" id="done"></div>
 </div>
 <script>
 (function () {
@@ -35,26 +37,20 @@ a.btn,button{display:block;width:100%;padding:15px 18px;border-radius:16px;borde
   try { if (tg) { tg.ready(); tg.expand(); tg.setHeaderColor && tg.setHeaderColor("#07070d"); tg.setBackgroundColor && tg.setBackgroundColor("#07070d"); } } catch (e) {}
   var k = new URLSearchParams(location.search).get("k") || "";
   var url = location.origin + "/pay?k=" + encodeURIComponent(k);
-  var MOONS = ["🌑", "🌒", "🌓", "🌔", "🌕", "🌖", "🌗", "🌘"], i = 0, moon = document.getElementById("moon");
-  var spin = setInterval(function () { i = (i + 1) % 8; moon.textContent = MOONS[i]; }, 220);
-  var opened = false;
-
-  function open() {
-    if (!k) { document.getElementById("h").textContent = "Link not valid"; document.getElementById("p").textContent = "Please tap the payment button in the bot again."; clearInterval(spin); return; }
-    try {
-      if (tg && tg.openLink) { tg.openLink(url, { try_browser: "chrome" }); opened = true; }
-      else { window.open(url, "_blank"); opened = true; }
-    } catch (e) { opened = false; }
-    if (opened) { setTimeout(function () { try { tg && tg.close && tg.close(); } catch (e) {} }, 900); }
-  }
-  var go = document.getElementById("go"), link = document.getElementById("link");
-  go.onclick = function () { open(); };
+  var go = document.getElementById("go"), link = document.getElementById("link"), done = document.getElementById("done");
   link.href = url;
-  open();
-  setTimeout(function () {                 // some phones only allow openLink after a tap: show the button
-    go.classList.remove("hide"); link.classList.remove("hide"); document.getElementById("note").classList.remove("hide");
-    link.style.marginTop = "10px"; link.style.background = "rgba(255,255,255,.1)"; link.style.boxShadow = "none";
-  }, 1800);
+  if (!k) { go.classList.add("hide"); link.classList.add("hide"); document.querySelector("h1").textContent = "Link not valid"; document.querySelector("p").textContent = "Please tap the payment button in the bot again."; return; }
+
+  // Nothing happens by itself and this window is NEVER closed automatically: it waits for the user's tap.
+  go.onclick = function () {
+    try {
+      if (tg && tg.openLink) { tg.openLink(url, { try_browser: "chrome" }); }
+      else { window.open(url, "_blank"); }
+      done.textContent = "Opened ✓  If Chrome did not open, tap the button again.";
+    } catch (e) {
+      done.textContent = "Could not open Chrome. Tap “Open here instead”.";
+    }
+  };
 })();
 </script>
 </body>

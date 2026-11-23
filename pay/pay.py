@@ -263,11 +263,13 @@ async def handle_order(request):
     ttl = order_ttl(order)
     title = (order.get("title") or ("Wallet top-up" if order.get("kind") == "WALLET" else "Payment")).strip().split("\n")[0]
     username = await bot_username(bot) if bot is not None else _BOT["username"]
+    upi = await upi_link(order)
+    query = dict(parse_qsl(urlsplit(upi).query)) if upi else {}
     return _json({
         "order_id": order["order_id"], "title": title, "amount": f"{float(order.get('amount') or 0):.2f}",
         "kind": order.get("kind"), "status": "paid" if order.get("status") == "PAID" else "open",
         "created_at": order.get("created_at"), "expires_at": float(order.get("created_at") or time.time()) + ttl,
-        "now": time.time(), "upi": await upi_link(order),
+        "now": time.time(), "upi": upi, "payee": query.get("pa", ""), "payee_name": query.get("pn", ""),
         "bot_url": f"https://t.me/{username}" if username else "",
         "supported": order.get("provider") in UPI_PROVIDERS,
     })

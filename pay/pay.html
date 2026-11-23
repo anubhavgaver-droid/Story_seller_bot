@@ -44,6 +44,14 @@ h2{font-size:13px;letter-spacing:.18em;text-transform:uppercase;color:var(--mute
 .app.other{grid-column:1 / -1;justify-content:center}
 .app.other .ic{background:linear-gradient(135deg,#444,#222);font-size:18px}
 .pp{background:#5f259f}.gp{background:linear-gradient(135deg,#4285f4,#34a853 55%,#fbbc05)}.pt{background:#00b9f1}.bh{background:linear-gradient(135deg,#f58220,#138808)}
+.help{margin-top:12px;padding:15px 15px 13px}
+.help .hl{font-size:14px;font-weight:750;line-height:1.4}
+.help p{margin:6px 0 10px;color:var(--muted);font-size:12.5px;line-height:1.55}
+.kv{display:flex;align-items:center;gap:8px;padding:9px 11px;border-radius:12px;background:rgba(0,0,0,.28);border:1px solid var(--glass-b);margin-top:7px}
+.kv span{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);width:58px;flex:none}
+.kv code{flex:1;font-size:14px;color:#efeaff;word-break:break-all}
+.kv button{font-size:12px;font-weight:800;color:var(--a1);padding:4px 8px}
+.help ol{margin:10px 0 0;padding-left:18px;color:var(--muted);font-size:12.5px;line-height:1.6}
 .verify{margin-top:20px;width:100%;padding:17px 16px;border-radius:20px;font-weight:800;font-size:17px;color:#04170f;background:linear-gradient(135deg,#59e3a8,#2fd18b);box-shadow:0 16px 40px rgba(47,209,139,.35);display:flex;align-items:center;justify-content:center;gap:12px;transition:transform .15s,opacity .2s}
 .verify:active{transform:scale(.98)}
 .verify[disabled]{opacity:.9;cursor:default}
@@ -90,6 +98,14 @@ h2{font-size:13px;letter-spacing:.18em;text-transform:uppercase;color:var(--mute
     <h2>Pay with any UPI app</h2>
     <p class="sub">किसी भी UPI ऐप से पेमेंट करें · the app opens with the amount and order ID already filled in</p>
     <div class="apps" id="apps"></div>
+
+    <div class="card help" id="help">
+      <div class="hl">⚠️ App shows “Payment may fail / UPI Risk Policy”?<br><span style="font-weight:600;color:var(--muted)">ऐप में अलर्ट आए तो UPI ID पर खुद पेमेंट करें</span></div>
+      <p>Some apps block payments that start from a link to a personal UPI ID. Then pay to the UPI ID by hand. It takes 20 seconds and your payment is matched by itself.</p>
+      <div class="kv"><span>UPI ID</span><code id="payee">—</code><button id="cp1">Copy</button></div>
+      <div class="kv"><span>Amount</span><code id="payamt">—</code><button id="cp2">Copy</button></div>
+      <ol><li>In your app choose <b>Pay to UPI ID</b> (or “To mobile / UPI ID”).</li><li>Paste the UPI ID and type <b>exactly</b> the amount above.</li><li>Come back here and tap <b>Verify payment</b>.</li></ol>
+    </div>
 
     <button class="verify" id="verify"><span class="m" id="vm">🌑</span><span><span id="vt">Verify payment</span><small id="vs">पेमेंट वेरिफाई करें</small></span></button>
     <div class="status" id="status">After paying, you come back to this page. It checks your payment by itself.</div>
@@ -255,6 +271,8 @@ h2{font-size:13px;letter-spacing:.18em;text-transform:uppercase;color:var(--mute
       if (!res.order_id) return fail("⚠️", "Order not found", "Please go back to the bot and start the payment again.");
       order = res; offset = res.now - Date.now() / 1000; total = Math.max(60, res.expires_at - res.now);
       $("story").textContent = res.title; $("amount").textContent = "₹" + res.amount; $("oid").textContent = res.order_id;
+      $("payee").textContent = res.payee || "—"; $("payamt").textContent = res.amount;
+      $("help").classList.toggle("hide", !res.payee);
       if (res.bot_url) { $("back0").href = res.bot_url; $("back0").classList.remove("hide"); }
       if (res.status === "paid") { show("main"); return success(); }
       buildApps(); startTimer(); show("main");
@@ -267,6 +285,13 @@ h2{font-size:13px;letter-spacing:.18em;text-transform:uppercase;color:var(--mute
     try { navigator.clipboard.writeText(v); } catch (e) {}
     $("copy").textContent = "Copied ✓"; setTimeout(function () { $("copy").textContent = "Copy"; }, 1600);
   };
+  function copier(btn, from) {
+    btn.onclick = function () {
+      try { navigator.clipboard.writeText($(from).textContent); } catch (e) {}
+      btn.textContent = "Copied ✓"; setTimeout(function () { btn.textContent = "Copy"; }, 1600);
+    };
+  }
+  copier($("cp1"), "payee"); copier($("cp2"), "payamt");
   $("utrgo").onclick = function () {
     var utr = $("utr").value.replace(/\s+/g, "");
     if (!/^\d{12}$/.test(utr)) return setStatus("The UTR is exactly 12 digits.", true);
